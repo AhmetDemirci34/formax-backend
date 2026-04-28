@@ -1,0 +1,17 @@
+🔒 FORMAX — v1.3 Live Snapshot Patch
+Tarih: 2026-03-03 08:16
+
+Hedef:
+- Live oynanma sinyali geldiği anda MatchOynanmaSnapshots tablosuna otomatik snapshot yazmak.
+
+Ne değişti:
+- IMatchOynanmaSnapshotWriter interface (yoksa eklendi)
+- Infrastructure: MatchOynanmaSnapshotWriter (30 sn throttle + aynı skor yazmama)
+- SapmaMotor: ageSeconds<=45 ve AnalysisMuted=false iken writer çağrısı (sync bridge)
+- API Program.cs: DI kaydı (AddScoped)
+
+Kilitli kurallar:
+- Patlamaz
+- Spam yazmaz (30 sn)
+- Bayat veride yazmaz
+- Source='Live'

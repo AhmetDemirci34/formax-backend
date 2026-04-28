@@ -1,0 +1,20 @@
+🔒 FORMAX — v1.3 Backtest Paketi
+Tarih: 2026-03-02 15:21
+
+Eklendi:
+- Domain: MatchOynanmaSnapshot
+- DB: MatchOynanmaSnapshots (db/001_create_MatchOynanmaSnapshots.sql)
+- Application: BacktestService + DTO
+- API: /api/admin/backtest/run
+
+Kullanım:
+1) FormaxDB'de SQL scripti çalıştır.
+2) Snapshot üretimi (canlı oynanma akışında) ileride otomatik kaydedilecek.
+   Şimdilik backtest için snapshot yoksa requireSnapshot=false ile koşabilirsin (oynanma=50 kabul edilir).
+3) Test:
+   GET /api/admin/backtest/run?sampleSize=200&requireSnapshot=false&minSapma=0
+   GET /api/admin/backtest/run?sampleSize=300&requireSnapshot=true&minSapma=75
+
+Amaç:
+"Sapma gerçekten maç sonucu ile korelasyon gösteriyor mu?" sorusunu ölçmek.
+Abartı yok, yönlendirme yok.

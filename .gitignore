@@ -1,0 +1,6 @@
+.vs/
+obj/
+bin/
+node_modules/
+.env
+*.log
