@@ -142,6 +142,8 @@ public static class DependencyInjection
         // 🏛️ FORMAX Historical Data Platform — CSV import motoru
         services.AddScoped<Historical.IHistoricalImportService, Historical.HistoricalImportService>();
         services.AddScoped<Historical.Features.IHistoricalFeatureService, Historical.Features.HistoricalFeatureService>();
+        services.AddScoped<Historical.Features.IFeatureStoreBuilder, Historical.Features.FeatureStoreBuilder>();
+        services.AddScoped<Historical.Features.IFeatureStoreReader, Historical.Features.FeatureStoreReader>();
 
         // 🚀 FORMAX GDP — Engine Integration Pipeline (uçtan uca; tüm aşamalar tek akışta)
         services.AddGlobalDataPipeline();

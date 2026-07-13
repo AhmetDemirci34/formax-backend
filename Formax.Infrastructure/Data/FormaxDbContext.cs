@@ -158,6 +158,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<HistoricalTeam> HistoricalTeams { get; set; } = null!;
         public DbSet<HistoricalMatch> HistoricalMatches { get; set; } = null!;
         public DbSet<HistoricalEloRating> HistoricalEloRatings { get; set; } = null!;
+        public DbSet<MatchFeatureRecord> MatchFeatureRecords { get; set; } = null!;
         public DbSet<Lineup> Lineups { get; set; } = null!;
         public DbSet<MatchStatistics> MatchStatistics { get; set; } = null!;
         public DbSet<HeadToHead> HeadToHeads { get; set; } = null!;
@@ -463,6 +464,17 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Country).HasMaxLength(80);
                 entity.HasIndex(x => new { x.Club, x.Date });
                 entity.HasOne<HistoricalTeam>().WithMany().HasForeignKey(x => x.HistoricalTeamId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // 🧮 Feature Store — maç başına tek feature kaydı (Probability Engine'in tek kaynağı)
+            modelBuilder.Entity<MatchFeatureRecord>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.HistoricalMatchId).IsUnique();
+                entity.HasIndex(x => x.MatchDate);
+                entity.Property(x => x.FeatureHash).IsRequired().HasMaxLength(64);
+                entity.Property(x => x.FeaturesJson).IsRequired();
+                entity.HasOne<HistoricalMatch>().WithMany().HasForeignKey(x => x.HistoricalMatchId).OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<CompetitionStanding>(entity =>
