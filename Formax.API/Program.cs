@@ -131,6 +131,10 @@ builder.Services.AddDbContext<FormaxDbContext>(options =>
 
 builder.Services.AddInfrastructure();
 
+// ---------------- GDP: provider bootstrap (onaylı provider'lar; ayarlar bootstrap katmanında) ----------------
+Formax.Infrastructure.Providers.Bootstrap.ProviderBootstrapServiceCollectionExtensions
+    .AddProviderBootstrap(builder.Services);
+
 // ---------------- OPTIONS ----------------
 builder.Services.Configure<AIBehaviorOptions>(
     builder.Configuration.GetSection("AI"));
@@ -545,6 +549,11 @@ builder.Services.AddScoped<UserProfileEngine>();
 // ---------------- APP ----------------
 
 var app = builder.Build();
+
+// ---------------- GDP: provider başlangıç kayıtları (ayarlar ProviderBootstrap katmanında) ----------------
+app.Services
+    .GetRequiredService<Formax.Infrastructure.Providers.Bootstrap.ProviderBootstrap>()
+    .Run();
 
 if (app.Environment.IsDevelopment())
 {

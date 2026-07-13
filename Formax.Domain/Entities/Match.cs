@@ -18,6 +18,12 @@ namespace Formax.Domain.Entities
         public string League { get; set; } = string.Empty;
         public int LeagueId { get; set; }
 
+        // Kanonik Competition bağı (Team gibi FK ile; GDP fikstüründen çözülür). Opsiyonel.
+        public int? CompetitionId { get; set; }
+
+        // Kanonik Venue bağı (Competition ile aynı pattern; GDP fikstüründen çözülür). Opsiyonel.
+        public int? VenueId { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public string? LastEmittedEventType { get; set; }
@@ -31,5 +37,9 @@ namespace Formax.Domain.Entities
         // 🔥 NEW NAV
         public Team? HomeTeam { get; set; }
         public Team? AwayTeam { get; set; }
+
+        public Competition? Competition { get; set; }
+
+        public Venue? Venue { get; set; }
     }
 }

@@ -82,9 +82,63 @@ namespace Formax.Infrastructure.Data
         public DbSet<AIWeightConfig> AIWeightConfigs { get; set; }
         public DbSet<UserAction> UserActions { get; set; }
 
+        // 🌐 FORMAX Canonical Domain — GDP tarafından beslenen eksik entity'ler (Domain tamamlama)
+        public DbSet<Player> Players { get; set; } = null!;
+        public DbSet<Competition> Competitions { get; set; } = null!;
+        public DbSet<CompetitionStanding> CompetitionStandings { get; set; } = null!;
+        public DbSet<Coach> Coaches { get; set; } = null!;
+        public DbSet<Referee> Referees { get; set; } = null!;
+        public DbSet<Venue> Venues { get; set; } = null!;
+        public DbSet<Lineup> Lineups { get; set; } = null!;
+        public DbSet<MatchStatistics> MatchStatistics { get; set; } = null!;
+        public DbSet<HeadToHead> HeadToHeads { get; set; } = null!;
+        public DbSet<NewsArticle> NewsArticles { get; set; } = null!;
+        public DbSet<MatchWeather> MatchWeathers { get; set; } = null!;
+        public DbSet<Injury> Injuries { get; set; } = null!;
+        public DbSet<Suspension> Suspensions { get; set; } = null!;
+        public DbSet<Transfer> Transfers { get; set; } = null!;
+
+        // 🌐 FORMAX GDP — yalnızca METADATA (maç verisi mevcut Domain Match aggregate'ında tutulur)
+        public DbSet<Formax.Infrastructure.Persistence.GdpMatchLink> GdpMatchLinks { get; set; } = null!;
+        public DbSet<Formax.Infrastructure.Persistence.GdpProviderFieldProvenance> GdpProviderFieldProvenances { get; set; } = null!;
+        public DbSet<Formax.Infrastructure.Persistence.GdpConflictResolution> GdpConflictResolutions { get; set; } = null!;
+        public DbSet<Formax.Infrastructure.Persistence.GdpProviderMatchReference> GdpProviderMatchReferences { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // 🌐 FORMAX canonical entity yapılandırması (maç-ilişkili alanlar indekslenir)
+            modelBuilder.Entity<Lineup>().Property(x => x.FormaxMatchId).HasMaxLength(64);
+            modelBuilder.Entity<Lineup>().HasIndex(x => x.FormaxMatchId);
+            modelBuilder.Entity<MatchStatistics>().Property(x => x.FormaxMatchId).HasMaxLength(64);
+            modelBuilder.Entity<MatchStatistics>().HasIndex(x => x.FormaxMatchId);
+            modelBuilder.Entity<HeadToHead>().Property(x => x.FormaxMatchId).HasMaxLength(64);
+            modelBuilder.Entity<HeadToHead>().HasIndex(x => x.FormaxMatchId);
+            modelBuilder.Entity<NewsArticle>().Property(x => x.FormaxMatchId).HasMaxLength(64);
+            modelBuilder.Entity<MatchWeather>().Property(x => x.FormaxMatchId).HasMaxLength(64);
+
+            // 🌐 FORMAX GDP metadata yapılandırması (maç verisi Domain Match'te; burada yalnızca metadata)
+            modelBuilder.Entity<Formax.Infrastructure.Persistence.GdpMatchLink>(entity =>
+            {
+                entity.HasKey(x => x.FormaxMatchId);
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(64);
+                entity.Property(x => x.Round).HasMaxLength(64);
+                entity.HasIndex(x => x.MatchId);
+                entity.HasMany(x => x.Provenance).WithOne().HasForeignKey(x => x.FormaxMatchId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasMany(x => x.ConflictResolutions).WithOne().HasForeignKey(x => x.FormaxMatchId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasMany(x => x.ProviderReferences).WithOne().HasForeignKey(x => x.FormaxMatchId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Formax.Infrastructure.Persistence.GdpProviderFieldProvenance>()
+                .Property(x => x.FormaxMatchId).HasMaxLength(64);
+            modelBuilder.Entity<Formax.Infrastructure.Persistence.GdpConflictResolution>()
+                .Property(x => x.FormaxMatchId).HasMaxLength(64);
+            modelBuilder.Entity<Formax.Infrastructure.Persistence.GdpProviderMatchReference>(entity =>
+            {
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(64);
+                entity.HasIndex(x => new { x.FormaxMatchId, x.ProviderName, x.ProviderMatchId }).IsUnique();
+            });
 
             modelBuilder.Entity<UserStats>()
                 .HasKey(x => x.UserId);
@@ -117,6 +171,39 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.League)
                       .IsRequired()
                       .HasMaxLength(120);
+                entity.HasOne(x => x.Competition)
+                      .WithMany()
+                      .HasForeignKey(x => x.CompetitionId)
+                      .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(x => x.Venue)
+                      .WithMany()
+                      .HasForeignKey(x => x.VenueId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<Competition>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Name).IsRequired().HasMaxLength(120);
+                entity.HasIndex(x => x.Name).IsUnique();
+                entity.Property(x => x.Country).HasMaxLength(80);
+            });
+
+            modelBuilder.Entity<Venue>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Name).IsRequired().HasMaxLength(160);
+                entity.HasIndex(x => x.Name).IsUnique();
+                entity.Property(x => x.City).HasMaxLength(120);
+                entity.Property(x => x.Country).HasMaxLength(80);
+            });
+
+            modelBuilder.Entity<CompetitionStanding>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.CompetitionName).IsRequired().HasMaxLength(120);
+                entity.Property(x => x.TeamName).IsRequired().HasMaxLength(120);
+                entity.HasIndex(x => new { x.CompetitionName, x.TeamName }).IsUnique();
             });
 
             modelBuilder.Entity<Team>(entity =>
