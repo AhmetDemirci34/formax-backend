@@ -116,6 +116,7 @@ public class RecommendationEngine : IRecommendationEngine
             if (marketConfidence > 0.9)
                 finalScore *= 0.95;
 
+
             var card = new RecommendationCardDto
             {
                 MatchId = match.MatchId,
@@ -125,6 +126,8 @@ public class RecommendationEngine : IRecommendationEngine
 
                 TeamA = teamA,
                 TeamB = teamB,
+               
+                LeagueName = match.LeagueName,
 
                 Score = finalScore * 100,
 

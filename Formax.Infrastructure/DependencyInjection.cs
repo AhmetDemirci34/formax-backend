@@ -2,6 +2,8 @@
 using Formax.Application.AI.Recommendation;
 using Formax.Application.Interfaces;
 using Formax.Application.Interfaces.Repositories;
+using Formax.Application.Services.Nabiz;
+using Formax.Infrastructure.Nabiz;
 using Formax.Application.Services;
 using Formax.Application.Services.AdminDashboard;
 using Formax.Application.Services.AI;
@@ -92,6 +94,32 @@ public static class DependencyInjection
         services.AddScoped<ExternalTrendService>();
        
 
+
+        // ── Sprint 1: Lineup repositories ────────────────────────────────────
+        services.AddScoped<IMatchLineupRepository, MatchLineupRepository>();
+        services.AddScoped<IMatchPlayerStatusRepository, MatchPlayerStatusRepository>();
+
+        // ── Sprint 2: Standings & competition context repositories ────────────
+        services.AddScoped<ILeagueStandingRepository, LeagueStandingRepository>();
+        services.AddScoped<ICompetitionContextRepository, CompetitionContextRepository>();
+        services.AddScoped<ILeagueExternalMappingRepository, LeagueExternalMappingRepository>();
+
+        // ── Sprint 3: Live match intelligence repositories ────────────────────
+        services.AddScoped<IMatchLiveStatsRepository, MatchLiveStatsRepository>();
+        services.AddScoped<IMatchMomentumRepository, MatchMomentumRepository>();
+        services.AddScoped<IMatchLiveEventIngestionRepository, MatchLiveEventIngestionRepository>();
+
+        // ── Sprint 3b: Distributed ingestion lock ─────────────────────────────
+        services.AddScoped<ILiveIngestionLockRepository, LiveIngestionLockRepository>();
+
+        // ── Sprint 0: Fixture sync ─────────────────────────────────────────────
+        services.AddScoped<IFixtureSyncRepository, FixtureSyncRepository>();
+        services.AddScoped<IFixtureSyncLockRepository, FixtureSyncLockRepository>();
+
+        // ── Sprint 4: NABIZ feed intelligence ─────────────────────────────────
+        services.AddScoped<INabizFeedRepository, NabizFeedRepository>();
+        services.AddSingleton<NabizRelevanceEngine>();
+        services.AddScoped<INabizFeedFetcher, NabizRssFeedFetcher>();
 
         return services;
     }

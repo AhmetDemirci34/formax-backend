@@ -81,10 +81,222 @@ namespace Formax.Infrastructure.Data
 
         public DbSet<AIWeightConfig> AIWeightConfigs { get; set; }
         public DbSet<UserAction> UserActions { get; set; }
+        public DbSet<UserPreferenceWeights> UserPreferenceWeights { get; set; }
+        public DbSet<MatchBanditStats> MatchBanditStats { get; set; }
+
+        // ── Sprint 1: Lineup engine ──────────────────────────────────────────
+        public DbSet<MatchLineup> MatchLineups { get; set; } = null!;
+        public DbSet<MatchLineupPlayer> MatchLineupPlayers { get; set; } = null!;
+        public DbSet<MatchPlayerStatus> MatchPlayerStatuses { get; set; } = null!;
+
+        // ── Sprint 2: Standings & competition context ─────────────────────────
+        public DbSet<LeagueStanding> LeagueStandings { get; set; } = null!;
+        public DbSet<CompetitionContext> CompetitionContexts { get; set; } = null!;
+        public DbSet<LeagueExternalMapping> LeagueExternalMappings { get; set; } = null!;
+
+        // ── Sprint 3: Live match intelligence ─────────────────────────────────
+        public DbSet<MatchLiveStats> MatchLiveStats { get; set; } = null!;
+        public DbSet<MatchMomentumSnapshot> MatchMomentumSnapshots { get; set; } = null!;
+
+        // ── Sprint 3b: Distributed ingestion lock ──────────────────────────────
+        public DbSet<LiveIngestionLock> LiveIngestionLocks { get; set; } = null!;
+
+        // ── Sprint 0: Fixture sync distributed lock ─────────────────────────────
+        public DbSet<FixtureSyncLock> FixtureSyncLocks { get; set; } = null!;
+
+        // ── Sprint 4: NABIZ feed intelligence ──────────────────────────────────
+        public DbSet<MatchSocialFeedItem> MatchSocialFeedItems { get; set; } = null!;
+
+        // ── R.8.1: Radar Source Engine — Source Registry ───────────────────────
+        public DbSet<SourceDefinition> SourceDefinitions { get; set; } = null!;
+        public DbSet<SourceStatus> SourceStatuses { get; set; } = null!;
+
+        // ── R.8.5: Radar Source Engine — Staging ───────────────────────────────
+        public DbSet<StagedSourceItem> StagedSourceItems { get; set; } = null!;
+
+        // ── R.8.6: Radar Source Engine — Health ────────────────────────────────
+        public DbSet<SourceHealthSnapshot> SourceHealthSnapshots { get; set; } = null!;
+
+        // ── R.8.7: Radar Source Engine — Monitor ───────────────────────────────
+        public DbSet<SourceMonitorSnapshot> SourceMonitorSnapshots { get; set; } = null!;
+
+        // ── R.9.1: Radar Match Intelligence ────────────────────────────────────
+        public DbSet<MatchIntelligenceSnapshot> MatchIntelligenceSnapshots { get; set; } = null!;
+
+        // ── R.10.1: Radar News Intelligence ────────────────────────────────────
+        public DbSet<NewsIntelligenceSnapshot> NewsIntelligenceSnapshots { get; set; } = null!;
+
+        // ── R.11.1: Radar Odds Movement ────────────────────────────────────────
+        public DbSet<OddsSnapshot> OddsSnapshots { get; set; } = null!;
+        public DbSet<OddsMovementSnapshot> OddsMovementSnapshots { get; set; } = null!;
+
+        // ── R.12.1: Radar Commentary ───────────────────────────────────────────
+        public DbSet<MatchCommentarySnapshot> MatchCommentarySnapshots { get; set; } = null!;
+
+        // ── R.14.1: Radar Learning Events ──────────────────────────────────────
+        public DbSet<LearningEvent> LearningEvents { get; set; } = null!;
+
+        // ── Data Engine v1: Global Fixture Discovery ───────────────────────────
+        public DbSet<Fixture> Fixtures { get; set; } = null!;
+
+        // ── Data Engine v2: Global News Discovery ──────────────────────────────
+        public DbSet<MatchNewsArticle> MatchNewsArticles { get; set; } = null!;
+
+        // ── Data Engine v2.1: Match Intelligence Evidence Store ────────────────
+        public DbSet<MatchEvidenceRecord> MatchEvidenceRecords { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // ── Data Engine v1: Fixtures (FORMAX_MATCH_ID benzersiz kimlik) ─────
+            modelBuilder.Entity<Fixture>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.FormaxMatchId).IsUnique();
+                entity.HasIndex(x => x.KickoffUtc);
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Country).HasMaxLength(96);
+                entity.Property(x => x.League).HasMaxLength(160);
+                entity.Property(x => x.Season).HasMaxLength(32);
+                entity.Property(x => x.Round).HasMaxLength(64);
+                entity.Property(x => x.HomeTeam).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.AwayTeam).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.Venue).HasMaxLength(160);
+                entity.Property(x => x.Status).HasMaxLength(32);
+                entity.Property(x => x.Sources).HasMaxLength(256);
+            });
+
+            // ── Data Engine v2: MatchNewsArticles (FORMAX_MATCH_ID altında haber) ──
+            modelBuilder.Entity<MatchNewsArticle>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.ContentHash).IsUnique();
+                entity.HasIndex(x => x.FormaxMatchId);
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Headline).HasMaxLength(512).IsRequired();
+                entity.Property(x => x.Summary).HasMaxLength(1024);
+                entity.Property(x => x.Url).HasMaxLength(1024);
+                entity.Property(x => x.Sources).HasMaxLength(512);
+                entity.Property(x => x.Language).HasMaxLength(8);
+                entity.Property(x => x.Clusters).HasMaxLength(256);
+                entity.Property(x => x.ContentHash).HasMaxLength(48).IsRequired();
+            });
+
+            // ── Data Engine v2.1: Evidence Store ───────────────────────────────
+            modelBuilder.Entity<MatchEvidenceRecord>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.ContentHash).IsUnique();
+                entity.HasIndex(x => x.FormaxMatchId);
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Type).HasMaxLength(48);
+                entity.Property(x => x.Cluster).HasMaxLength(256);
+                entity.Property(x => x.Source).HasMaxLength(160);
+                entity.Property(x => x.Headline).HasMaxLength(512).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(48).IsRequired();
+            });
+
+            // ── R.8.1: Radar Source Registry ───────────────────────────────────
+            modelBuilder.Entity<SourceDefinition>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.SourceKey).IsUnique();
+                entity.Property(x => x.SourceKey).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Name).HasMaxLength(256);
+                entity.Property(x => x.FailoverGroup).HasMaxLength(128);
+                entity.Property(x => x.Type).HasConversion<int>();
+                entity.Property(x => x.Category).HasConversion<int>();
+                entity.Property(x => x.Lifecycle).HasConversion<int>();
+            });
+
+            modelBuilder.Entity<SourceStatus>(entity =>
+            {
+                entity.HasKey(x => x.SourceId);
+                entity.Property(x => x.SourceId).ValueGeneratedNever();
+                entity.Property(x => x.CircuitState).HasConversion<int>();
+            });
+
+            // R.8.5 — staging mapping (this codebase configures inline, so the
+            // configuration class must be applied explicitly to take effect).
+            modelBuilder.ApplyConfiguration(
+                new Formax.Infrastructure.Configurations.StagedSourceItemConfiguration());
+
+            // R.8.6 — Radar source health snapshot.
+            modelBuilder.Entity<SourceHealthSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.SourceId);
+                entity.Property(x => x.SourceId).ValueGeneratedNever();
+                entity.Property(x => x.SourceKey).HasMaxLength(128);
+                entity.Property(x => x.Status).HasConversion<int>();
+            });
+
+            // R.8.7 — Radar source monitor snapshot.
+            modelBuilder.Entity<SourceMonitorSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.SourceId);
+                entity.Property(x => x.SourceId).ValueGeneratedNever();
+                entity.Property(x => x.SourceKey).HasMaxLength(128);
+                entity.Property(x => x.Reason).HasMaxLength(512);
+                entity.Property(x => x.Status).HasConversion<int>();
+                entity.Property(x => x.AlertType).HasConversion<int>();
+            });
+
+            // R.9.1 — Radar match intelligence snapshot (+ R.9.6 importance).
+            modelBuilder.Entity<MatchIntelligenceSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.Status).HasConversion<int>();
+                entity.Property(x => x.PrimarySignalType).HasConversion<int>();
+                entity.Property(x => x.Summary).HasMaxLength(512);
+                entity.Property(x => x.ImportanceLevel).HasConversion<int>();
+                entity.Property(x => x.NewsImpactLevel).HasConversion<int>();
+                entity.Property(x => x.SyntheticSignalLevel).HasConversion<int>();
+                entity.Property(x => x.SyntheticDirection).HasConversion<int>();
+            });
+
+            // R.10.1 — Radar news intelligence snapshot (+ R.10.3 impact).
+            modelBuilder.Entity<NewsIntelligenceSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.ImpactLevel).HasConversion<int>();
+            });
+
+            // R.11.1 — Radar odds movement.
+            modelBuilder.Entity<OddsSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.MatchId, x.CapturedAtUtc });
+            });
+            modelBuilder.Entity<OddsMovementSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.MatchId, x.ComputedAtUtc });
+                entity.Property(x => x.Direction).HasConversion<int>();
+                entity.Property(x => x.Level).HasConversion<int>();
+            });
+
+            // R.12.1 — Radar match commentary.
+            modelBuilder.Entity<MatchCommentarySnapshot>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.Headline).HasMaxLength(256);
+                entity.Property(x => x.Summary).HasMaxLength(1024);
+                entity.Property(x => x.Tone).HasConversion<int>();
+                entity.Property(x => x.Visibility).HasConversion<int>();
+            });
+
+            // R.14.1 — Radar learning event.
+            modelBuilder.Entity<LearningEvent>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.UserId, x.OccurredAtUtc });
+                entity.Property(x => x.EventType).HasConversion<int>();
+                entity.Property(x => x.Source).HasMaxLength(32);
+            });
 
             modelBuilder.Entity<UserStats>()
                 .HasKey(x => x.UserId);
@@ -117,15 +329,24 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.League)
                       .IsRequired()
                       .HasMaxLength(120);
+
+                // ── Sprint 0: fast upsert lookup by external provider ID ──────
+                entity.HasIndex(x => x.ExternalMatchId)
+                      .HasDatabaseName("IX_Matches_ExternalMatchId")
+                      .IsUnique();
             });
 
             modelBuilder.Entity<Team>(entity =>
             {
                 entity.HasKey(x => x.Id);
                 entity.Property(x => x.Name).IsRequired();
+
+                // ── Sprint 0: fast upsert lookup by external provider ID ──────
+                entity.HasIndex(x => x.ExternalTeamId)
+                      .HasDatabaseName("IX_Teams_ExternalTeamId")
+                      .IsUnique();
             });
 
-            // 🔥 KRİTİK FIX (WithMany → navigation bağlandı)
             modelBuilder.Entity<Match>()
                 .HasOne(m => m.HomeTeam)
                 .WithMany(t => t.HomeMatches)
@@ -141,6 +362,141 @@ namespace Formax.Infrastructure.Data
             modelBuilder.Entity<UserPick>()
                 .HasIndex(x => new { x.UserId, x.MatchId })
                 .IsUnique();
+
+            // 🔥 EKLEDİK (KRİTİK)
+            modelBuilder.Entity<MatchBanditStats>()
+                .HasKey(x => x.MatchId);
+
+            modelBuilder.Entity<UserPreferenceWeights>()
+                .HasKey(x => x.UserId);
+
+            // ── Sprint 2: Standings & competition context ────────────────────
+
+            // LeagueStanding — composite PK (LeagueId, SeasonYear, TeamId)
+            modelBuilder.Entity<LeagueStanding>(entity =>
+            {
+                entity.HasKey(x => new { x.LeagueId, x.SeasonYear, x.TeamId });
+                entity.Property(x => x.TeamName).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.Form).HasMaxLength(20);
+                entity.Ignore(x => x.GoalDifference);   // computed property — not stored
+                entity.HasIndex(x => new { x.LeagueId, x.SeasonYear });
+            });
+
+            // CompetitionContext — MatchId is PK
+            modelBuilder.Entity<CompetitionContext>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.CompetitionType).HasMaxLength(20).IsRequired();
+                entity.Property(x => x.StageName).HasMaxLength(120);
+                entity.Property(x => x.ContextHeadline).HasMaxLength(200);
+                entity.Property(x => x.ContextSummary).HasMaxLength(500);
+            });
+
+            // LeagueExternalMapping — LeagueId is PK (simple int)
+            modelBuilder.Entity<LeagueExternalMapping>(entity =>
+            {
+                entity.HasKey(x => x.LeagueId);
+                entity.Property(x => x.LeagueId).ValueGeneratedNever();
+                entity.Property(x => x.ExternalLeagueId).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.LeagueName).HasMaxLength(120);
+            });
+
+            // ── Sprint 1: Lineup engine ──────────────────────────────────────
+
+            // MatchLineup — one row per match, MatchId is PK + explicit FK to Matches
+            modelBuilder.Entity<MatchLineup>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+
+                entity.HasOne(x => x.Match)
+                      .WithMany()
+                      .HasForeignKey(x => x.MatchId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // MatchLineupPlayer — Guid PK, index on MatchId for fast reads
+            modelBuilder.Entity<MatchLineupPlayer>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Side).HasMaxLength(10).IsRequired();
+                entity.Property(x => x.Role).HasMaxLength(10).IsRequired();
+                entity.Property(x => x.Position).HasMaxLength(5);
+                entity.Property(x => x.PlayerName).HasMaxLength(120).IsRequired();
+                entity.HasIndex(x => x.MatchId);
+            });
+
+            // MatchPlayerStatus — Guid PK, index on MatchId
+            modelBuilder.Entity<MatchPlayerStatus>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Status).HasMaxLength(20).IsRequired();
+                entity.Property(x => x.PlayerName).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.Reason).HasMaxLength(256);
+                entity.HasIndex(x => x.MatchId);
+            });
+
+            // ── Sprint 3: Live match intelligence ────────────────────────────
+
+            // MatchLiveStats — MatchId is PK (one row per match)
+            modelBuilder.Entity<MatchLiveStats>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.Phase).HasMaxLength(10);
+            });
+
+            // MatchMomentumSnapshot — Guid PK, compound index for fast per-match queries
+            modelBuilder.Entity<MatchMomentumSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.MatchId, x.MinuteBucket });
+            });
+
+            // MatchLiveEvent — Detail column (Sprint 3 extension of existing entity)
+            modelBuilder.Entity<MatchLiveEvent>(entity =>
+            {
+                entity.Property(x => x.Detail).HasMaxLength(200);
+            });
+
+            // ── Sprint 3b: Distributed ingestion lock ────────────────────────
+            // Singleton row — Id is always 1, never auto-generated.
+            modelBuilder.Entity<LiveIngestionLock>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Id).ValueGeneratedNever();
+                entity.Property(x => x.OwnerInstanceId).HasMaxLength(200).IsRequired();
+            });
+
+            // ── Sprint 0: Fixture sync distributed lock ───────────────────────
+            // Singleton row — Id is always 1, never auto-generated.
+            modelBuilder.Entity<FixtureSyncLock>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Id).ValueGeneratedNever();
+                entity.Property(x => x.OwnerInstanceId).HasMaxLength(200).IsRequired();
+            });
+
+            // ── Sprint 4: NABIZ feed intelligence ────────────────────────────
+            modelBuilder.Entity<MatchSocialFeedItem>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Source).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Author).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Headline).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.Summary).HasMaxLength(600);
+                entity.Property(x => x.ImageUrl).HasMaxLength(1000);
+                entity.Property(x => x.SourceUrl).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
+
+                // ContentHash must be globally unique — deduplication guard
+                entity.HasIndex(x => x.ContentHash).IsUnique();
+
+                // Fast per-match feed query
+                entity.HasIndex(x => new { x.MatchId, x.PublishedAt });
+            });
         }
     }
 }

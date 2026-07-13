@@ -10,4 +10,6 @@ public interface IAppDbContext
     DbSet<MatchTrendStat> MatchTrendStats { get; set; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     DbSet<UserAction> UserActions { get; }
+    DbSet<UserPreferenceWeights> UserPreferenceWeights { get; set; }
+    DbSet<MatchBanditStats> MatchBanditStats { get; set; }
 }

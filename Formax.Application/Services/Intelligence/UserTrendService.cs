@@ -6,7 +6,6 @@ namespace Formax.Application.Services.Intelligence;
 public class UserTrendService
 {
     private readonly IUserActionRepository _repo;
-    private static readonly Random _random = new();
 
     public UserTrendService(IUserActionRepository repo)
     {
@@ -133,8 +132,11 @@ public class UserTrendService
                 .Max();
         }
 
-        // 🔥 EXPLORATION (kontrollü randomness)
-        double exploration = _random.NextDouble() * 0.25;
+        // Exploration is handled deterministically by the MatchBandit UCB term
+        // in GetRecommendationFeedUseCase. A second per-request random exploration
+        // here made the recommendation score non-deterministic between requests,
+        // shifting the global ordering and causing the same match to appear on
+        // two pages (duplicate React key). Removed — single exploration source.
 
         // 🔥 FINAL SCORE (AGRESİF + AKILLI)
         var final =
@@ -142,8 +144,7 @@ public class UserTrendService
             (oddsBoost * 0.10) +
             (recencyBoost * 0.10) +
             (matchBoost * 0.10) +
-            (userBaseScore * 0.03) +
-            exploration;
+            (userBaseScore * 0.03);
 
         return Math.Tanh(final);
     }

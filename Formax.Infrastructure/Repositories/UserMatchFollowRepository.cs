@@ -38,7 +38,7 @@ public class UserMatchFollowRepository : IUserMatchFollowRepository
     public async Task<List<UserMatchFollow>> GetByUserAsync(int userId)
     {
         return await _context.UserMatchFollows
-            .Where(x => x.UserId == userId)
+            .Where(x => x.UserId == userId && x.IsActive)
             .ToListAsync();
     }
 
@@ -49,4 +49,8 @@ public class UserMatchFollowRepository : IUserMatchFollowRepository
             .ToListAsync();
     }
 
+    /// <inheritdoc />
+    public int CountByMatchId(int matchId)
+        => _context.UserMatchFollows
+            .Count(x => x.MatchId == matchId && x.IsActive);
 }

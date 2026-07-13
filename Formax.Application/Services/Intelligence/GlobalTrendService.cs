@@ -38,7 +38,17 @@ public class GlobalTrendService
 
             foreach (var a in actions)
             {
-                var actionScore = a.ActionType == 1 ? 1 : -1;
+                // ActionType-based weighting (replaces binary ==1 ? +1 : -1).
+                // Codes: 1=like, 3=follow, 2=detail, 0=view, -1=skip.
+                var actionScore = a.ActionType switch
+                {
+                    1  =>  1.0,   // like
+                    3  =>  0.8,   // follow
+                    2  =>  0.5,   // detail open
+                    0  =>  0.0,   // view (neutral)
+                    -1 => -1.0,   // skip
+                    _  =>  0.0
+                };
 
                 var ageMin = (now - a.CreatedAt).TotalMinutes;
 

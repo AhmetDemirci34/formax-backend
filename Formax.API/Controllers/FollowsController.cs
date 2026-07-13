@@ -1,17 +1,31 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Formax.API.Controllers
 {
     [ApiController]
     [Route("api/follows")]
+    [Authorize]
     public class FollowsController : ControllerBase
     {
+        private int GetUserId()
+        {
+            var raw = User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                      ?? User?.FindFirstValue("sub")
+                      ?? User?.FindFirstValue("userId");
+            return int.TryParse(raw, out var id) ? id : 0;
+        }
+
         [HttpPost("{matchId}")]
         public async Task<IActionResult> Follow(
             int matchId,
             [FromServices] FollowMatchUseCase useCase)
         {
-            int userId = 1; // şimdilik sabit
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
             await useCase.ExecuteAsync(userId, matchId);
             return Ok();
         }
@@ -21,7 +35,8 @@ namespace Formax.API.Controllers
             int matchId,
             [FromServices] UnfollowMatchUseCase useCase)
         {
-            int userId = 1;
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
             await useCase.ExecuteAsync(userId, matchId);
             return Ok();
         }
@@ -30,8 +45,20 @@ namespace Formax.API.Controllers
         public async Task<IActionResult> MyFollows(
             [FromServices] GetFollowedMatchesUseCase useCase)
         {
-            int userId = 1;
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
             return Ok(await useCase.ExecuteAsync(userId));
+        }
+
+        /// <summary>Returns the match IDs the current user follows — lightweight endpoint for UI state.</summary>
+        [HttpGet("me/ids")]
+        public async Task<IActionResult> MyFollowIds(
+            [FromServices] IUserMatchFollowRepository repository)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+            var follows = await repository.GetByUserAsync(userId);
+            return Ok(follows.Select(f => f.MatchId).ToList());
         }
     }
 }

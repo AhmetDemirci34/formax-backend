@@ -21,11 +21,6 @@ namespace Formax.API.Controllers
             return Ok(result);
         }
 
-        [HttpGet("coupon/{couponId}")]
-        public IActionResult AnalyzeCoupon(int couponId)
-        {
-            var result = _service.AnalyzeCoupon(couponId);
-            return Ok(result);
-        }
+        
     }
 }

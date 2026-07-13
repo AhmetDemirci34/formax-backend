@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+:root {
+  /* FORMAX dark theme — primary design language */
+  --bg-base:     #0d0f14;
+  --bg-card:     #161a23;
+  --bg-elevated: #1d2230;
+  --bg-hover:    #222840;
+
+  --accent:      #4f6ef7;
+  --accent-dim:  #3a54d0;
+  --green:       #22c55e;
+  --amber:       #f59e0b;
+  --red:         #ef4444;
+
+  --text-primary:   #f0f2f8;
+  --text-secondary: #8b91a8;
+  --text-muted:     #555c74;
+
+  --border:      #262d3f;
+  --border-dim:  #1e2333;
+
+  /* FORMAX Discover (PNG) — imza palet genişlemesi (additive) */
+  --bg-deep:        #07070C;   /* near-black section zemini */
+  --bg-glass:       #14141C;
+  --neon:           #2EE66E;   /* imza neon yeşil */
+  --neon-deep:      #34D27A;
+  --signal-purple:  #A855F7;
+  --signal-amber:   #F5A623;
+  --signal-red:     #F5454D;   /* oran ↑ / kritik */
+  --signal-blue:    #4DA6FF;
+  --signal-yellow:  #F5C84B;
+}
+
+@theme inline {
+  --color-bg-base:     var(--bg-base);
+  --color-bg-card:     var(--bg-card);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover:    var(--bg-hover);
+  --color-accent:      var(--accent);
+  --color-accent-dim:  var(--accent-dim);
+  --color-formax-green:  var(--green);
+  --color-formax-amber:  var(--amber);
+  --color-formax-red:    var(--red);
+  --color-text-primary:   var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted:     var(--text-muted);
+  --color-border:     var(--border);
+  --color-border-dim: var(--border-dim);
+
+  /* PNG palet → Tailwind sınıfları (bg-bg-deep, text-neon, text-signal-purple…) */
+  --color-bg-deep:        var(--bg-deep);
+  --color-bg-glass:       var(--bg-glass);
+  --color-neon:           var(--neon);
+  --color-neon-deep:      var(--neon-deep);
+  --color-signal-purple:  var(--signal-purple);
+  --color-signal-amber:   var(--signal-amber);
+  --color-signal-red:     var(--signal-red);
+  --color-signal-blue:    var(--signal-blue);
+  --color-signal-yellow:  var(--signal-yellow);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar        { width: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FORMAX Discover — Layout System tokens (additive; mevcut tokenları bozmaz)
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --app-max-width: 430px;          /* layout.tsx telefon çerçevesiyle hizalı */
+  --header-height: 60px;           /* PNG ile hizalı */
+  --bottom-nav-height: 84px;       /* global BottomNav yüksekliği + boşluk */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Shadow / radius ölçek (Design System) */
+  --shadow-card: 0 20px 50px rgba(0, 0, 0, .55);
+  --shadow-elevated: 0 30px 80px rgba(0, 0, 0, .65);
+  --radius-card: 22px;
+  --radius-section: 28px;
+}
+
+/* ── Glass Effect — tek reçete (GlassCard bunu kullanır) ── */
+.fx-glass {
+  background: linear-gradient(180deg, var(--bg-glass) 0%, var(--bg-deep) 100%);
+  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, .06);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+/* ── Glow System — renk-eşli dış parıltı (premium) ── */
+.fx-glow-green  { box-shadow: 0 0 46px rgba(46, 230, 110, .55), 0 0 16px rgba(46, 230, 110, .40); }
+.fx-glow-purple { box-shadow: 0 0 30px rgba(168, 85, 247, .45); }
+.fx-glow-amber  { box-shadow: 0 0 30px rgba(245, 166, 35, .45); }
+/* Yumuşak parıltı (avatar gibi küçük öğeler) */
+.fx-glow-soft-green { box-shadow: 0 0 14px rgba(46, 230, 110, .28); }
+/* Drop-shadow glow (aktif nav ikonu, confidence ring) */
+.fx-icon-glow-green { filter: drop-shadow(0 0 9px rgba(46, 230, 110, .7)); }
+/* Confidence ring için daha derin, katmanlı premium glow */
+.fx-ring-glow-green { filter: drop-shadow(0 0 6px rgba(46, 230, 110, .55)) drop-shadow(0 0 14px rgba(46, 230, 110, .4)); }
+
+/* ── Stadium atmosfer (Hero placeholder) — sahne ışıkları + neon taban ── */
+.fx-stadium {
+  background:
+    /* köşe vignette — sinematik derinlik */
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0, 0, 0, .55) 100%),
+    /* taban neon parıltı */
+    radial-gradient(65% 38% at 50% 118%, rgba(46, 230, 110, .20), transparent 60%),
+    /* iki yandan sahne ışığı huzmeleri */
+    radial-gradient(38% 80% at 8% 0%, rgba(120, 160, 255, .16), transparent 60%),
+    radial-gradient(38% 80% at 92% 0%, rgba(120, 160, 255, .14), transparent 60%),
+    /* üst orta ana spot */
+    radial-gradient(85% 50% at 50% -12%, rgba(150, 185, 255, .22), transparent 62%),
+    /* koyu zemin gradyanı */
+    linear-gradient(180deg, #0c1526 0%, #090d18 45%, var(--bg-deep) 100%);
+}
+
+/* ── Oyuncu spotlight parıltısı (takım tonu) ── */
+.fx-player-blue { background: radial-gradient(60% 62% at 50% 80%, rgba(77, 166, 255, .40), transparent 66%); }
+.fx-player-red  { background: radial-gradient(60% 62% at 50% 80%, rgba(245, 69, 77, .40), transparent 66%); }
+
+/* ── Ambient zemin — çok hafif radial + premium his ── */
+.fx-ambient {
+  background:
+    radial-gradient(120% 55% at 50% -8%, rgba(46, 230, 110, .055), transparent 55%),
+    radial-gradient(90% 50% at 100% 102%, rgba(168, 85, 247, .045), transparent 60%);
+}
+
+/* ── Gradient System ── */
+.fx-grad-cta {
+  background: linear-gradient(135deg, var(--neon) 0%, var(--neon-deep) 100%);
+}
+.fx-section-glow {
+  background: radial-gradient(130% 85% at 100% 0%, rgba(168, 85, 247, .12), transparent 60%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+}

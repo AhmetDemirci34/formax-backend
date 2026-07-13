@@ -54,15 +54,14 @@ namespace Formax.API.Controllers
 
         [AllowAnonymous]
         [HttpGet("recommendations")]
-        public async Task<IActionResult> GetRecommendations()
+        public async Task<IActionResult> GetRecommendations(int page = 1, int pageSize = 10)
         {
             var userId = ReadUserIdFromClaims();
 
-            // 🔥 CRITICAL FIX
             if (userId == null || userId == 0)
                 userId = 1;
 
-            var feed = await _getRecommendationFeedUseCase.Execute(userId.Value);
+            var feed = await _getRecommendationFeedUseCase.Execute(userId.Value, page, pageSize);
 
             foreach (var item in feed)
             {

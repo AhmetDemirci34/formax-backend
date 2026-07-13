@@ -55,8 +55,10 @@ namespace Formax.Infrastructure.Repositories
         // 🔥 LIST API (DTO projection — DOĞRU)
         public async Task<IReadOnlyList<MatchListItemDto>> GetMatchListAsync()
         {
-            var startDate = DateTime.UtcNow.AddDays(-30);
-            var endDate = DateTime.UtcNow.AddDays(30);
+            var utcNow = DateTime.UtcNow;
+            var liveThreshold = utcNow.AddMinutes(-105);
+            var startDate = utcNow.AddDays(-30);
+            var endDate = utcNow.AddDays(30);
 
             var query =
                 from m in _context.Matches.AsNoTracking()
@@ -83,14 +85,132 @@ namespace Formax.Infrastructure.Repositories
                         ? "superlig"
                         : m.League.ToLower(),
                     StartTime = m.MatchDate,
-                    Score = null,
-                    Minute = null,
-                    Status = m.Status
+
+                    // Derive status from match date — no dependency on stale DB Status column
+                    Status = m.MatchDate > utcNow
+                        ? "Scheduled"
+                        : m.MatchDate >= liveThreshold
+                            ? "Live"
+                            : "Finished",
+
+                    Score = m.MatchDate <= utcNow
+                        ? new ScoreDto
+                        {
+                            Home = m.HomeScore,
+                            Away = m.AwayScore
+                        }
+                        : null,
+
+                    Minute = null
                 };
 
             var list = await query.Take(50).ToListAsync();
 
             return list;
+        }
+
+        // Targeted query
+        public async Task<IReadOnlyList<MatchListItemDto>> GetMatchListByIdsAsync(IEnumerable<int> ids)
+        {
+            var idSet = ids.ToHashSet();
+
+            if (idSet.Count == 0)
+                return Array.Empty<MatchListItemDto>();
+
+            var utcNow = DateTime.UtcNow;
+            var liveThreshold = utcNow.AddMinutes(-105);
+
+            var query =
+                from m in _context.Matches.AsNoTracking()
+
+                where idSet.Contains(m.Id)
+
+                join ht in _context.Teams.AsNoTracking()
+                    on m.HomeTeamId equals ht.Id into htj
+                from home in htj.DefaultIfEmpty()
+
+                join at in _context.Teams.AsNoTracking()
+                    on m.AwayTeamId equals at.Id into atj
+                from away in atj.DefaultIfEmpty()
+
+                orderby m.MatchDate descending
+
+                select new MatchListItemDto
+                {
+                    MatchId = m.Id,
+                    HomeTeam = home != null ? home.Name : "Team A",
+                    AwayTeam = away != null ? away.Name : "Team B",
+                    League = string.IsNullOrWhiteSpace(m.League)
+                        ? "superlig"
+                        : m.League.ToLower(),
+                    StartTime = m.MatchDate,
+
+                    Status = m.MatchDate > utcNow
+                        ? "Scheduled"
+                        : m.MatchDate >= liveThreshold
+                            ? "Live"
+                            : "Finished",
+
+                    Score = m.MatchDate <= utcNow
+                        ? new ScoreDto
+                        {
+                            Home = m.HomeScore,
+                            Away = m.AwayScore
+                        }
+                        : null,
+
+                    Minute = null
+                };
+
+            return await query.ToListAsync();
+        }
+
+        // 🔥 NEW — TEAM RECENT MATCHES
+        public List<Match> GetRecentMatchesForTeam(int teamId, int count = 5)
+        {
+            var utcNow = DateTime.UtcNow;
+            var liveThreshold = utcNow.AddMinutes(-105);
+
+            return _context.Matches
+                .Include(x => x.HomeTeam)
+                .Include(x => x.AwayTeam)
+                .AsNoTracking()
+                .Where(m =>
+                    (m.HomeTeamId == teamId || m.AwayTeamId == teamId) &&
+                    m.MatchDate < liveThreshold
+                )
+                .OrderByDescending(m => m.MatchDate)
+                .Take(count)
+                .ToList();
+        }
+
+        // 🔥 NEW — HEAD TO HEAD
+        public List<Match> GetHeadToHeadMatches(
+            int homeTeamId,
+            int awayTeamId,
+            int count = 5)
+        {
+            var utcNow = DateTime.UtcNow;
+            var liveThreshold = utcNow.AddMinutes(-105);
+
+            return _context.Matches
+                .Include(x => x.HomeTeam)
+                .Include(x => x.AwayTeam)
+                .AsNoTracking()
+                .Where(m =>
+                    (
+                        m.HomeTeamId == homeTeamId &&
+                        m.AwayTeamId == awayTeamId
+                    ) ||
+                    (
+                        m.HomeTeamId == awayTeamId &&
+                        m.AwayTeamId == homeTeamId
+                    )
+                )
+                .Where(m => m.MatchDate < liveThreshold)
+                .OrderByDescending(m => m.MatchDate)
+                .Take(count)
+                .ToList();
         }
     }
 }

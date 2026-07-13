@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FORMAX V2 Wireframe</title>
+<style>
+  :root {
+    --bg-base:     #0d0f14;
+    --bg-card:     #161a23;
+    --bg-elevated: #1d2230;
+    --bg-hover:    #222840;
+    --accent:      #4f6ef7;
+    --accent-dim:  #3a54d0;
+    --green:       #22c55e;
+    --amber:       #f59e0b;
+    --red:         #ef4444;
+    --purple:      #a855f7;
+    --gold:        #eab308;
+    --text-primary:   #f0f2f8;
+    --text-secondary: #8b91a8;
+    --text-muted:     #555c74;
+    --border:      #262d3f;
+    --border-dim:  #1e2333;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-base);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--text-primary);
+    padding: 32px 24px 64px;
+    min-height: 100vh;
+  }
+
+  .page-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .page-title span { color: var(--accent); font-size: 13px; font-weight: 900; }
+  .page-title::after { content: ''; flex: 1; height: 1px; background: var(--border-dim); }
+
+  /* ── Layout ── */
+  .sections {
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+    max-width: 430px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border-dim); }
+
+  .diff-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .diff-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .diff-col-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    opacity: 0.6;
+  }
+
+  /* ── Zone annotation ── */
+  .zone-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    opacity: 0.5;
+    margin-bottom: 2px;
+  }
+
+  /* ── Context badge colors ── */
+  .badge-derby        { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+  .badge-title        { background: rgba(234,179,8,0.15);  color: #fbbf24; border: 1px solid rgba(234,179,8,0.3); }
+  .badge-relegation   { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+  .badge-european     { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+  .badge-standard     { background: rgba(79,110,247,0.12); color: #818cf8; border: 1px solid rgba(79,110,247,0.2); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* ── Confidence dots ── */
+  .conf-dots { display: flex; gap: 3px; align-items: center; }
+  .conf-dot  { width: 6px; height: 6px; border-radius: 50%; }
+  .conf-dot.on  { background: var(--green); }
+  .conf-dot.dim { background: var(--bg-elevated); border: 1px solid var(--border); }
+
+  /* ────────────────────────────────────────
+     CARD V1 (reference)
+  ──────────────────────────────────────── */
+  .card-v1 {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .card-v1-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 8px;
+  }
+  .v1-label { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .card-v1-teams {
+    padding: 6px 14px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .team-name-v1 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .vs-sep { font-size: 10px; font-weight: 500; color: var(--text-muted); padding: 0 4px; }
+  .card-v1-momentum { padding: 0 14px 10px; }
+  .momentum-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+  .momentum-bar { height: 3px; background: var(--bg-elevated); border-radius: 99px; overflow: hidden; }
+  .momentum-fill { height: 100%; background: var(--accent); border-radius: 99px; width: 78%; }
+  .card-v1-summary { padding: 0 14px 10px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .card-v1-tags { padding: 0 14px 10px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { font-size: 9px; color: var(--text-muted); border: 1px solid var(--border); padding: 2px 7px; border-radius: 99px; }
+  .card-v1-footer {
+    display: flex;
+    border-top: 1px solid var(--border-dim);
+  }
+  .footer-btn {
+    flex: 1;
+    padding: 10px 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .footer-btn.primary { color: var(--accent); font-weight: 700; border-left: 1px solid var(--border-dim); border-right: 1px solid var(--border-dim); }
+
+  /* V1 annotation */
+  .v1-annotation {
+    font-size: 9px;
+    color: var(--red);
+    opacity: 0.7;
+    margin-left: 4px;
+  }
+
+  /* ────────────────────────────────────────
+     CARD V2
+  ──────────────────────────────────────── */
+  .card-v2 {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  /* Zone 1 — HOOK */
+  .z1-hook {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--border-dim);
+  }
+  .z1-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+  .z1-time small {
+    display: block;
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  /* Zone 2 — TEAMS */
+  .z2-teams {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px 14px 4px;
+    gap: 6px;
+  }
+  .team-name-v2 { font-size: 15px; font-weight: 800; color: var(--text-primary); line-height: 1.2; }
+  .team-name-v2.away { text-align: right; }
+  .team-sep {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding-top: 4px;
+    shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* Zone 3 — STAKES */
+  .z3-stakes {
+    padding: 6px 14px 8px;
+  }
+  .stakes-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--amber);
+    line-height: 1.4;
+  }
+
+  /* Zone 4 — INTELLIGENCE */
+  .z4-intel {
+    padding: 0 14px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .intel-text {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    flex: 1;
+  }
+  .momentum-mini {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 52px;
+  }
+  .momentum-mini-label {
+    font-size: 8px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .momentum-mini-bar {
+    width: 52px;
+    height: 4px;
+    background: var(--bg-elevated);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .momentum-mini-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    width: 78%;
+  }
+  .momentum-mini-pct {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* Zone 5 — CONFIDENCE */
+  .z5-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 14px 8px;
+    border-top: 1px solid var(--border-dim);
+  }
+  .z5-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  /* Zone footer */
+  .card-v2-footer {
+    display: flex;
+    border-top: 1px solid var(--border-dim);
+  }
+
+  /* ────────────────────────────────────────
+     HEADER V1 (reference)
+  ──────────────────────────────────────── */
+  .header-v1 {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .hv1-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .hv1-league { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .hv1-status-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+  }
+  .hv1-scoreboard { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .hv1-team { flex: 1; text-align: center; }
+  .hv1-rank { font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
+  .hv1-team-name { font-size: 16px; font-weight: 800; color: var(--text-primary); line-height: 1.2; }
+  .hv1-score-center { text-align: center; min-width: 80px; }
+  .hv1-time { font-size: 17px; font-weight: 800; color: var(--text-primary); }
+  .hv1-date { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .hv1-meta {
+    display: flex;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-dim);
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+
+  /* ────────────────────────────────────────
+     HEADER V2
+  ──────────────────────────────────────── */
+  .header-v2 {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  /* Zone 0 — CONTEXT */
+  .hz0-context {
+    padding: 10px 14px;
+    background: rgba(234,179,8,0.06);
+    border-bottom: 1px solid rgba(234,179,8,0.15);
+  }
+  .hz0-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .hz0-stakes { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+
+  /* Zone 1 — LEAGUE + STATUS */
+  .hz1-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 0;
+  }
+  .hz1-league { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+
+  /* Zone 2 — SCOREBOARD */
+  .hz2-scoreboard {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 12px;
+  }
+  .hz2-team { flex: 1; }
+  .hz2-team.away { text-align: right; }
+  .hz2-rank { font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+  .hz2-team-name { font-size: 16px; font-weight: 800; color: var(--text-primary); line-height: 1.2; }
+  .hz2-center { text-align: center; min-width: 88px; }
+  .hz2-time { font-size: 18px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.02em; }
+  .hz2-countdown { font-size: 10px; color: var(--accent); font-weight: 600; margin-top: 3px; }
+
+  /* Zone 3 — VENUE + REFEREE */
+  .hz3-meta {
+    padding: 10px 14px 12px;
+    border-top: 1px solid var(--border-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .hz3-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+  }
+  .hz3-label { color: var(--text-muted); font-weight: 500; min-width: 50px; }
+  .hz3-value { color: var(--text-secondary); font-weight: 600; }
+  .hz3-right { color: var(--text-muted); font-size: 10px; }
+
+  /* ── Change annotations ── */
+  .change-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+  .change-note .icon { font-size: 10px; margin-top: 1px; flex-shrink: 0; }
+  .change-note.add    .icon { color: var(--green); }
+  .change-note.remove .icon { color: var(--red); }
+  .change-note.move   .icon { color: var(--amber); }
+  .change-note.fix    .icon { color: var(--accent); }
+
+  /* ── Zone highlight bracket ── */
+  .zone-bracket {
+    position: relative;
+    margin-left: 0;
+  }
+  .zone-bracket::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-dim);
+    border-radius: 1px;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--border-dim);
+    margin: 0 14px;
+  }
+
+  /* ── Arrow between V1 → V2 ── */
+  .arrow-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 4px 0;
+    gap: 6px;
+  }
+
+  /* ── Section heading ── */
+  .sec-heading {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sec-heading .sec-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    font-size: 10px;
+    font-weight: 900;
+    color: white;
+  }
+
+  .status-badge-scheduled {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <span>FORMAX</span>
+  Information Hierarchy V2 · Wireframe
+</div>
+
+<div class="sections">
+
+  <!-- ══════════════════════════════════════════
+       SECTION 1 — HOME FEED CARD
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="sec-heading">
+      <span class="sec-num">1</span>
+      Home Feed Card
+    </div>
+
+    <!-- V1 Reference -->
+    <div class="diff-col-label" style="margin-bottom:8px; color:var(--red); opacity:0.7;">V1 — Mevcut</div>
+    <div class="card-v1">
+      <div class="card-v1-header">
+        <span class="v1-label">Lider Derbisi <span class="v1-annotation">← küçük, muted</span></span>
+        <div class="conf-dots">
+          <div class="conf-dot on"></div>
+          <div class="conf-dot on"></div>
+          <div class="conf-dot on"></div>
+        </div>
+      </div>
+      <div class="card-v1-teams">
+        <span class="team-name-v1">Galatasaray</span>
+        <span class="vs-sep">VS <span class="v1-annotation">← jenerik</span></span>
+        <span class="team-name-v1">Fenerbahçe</span>
+      </div>
+      <div class="card-v1-momentum">
+        <div class="momentum-row">
+          <span>78%</span>
+          <span>Momentum <span class="v1-annotation">← taraf belirsiz</span></span>
+          <span>22%</span>
+        </div>
+        <div class="momentum-bar"><div class="momentum-fill"></div></div>
+      </div>
+      <div class="card-v1-summary">
+        Galatasaray ev sahibi avantajıyla güçlü konumda. Form farkı belirgin, piyasa sinyali de ev sahibini işaret ediyor.
+        <span class="v1-annotation">← analiz, hikaye değil</span>
+      </div>
+      <div class="card-v1-tags">
+        <span class="tag">Derby</span>
+        <span class="tag">Kritik Maç</span>
+        <span class="tag">Ev Sahibi Formu</span>
+      </div>
+      <div class="card-v1-footer">
+        <button class="footer-btn">Geç</button>
+        <button class="footer-btn primary">Detay</button>
+        <button class="footer-btn">Takip</button>
+      </div>
+    </div>
+
+    <!-- Missing indicators -->
+    <div style="display:flex; gap:16px; margin: 8px 0 16px; flex-wrap:wrap;">
+      <span style="font-size:10px; color:var(--red);">✗ Zaman bilgisi yok</span>
+      <span style="font-size:10px; color:var(--red);">✗ Stakes yok</span>
+      <span style="font-size:10px; color:var(--red);">✗ Venue yok</span>
+    </div>
+
+    <div class="arrow-divider">——————  V2  ——————</div>
+
+    <!-- V2 -->
+    <div class="diff-col-label" style="margin: 12px 0 8px; color:var(--green); opacity:0.8;">V2 — Proposed</div>
+    <div class="card-v2">
+
+      <!-- ZONE 1: HOOK -->
+      <div class="z1-hook">
+        <div>
+          <div class="zone-label">Zone 1 · Hook</div>
+          <div class="badge badge-title">
+            <div class="badge-dot"></div>
+            Şampiyonluk Maçı
+          </div>
+        </div>
+        <div class="z1-time">
+          Bu akşam 22:00
+          <small>38 dakika sonra</small>
+        </div>
+      </div>
+
+      <!-- ZONE 2: TEAMS -->
+      <div class="z2-teams">
+        <div>
+          <div class="zone-label">Zone 2 · Teams</div>
+          <div class="team-name-v2">Galatasaray</div>
+        </div>
+        <div class="team-sep">–</div>
+        <div>
+          <div class="team-name-v2 away">Fenerbahçe</div>
+        </div>
+      </div>
+
+      <!-- ZONE 3: STAKES -->
+      <div class="z3-stakes">
+        <div class="zone-label">Zone 3 · Stakes</div>
+        <div class="stakes-text">Galibiyetle Galatasaray şampiyon ilan eder</div>
+      </div>
+
+      <!-- ZONE 4: INTELLIGENCE -->
+      <div class="z4-intel">
+        <div>
+          <div class="zone-label">Zone 4 · Intelligence</div>
+          <div class="intel-text">Piyasa GS yönünde · Güç skoru 78</div>
+        </div>
+        <div class="momentum-mini">
+          <div class="momentum-mini-label">Momentum</div>
+          <div class="momentum-mini-bar"><div class="momentum-mini-fill"></div></div>
+          <div class="momentum-mini-pct">GS 78%</div>
+        </div>
+      </div>
+
+      <!-- ZONE 5: CONFIDENCE + TAGS -->
+      <div class="z5-meta">
+        <div>
+          <div class="zone-label">Zone 5 · Meta</div>
+          <div class="z5-tags">
+            <span class="tag">Derby</span>
+            <span class="tag">Ev Sahibi Formu</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+          <div class="zone-label" style="text-align:right;">Güven</div>
+          <div class="conf-dots">
+            <div class="conf-dot on"></div>
+            <div class="conf-dot on"></div>
+            <div class="conf-dot on"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-v2-footer">
+        <button class="footer-btn">Geç</button>
+        <button class="footer-btn primary">Detay</button>
+        <button class="footer-btn">Takip</button>
+      </div>
+    </div>
+
+    <!-- Change notes -->
+    <div style="margin-top:14px; display:flex; flex-direction:column; gap:5px;">
+      <div class="change-note add">
+        <span class="icon">＋</span>
+        Context badge renkli ve Zone 1'de — ilk bakan görür
+      </div>
+      <div class="change-note add">
+        <span class="icon">＋</span>
+        Zaman: "Bu akşam 22:00 · 38 dakika sonra" — insan dili
+      </div>
+      <div class="change-note add">
+        <span class="icon">＋</span>
+        Stakes: 1 satır, bold amber — hikaye anlatıyor
+      </div>
+      <div class="change-note move">
+        <span class="icon">↓</span>
+        Momentum: kaldırılmadı, Zone 4'te mini bar olarak korundu
+      </div>
+      <div class="change-note move">
+        <span class="icon">↓</span>
+        Confidence dots: Zone 5'e taşındı, venue ile aynı seviyede
+      </div>
+      <div class="change-note remove">
+        <span class="icon">−</span>
+        "VS" kaldırıldı — "–" ile değiştirildi
+      </div>
+      <div class="change-note remove">
+        <span class="icon">−</span>
+        AI özeti kaldırıldı — "Piyasa GS yönünde" ile sıkıştırıldı
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════
+       SECTION 2 — MATCH DETAIL HEADER
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="sec-heading">
+      <span class="sec-num">2</span>
+      Match Detail Header
+    </div>
+
+    <!-- V1 Reference -->
+    <div class="diff-col-label" style="margin-bottom:8px; color:var(--red); opacity:0.7;">V1 — Mevcut</div>
+    <div class="header-v1">
+      <div class="hv1-top">
+        <span class="hv1-league">Süper Lig · Hafta 35</span>
+        <span class="hv1-status-badge">Maç Öncesi</span>
+      </div>
+      <div class="hv1-scoreboard">
+        <div class="hv1-team">
+          <div class="hv1-rank">#1</div>
+          <div class="hv1-team-name">Galatasaray</div>
+        </div>
+        <div class="hv1-score-center">
+          <div class="hv1-time">22:00</div>
+          <div class="hv1-date">30 Mayıs 2026 <span class="v1-annotation">← soğuk</span></div>
+        </div>
+        <div class="hv1-team" style="text-align:right">
+          <div class="hv1-rank">#2</div>
+          <div class="hv1-team-name">Fenerbahçe</div>
+        </div>
+      </div>
+      <div class="hv1-meta">
+        <span>📍 Rams Park, İstanbul <span class="v1-annotation">← emoji soup</span></span>
+        <span>⚖ Ali Palabıyık</span>
+        <span>👁 1847 izliyor</span>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:16px; margin: 8px 0 16px; flex-wrap:wrap;">
+      <span style="font-size:10px; color:var(--red);">✗ Context yok</span>
+      <span style="font-size:10px; color:var(--red);">✗ Stakes yok</span>
+      <span style="font-size:10px; color:var(--red);">✗ Geri sayım yok</span>
+      <span style="font-size:10px; color:var(--red);">✗ Emoji satırı</span>
+    </div>
+
+    <div class="arrow-divider">——————  V2  ——————</div>
+
+    <!-- V2 -->
+    <div class="diff-col-label" style="margin: 12px 0 8px; color:var(--green); opacity:0.8;">V2 — Proposed</div>
+    <div class="header-v2">
+
+      <!-- ZONE 0: CONTEXT HEADER -->
+      <div class="hz0-context">
+        <div class="hz0-top">
+          <div class="zone-label">Zone 0 · Context</div>
+          <div class="badge badge-title">
+            <div class="badge-dot"></div>
+            Şampiyonluk Maçı
+          </div>
+        </div>
+        <div class="hz0-stakes">Galibiyetle Galatasaray şampiyon ilan eder</div>
+      </div>
+
+      <!-- ZONE 1: LEAGUE + STATUS -->
+      <div class="hz1-top">
+        <div>
+          <div class="zone-label">Zone 1 · League</div>
+          <span class="hz1-league">Süper Lig · Hafta 35</span>
+        </div>
+        <span class="status-badge-scheduled">Maç Öncesi</span>
+      </div>
+
+      <!-- ZONE 2: SCOREBOARD -->
+      <div class="hz2-scoreboard">
+        <div class="hz2-team">
+          <div class="zone-label">Zone 2 · Teams</div>
+          <div class="hz2-rank">#1</div>
+          <div class="hz2-team-name">Galatasaray</div>
+        </div>
+        <div class="hz2-center">
+          <div class="hz2-time">22:00</div>
+          <div class="hz2-countdown">38 dk sonra</div>
+        </div>
+        <div class="hz2-team away">
+          <div class="zone-label" style="text-align:right">&nbsp;</div>
+          <div class="hz2-rank">#2</div>
+          <div class="hz2-team-name">Fenerbahçe</div>
+        </div>
+      </div>
+
+      <!-- ZONE 3: VENUE + REFEREE -->
+      <div class="hz3-meta">
+        <div class="zone-label">Zone 3 · Venue &amp; Referee</div>
+        <div class="hz3-row">
+          <span class="hz3-label">Stadyum</span>
+          <span class="hz3-value">Rams Park, İstanbul</span>
+          <span class="hz3-right">1847 izliyor</span>
+        </div>
+        <div class="hz3-row">
+          <span class="hz3-label">Hakem</span>
+          <span class="hz3-value">Ali Palabıyık</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Change notes -->
+    <div style="margin-top:14px; display:flex; flex-direction:column; gap:5px;">
+      <div class="change-note add">
+        <span class="icon">＋</span>
+        Zone 0: Context Header scoreboard'un ÜSTÜNDE — "neden önemli" ilk satır
+      </div>
+      <div class="change-note add">
+        <span class="icon">＋</span>
+        Stakes line header'da yerleşik — scroll gerekmez
+      </div>
+      <div class="change-note add">
+        <span class="icon">＋</span>
+        Geri sayım: "38 dk sonra" — saat'in hemen altında
+      </div>
+      <div class="change-note fix">
+        <span class="icon">↗</span>
+        Venue: "Stadyum" label + değer — emoji yok, kendi satırında
+      </div>
+      <div class="change-note fix">
+        <span class="icon">↗</span>
+        Hakem: "Hakem" label + değer — emoji yok, kendi satırında
+      </div>
+      <div class="change-note remove">
+        <span class="icon">−</span>
+        Emoji satırı (📍 ⚖ 👁) tamamen kaldırıldı
+      </div>
+      <div class="change-note remove">
+        <span class="icon">−</span>
+        "30 Mayıs 2026" soğuk format kaldırıldı
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════════════════════════════════════
+       SECTION 3 — CONTEXT BADGE SYSTEM
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="sec-heading">
+      <span class="sec-num">3</span>
+      Context Badge Sistemi
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+        <div class="badge badge-title"><div class="badge-dot"></div>Şampiyonluk Maçı</div>
+        <span style="font-size:10px; color:var(--text-muted);">cardType: "Title Race"</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+        <div class="badge badge-derby"><div class="badge-dot"></div>Derby</div>
+        <span style="font-size:10px; color:var(--text-muted);">cardType: "Derby"</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+        <div class="badge badge-relegation"><div class="badge-dot"></div>Küme Hattı</div>
+        <span style="font-size:10px; color:var(--text-muted);">cardType: "Relegation"</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+        <div class="badge badge-european"><div class="badge-dot"></div>Avrupa Yarışı</div>
+        <span style="font-size:10px; color:var(--text-muted);">cardType: "European Race"</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:10px; border:1px solid var(--border);">
+        <div class="badge badge-standard"><div class="badge-dot"></div>Ev Sahibi Baskısı</div>
+        <span style="font-size:10px; color:var(--text-muted);">cardType: "Standard" → insightLabel</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════
+       SECTION 4 — COUNTDOWN SYSTEM
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="sec-heading">
+      <span class="sec-num">4</span>
+      Countdown &amp; Human-Readable Time
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:4px;">
+        <div style="font-size:9px; font-weight:700; color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase; padding:0 2px;">Zaman Durumu</div>
+        <div style="font-size:9px; font-weight:700; color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase; padding:0 2px;">Gösterim</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border);">
+        <span style="font-size:10px; color:var(--text-muted);">&gt; 7 gün kaldı</span>
+        <span style="font-size:12px; font-weight:600; color:var(--text-secondary);">14 Haziran · Cumartesi</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border);">
+        <span style="font-size:10px; color:var(--text-muted);">2–7 gün kaldı</span>
+        <span style="font-size:12px; font-weight:600; color:var(--text-secondary);">Cumartesi 22:00</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border);">
+        <span style="font-size:10px; color:var(--text-muted);">Yarın</span>
+        <span style="font-size:12px; font-weight:600; color:var(--text-secondary);">Yarın 19:00</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:8px; border:1px solid var(--border);">
+        <span style="font-size:10px; color:var(--text-muted);">Bugün, &gt; 6 saat</span>
+        <span style="font-size:12px; font-weight:700; color:var(--text-primary);">Bu akşam 22:00</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:8px; border:1px solid rgba(79,110,247,0.3);">
+        <span style="font-size:10px; color:var(--text-muted);">Bugün, 1–6 saat</span>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:var(--text-primary);">Bu akşam 22:00</div>
+          <div style="font-size:10px; font-weight:600; color:var(--accent);">3 saat sonra</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:var(--bg-card); border-radius:8px; border:1px solid rgba(79,110,247,0.4);">
+        <span style="font-size:10px; color:var(--text-muted);">15 dk–1 saat</span>
+        <div>
+          <div style="font-size:13px; font-weight:800; color:var(--accent);">38 dakika sonra</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; padding:8px 12px; background:rgba(239,68,68,0.06); border-radius:8px; border:1px solid rgba(239,68,68,0.25);">
+        <span style="font-size:10px; color:var(--text-muted);">&lt; 15 dakika</span>
+        <div style="font-size:12px; font-weight:800; color:#f87171;">Az kaldı · 22:00</div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:8px; font-size:10px; color:var(--text-muted); line-height:1.6;">
+      Tüm zaman hesabı tek utility'den gelir: <span style="color:var(--accent); font-weight:600;">formatMatchTime(matchDate)</span><br>
+      Refresh: yalnızca &lt; 6 saat kaldığında client-side interval (60s)
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

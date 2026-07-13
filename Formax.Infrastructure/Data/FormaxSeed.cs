@@ -16,10 +16,10 @@ namespace Formax.Infrastructure.Data
                 if (!context.Teams.Any())
                 {
                     context.Teams.AddRange(
-                        new Team { Name = "Galatasaray", CreatedAt = DateTime.UtcNow },
-                        new Team { Name = "Fenerbahçe", CreatedAt = DateTime.UtcNow },
-                        new Team { Name = "Beşiktaş", CreatedAt = DateTime.UtcNow },
-                        new Team { Name = "Trabzonspor", CreatedAt = DateTime.UtcNow }
+                        new Team { Name = "Galatasaray", LeagueRank = 1, AvgGoalsFor = 2.2, AvgGoalsAgainst = 0.8, IsStableTeam = true,  CreatedAt = DateTime.UtcNow },
+                        new Team { Name = "Fenerbahçe",  LeagueRank = 2, AvgGoalsFor = 2.0, AvgGoalsAgainst = 1.0, IsStableTeam = true,  CreatedAt = DateTime.UtcNow },
+                        new Team { Name = "Beşiktaş",    LeagueRank = 3, AvgGoalsFor = 1.4, AvgGoalsAgainst = 1.4, IsStableTeam = false, CreatedAt = DateTime.UtcNow },
+                        new Team { Name = "Trabzonspor", LeagueRank = 4, AvgGoalsFor = 1.1, AvgGoalsAgainst = 1.8, IsStableTeam = false, CreatedAt = DateTime.UtcNow }
                     );
 
                     context.SaveChanges();
@@ -91,7 +91,59 @@ namespace Formax.Infrastructure.Data
                         }
                     };
 
+                    // ── Geçmiş Finished maçlar (intelligence data foundation) ──
+                    // Çift devreli, asimetrik skorlu. Güç hiyerarşisi: GS > FB > BJK > TS.
+                    // Tüm tarihler geçmişte (now-105dk filtresinden geçer).
+                    // teams[0]=GS, teams[1]=FB, teams[2]=BJK, teams[3]=TS
+                    const string lig = "Türkiye - Süper Lig";
+
+                    Match Finished(int homeIdx, int awayIdx, int hs, int @as, int daysAgo) => new Match
+                    {
+                        HomeTeamId = teams[homeIdx].Id,
+                        AwayTeamId = teams[awayIdx].Id,
+                        MatchDate  = now.AddDays(-daysAgo),
+                        HomeScore  = hs,
+                        AwayScore  = @as,
+                        Status     = MatchStatuses.Finished,
+                        League     = lig,
+                        CreatedAt  = now
+                    };
+
+                    var finishedMatches = new List<Match>
+                    {
+                        Finished(0, 1, 2, 1,  7),  // GS 2-1 FB
+                        Finished(0, 2, 3, 0, 14),  // GS 3-0 BJK
+                        Finished(0, 3, 2, 0, 21),  // GS 2-0 TS
+                        Finished(1, 0, 1, 1, 28),  // FB 1-1 GS
+                        Finished(1, 2, 2, 1, 35),  // FB 2-1 BJK
+                        Finished(1, 3, 3, 1, 42),  // FB 3-1 TS
+                        Finished(2, 0, 0, 2, 49),  // BJK 0-2 GS
+                        Finished(2, 1, 1, 1, 56),  // BJK 1-1 FB
+                        Finished(2, 3, 2, 1, 63),  // BJK 2-1 TS
+                        Finished(3, 0, 0, 1, 70),  // TS 0-1 GS
+                        Finished(3, 1, 1, 2, 77),  // TS 1-2 FB
+                        Finished(3, 2, 1, 1, 84),  // TS 1-1 BJK
+                    };
+
                     context.Matches.AddRange(matches);
+                    context.Matches.AddRange(finishedMatches);
+                    context.SaveChanges();
+
+                    // ── MatchLiveStats final kayıtları (Finished maçlar için) ──
+                    // SaveChanges sonrası finishedMatches Id'leri set edildi.
+                    // MatchId = Match.Id (PK), skorlar maçla birebir eşleşir.
+                    // MatchVerdict guard'ı (match.live.stats) ve finished skor tablosu bunu okur.
+                    var liveStats = finishedMatches.Select(m => new MatchLiveStats
+                    {
+                        MatchId   = m.Id,
+                        HomeScore = m.HomeScore,
+                        AwayScore = m.AwayScore,
+                        Minute    = 90,
+                        Phase     = "FT",
+                        UpdatedAt = now
+                    }).ToList();
+
+                    context.MatchLiveStats.AddRange(liveStats);
                     context.SaveChanges();
                 }
 

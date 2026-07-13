@@ -255,6 +255,42 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("AiSpeakTelemetries");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.CompetitionContext", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BracketJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CompetitionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ContextHeadline")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContextSummary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("StageName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("CompetitionContexts");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.Coupon", b =>
                 {
                     b.Property<int>("Id")
@@ -359,6 +395,133 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("FeedInteractionEvents");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.Fixture", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AwayTeam")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FormaxMatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("HomeTeam")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTime>("KickoffUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("League")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Round")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Season")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Sources")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Venue")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormaxMatchId")
+                        .IsUnique();
+
+                    b.HasIndex("KickoffUtc");
+
+                    b.ToTable("Fixtures");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.FixtureSyncLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("AcquiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("HeartbeatAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OwnerInstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("FixtureSyncLocks");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.GlobalTrend", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("LikeRate")
+                        .HasColumnType("float");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("float");
+
+                    b.Property<double>("SkipRate")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("GlobalTrends");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.LastExtendedContextKey", b =>
                 {
                     b.Property<int>("Id")
@@ -381,6 +544,140 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("LastExtendedContextKeys");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.LeagueExternalMapping", b =>
+                {
+                    b.Property<int>("LeagueId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExternalLeagueId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("LeagueName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("SeasonYear")
+                        .HasColumnType("int");
+
+                    b.HasKey("LeagueId");
+
+                    b.ToTable("LeagueExternalMappings");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.LeagueStanding", b =>
+                {
+                    b.Property<int>("LeagueId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SeasonYear")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Drawn")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Form")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("GoalsAgainst")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GoalsFor")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Lost")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Played")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TeamName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Won")
+                        .HasColumnType("int");
+
+                    b.HasKey("LeagueId", "SeasonYear", "TeamId");
+
+                    b.HasIndex("LeagueId", "SeasonYear");
+
+                    b.ToTable("LeagueStandings");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.LearningEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("EventType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("Value")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "OccurredAtUtc");
+
+                    b.ToTable("LearningEvents");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.LiveIngestionLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("AcquiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("HeartbeatAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OwnerInstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LiveIngestionLocks");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.Match", b =>
                 {
                     b.Property<int>("Id")
@@ -397,6 +694,9 @@ namespace Formax.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ExternalMatchId")
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("HomeScore")
                         .HasColumnType("int");
@@ -421,17 +721,79 @@ namespace Formax.Infrastructure.Migrations
                     b.Property<string>("MatchMinute")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Referee")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Status")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Venue")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AwayTeamId");
 
+                    b.HasIndex("ExternalMatchId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Matches_ExternalMatchId")
+                        .HasFilter("[ExternalMatchId] IS NOT NULL");
+
                     b.HasIndex("HomeTeamId");
 
                     b.ToTable("Matches");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchBanditStats", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MatchId"));
+
+                    b.Property<int>("Impressions")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Likes")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("MatchBanditStats");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchCommentarySnapshot", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Headline")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<int>("Tone")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Visibility")
+                        .HasColumnType("int");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("MatchCommentarySnapshots");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.MatchDiscoveryNode", b =>
@@ -462,6 +824,66 @@ namespace Formax.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MatchDiscoveryNodes");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchEvidenceRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Cluster")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FormaxMatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Headline")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime>("PublishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("SourceQuality")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContentHash")
+                        .IsUnique();
+
+                    b.HasIndex("FormaxMatchId");
+
+                    b.ToTable("MatchEvidenceRecords");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.MatchExplorationStat", b =>
@@ -520,6 +942,122 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("MatchFeedStates");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.MatchIntelligenceSnapshot", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ImportanceLevel")
+                        .HasColumnType("int");
+
+                    b.Property<double>("ImportanceScore")
+                        .HasColumnType("float");
+
+                    b.Property<int>("NewsImpactLevel")
+                        .HasColumnType("int");
+
+                    b.Property<double>("NewsImpactScore")
+                        .HasColumnType("float");
+
+                    b.Property<int>("PrimarySignalType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SignalCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SignalsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("SyntheticDirection")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SyntheticSignalLevel")
+                        .HasColumnType("int");
+
+                    b.Property<double>("SyntheticSignalScore")
+                        .HasColumnType("float");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("MatchIntelligenceSnapshots");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchLineup", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("AwayLineupsReleased")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FetchedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("HomeLineupsReleased")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ReleasedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("MatchLineups");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchLineupPlayer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsCaptain")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlayerName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("ShirtNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Side")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId");
+
+                    b.ToTable("MatchLineupPlayers");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.MatchLiveEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -528,6 +1066,10 @@ namespace Formax.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("EventType")
                         .IsRequired()
@@ -551,6 +1093,121 @@ namespace Formax.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MatchLiveEvents");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchLiveStats", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AwayScore")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CornersAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CornersHome")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DangerousAttacksAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DangerousAttacksHome")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FoulsAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FoulsHome")
+                        .HasColumnType("int");
+
+                    b.Property<int>("HomeScore")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Minute")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OffsidesAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OffsidesHome")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("PossessionAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PossessionHome")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RedAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RedHome")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ShotsAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ShotsHome")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ShotsOnTargetAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ShotsOnTargetHome")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double?>("XgAway")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("XgHome")
+                        .HasColumnType("float");
+
+                    b.Property<int>("YellowAway")
+                        .HasColumnType("int");
+
+                    b.Property<int>("YellowHome")
+                        .HasColumnType("int");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("MatchLiveStats");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchMomentumSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AwayPressure")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("HomePressure")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinuteBucket")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "MinuteBucket");
+
+                    b.ToTable("MatchMomentumSnapshots");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.MatchNarrative", b =>
@@ -585,6 +1242,76 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("MatchNarratives");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.MatchNewsArticle", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Clusters")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FormaxMatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Headline")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateTime>("PublishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sources")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContentHash")
+                        .IsUnique();
+
+                    b.HasIndex("FormaxMatchId");
+
+                    b.ToTable("MatchNewsArticles");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.MatchOynanmaSnapshot", b =>
                 {
                     b.Property<int>("Id")
@@ -608,6 +1335,43 @@ namespace Formax.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MatchOynanmaSnapshots");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchPlayerStatus", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FetchedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlayerName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId");
+
+                    b.ToTable("MatchPlayerStatuses");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.MatchRecommendationStat", b =>
@@ -708,6 +1472,82 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("MatchSapmaSnapshots");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.MatchSocialFeedItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Author")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("AuthorVerified")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Headline")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("PublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("RelevanceScore")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("SentimentScore")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<int?>("TeamId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContentHash")
+                        .IsUnique();
+
+                    b.HasIndex("MatchId", "PublishedAt");
+
+                    b.ToTable("MatchSocialFeedItems");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.MatchTrendStat", b =>
                 {
                     b.Property<Guid>("Id")
@@ -738,6 +1578,112 @@ namespace Formax.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MatchTrendStats");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.NewsIntelligenceSnapshot", b =>
+                {
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CategoryBreakdown")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ImpactLevel")
+                        .HasColumnType("int");
+
+                    b.Property<double>("ImpactScore")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("LastNewsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MentionedLeagues")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MentionedTeams")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("NewsCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("NewsIntelligenceSnapshots");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.OddsMovementSnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("ComputedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("CurrentOdds")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Delta")
+                        .HasColumnType("float");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("PreviousOdds")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "ComputedAtUtc");
+
+                    b.ToTable("OddsMovementSnapshots");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.OddsSnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<double>("AwayOdds")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("CapturedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("DrawOdds")
+                        .HasColumnType("float");
+
+                    b.Property<double>("HomeOdds")
+                        .HasColumnType("float");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "CapturedAtUtc");
+
+                    b.ToTable("OddsSnapshots");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.PredictionType", b =>
@@ -790,6 +1736,294 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("SessionInteractions");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.SourceDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Endpoint")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FailoverGroup")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("Lifecycle")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ScheduleExpr")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceKey")
+                        .IsUnique();
+
+                    b.ToTable("SourceDefinitions");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.SourceHealthSnapshot", b =>
+                {
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("AvgExecutionTimeMs")
+                        .HasColumnType("float");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("int");
+
+                    b.Property<long>("FailureCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("FailureRate")
+                        .HasColumnType("float");
+
+                    b.Property<double>("HealthScore")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("LastFailureAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastSuccessAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<long>("SuccessCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("SuccessRate")
+                        .HasColumnType("float");
+
+                    b.Property<long>("TotalExecutions")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("SourceId");
+
+                    b.ToTable("SourceHealthSnapshots");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.SourceMonitorSnapshot", b =>
+                {
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AlertType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ConsecutiveFailuresAtEval")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EvaluatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("HealthScoreAtEval")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("LastSuccessAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("MinutesSinceLastSuccess")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("SourceId");
+
+                    b.ToTable("SourceMonitorSnapshots");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.SourceStatus", b =>
+                {
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<double>("AvgDurationMs")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("CircuitOpenedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CircuitState")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DataFreshnessAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("DuplicateRate")
+                        .HasColumnType("float");
+
+                    b.Property<long>("ErrorCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ExpectedVolume")
+                        .HasColumnType("int");
+
+                    b.Property<double>("HealthScore")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("LastFailureUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastNormalizeError")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("LastSuccessUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LastVolume")
+                        .HasColumnType("int");
+
+                    b.Property<long>("SuccessCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("SuccessRate")
+                        .HasColumnType("float");
+
+                    b.Property<long>("TimeoutCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("SourceId");
+
+                    b.ToTable("SourceStatuses");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.StagedSourceItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CanonicalName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CollectedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NormalizedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Payload")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("Processed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("RawId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("RawName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int?>("ResolvedTeamId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("TtlSeconds")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("SourceId");
+
+                    b.HasIndex("Processed", "Category");
+
+                    b.ToTable("StagedSourceItems", (string)null);
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.StateTransitionLog", b =>
                 {
                     b.Property<int>("Id")
@@ -830,6 +2064,9 @@ namespace Formax.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ApiFootballTeamId")
+                        .HasColumnType("int");
+
                     b.Property<double?>("AvgGoalsAgainst")
                         .HasColumnType("float");
 
@@ -845,6 +2082,9 @@ namespace Formax.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ExternalTeamId")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<bool?>("IsStableTeam")
                         .HasColumnType("bit");
 
@@ -859,6 +2099,11 @@ namespace Formax.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalTeamId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Teams_ExternalTeamId")
+                        .HasFilter("[ExternalTeamId] IS NOT NULL");
 
                     b.ToTable("Teams");
                 });
@@ -1146,6 +2391,31 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("UserPickStats");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.UserPreferenceWeights", b =>
+                {
+                    b.Property<int>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserId"));
+
+                    b.Property<double>("LikeWeight")
+                        .HasColumnType("float");
+
+                    b.Property<double>("SkipWeight")
+                        .HasColumnType("float");
+
+                    b.Property<double>("TeamWeight")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserPreferenceWeights");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.UserSessionInterest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1411,6 +2681,9 @@ namespace Formax.Infrastructure.Migrations
                     b.Property<bool>("OpenedDetail")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Team")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -1456,6 +2729,17 @@ namespace Formax.Infrastructure.Migrations
                     b.Navigation("AwayTeam");
 
                     b.Navigation("HomeTeam");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchLineup", b =>
+                {
+                    b.HasOne("Formax.Domain.Entities.Match", "Match")
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Match");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.Coupon", b =>

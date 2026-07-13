@@ -24,7 +24,12 @@ namespace Formax.Domain.Entities
 
         public string? ColorPrimary { get; set; }
 
+        public string? ExternalTeamId { get; set; }
+
         public string? ColorSecondary { get; set; }
+
+        // Sprint 20A — API-Football team mapping
+        public int? ApiFootballTeamId { get; set; }
 
         // 🔥 JSON LOOP ENGELİ
         [JsonIgnore]

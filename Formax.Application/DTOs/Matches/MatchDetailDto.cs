@@ -1,5 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
+using Formax.Application.DTOs.Live;
+using Formax.Application.DTOs.Lineup;
+using Formax.Application.DTOs.Standings;
+using Formax.Application.DTOs.Nabiz;
 
 namespace Formax.Application.DTOs.Matches;
 
@@ -13,43 +18,188 @@ public class MatchDetailDto
     public DateTime MatchDate { get; set; }
     public string Status { get; set; } = string.Empty;
 
+    // ── Match meta ──────────────────────────────────────────────────────────────
+    public string League { get; set; } = string.Empty;
+    public string? Round { get; set; }
+    public string? Referee { get; set; }
+    public string? Venue { get; set; }
+    public string? Weather { get; set; }
+    public int WatchersCount { get; set; }
+
+    // ── Form history (last 10 matches each) ─────────────────────────────────────
     public List<LastMatchDto> HomeTeamLastMatches { get; set; } = new();
     public List<LastMatchDto> AwayTeamLastMatches { get; set; } = new();
+
+    // ── Analysis ────────────────────────────────────────────────────────────────
+    public ComparisonDto Comparison { get; set; } = new();
+    [JsonPropertyName("h2h")]
+    public H2HDto H2H { get; set; } = new();
+    public InsightDto Insight { get; set; } = new();
 
     public SapmaDto Sapma { get; set; } = new();
     public AiDto Ai { get; set; } = new();
     public UserProtectionDto UserProtection { get; set; } = new();
+
+    // ── AI intelligence sections ─────────────────────────────────────────────────
+    public List<ProbabilityItemDto> Probabilities { get; set; } = new();
+    public List<KeyMatchupDto> KeyMatchups { get; set; } = new();
+    public MarketIntelligenceDto MarketIntelligence { get; set; } = new();
+    public RiskIntelligenceDto RiskIntelligence { get; set; } = new();
+    public TacticalMatchupDto TacticalMatchup { get; set; } = new();
+
+    // ── Sprint 1: Lineup & player status ────────────────────────────────────────
+    public LineupSectionDto Lineup { get; set; } = new();
+    public PlayerStatusSectionDto PlayerStatus { get; set; } = new();
+
+    // ── Sprint 2: Standings & competition context ────────────────────────────────
+    public StandingSectionDto? Standing { get; set; }
+    public CompetitionContextSectionDto? CompetitionContext { get; set; }
+
+    // ── Sprint 3: Live match intelligence ────────────────────────────────────────
+    public LiveSectionDto Live { get; set; } = new();
+
+    // ── Sprint 4: NABIZ feed intelligence ────────────────────────────────────────
+    public NabizSectionDto NabizFeed { get; set; } = new();
+
+    // ── Radar v2: LLM Match Intelligence narrative (opsiyonel; gelmezse UI eski davranış)
+    public RadarNarrativeDto? AiNarrative { get; set; }
 }
 
-// ---------------- SAPMA ----------------
+// TeamSummaryDto and LastMatchDto are defined in their own files
+// (TeamSummaryDto.cs, LastMatchDto.cs) in this namespace.
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Comparison
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class ComparisonDto
+{
+    public TeamComparisonDto Home { get; set; } = new();
+    public TeamComparisonDto Away { get; set; } = new();
+}
+
+public class TeamComparisonDto
+{
+    public double AvgGoalsFor { get; set; }
+    public double AvgGoalsAgainst { get; set; }
+    public int GoalScoringRate { get; set; }
+    public int CleanSheetRate { get; set; }
+    public double HomeAwayAvgGoals { get; set; }
+    public int FormScore { get; set; }
+    public int LeagueRank { get; set; }
+}
+
+// H2HDto ve H2HMatchDto → Formax.Application/DTOs/Matches/H2HDto.cs (Sprint 20B)
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Insight / AI
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class InsightDto
+{
+    public string Headline { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+}
 
 public class SapmaDto
 {
     public int OynanmaSkoru { get; set; }
     public int GucSkoru { get; set; }
     public int Sapma { get; set; }
-
-    public string OynanmaYonu { get; set; } = "";
-    public string GercekGucYonu { get; set; } = "";
-
-    public string SapmaBolgesi { get; set; } = "";
+    public string OynanmaYonu { get; set; } = string.Empty;
+    public string GercekGucYonu { get; set; } = string.Empty;
+    public string SapmaBolgesi { get; set; } = string.Empty;
     public bool SessizMi { get; set; }
-
-    public string SapmaMetni { get; set; } = "";
+    public string SapmaMetni { get; set; } = string.Empty;
 }
-
-// ---------------- AI ----------------
 
 public class AiDto
 {
-    public string State { get; set; } = "";
-    public string Summary { get; set; } = "";
+    public string State { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
 }
-
-// ---------------- USER PROTECTION ----------------
 
 public class UserProtectionDto
 {
-    public string ResponsibilityNote { get; set; } = "";
+    public string ResponsibilityNote { get; set; } = string.Empty;
     public bool DecisionIsYours { get; set; }
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// AI intelligence — probability cards
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class ProbabilityItemDto
+{
+    /// <summary>Market label: "KG VAR", "2.5 ÜST", "GS KAYBETMEZ", etc.</summary>
+    public string Market { get; set; } = string.Empty;
+
+    /// <summary>Derived probability 0–100.</summary>
+    public int Probability { get; set; }
+
+    /// <summary>Confidence tier: "YÜKSEK" | "ORTA" | "DÜŞÜK"</summary>
+    public string Confidence { get; set; } = string.Empty;
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// AI intelligence — key matchups
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class KeyMatchupDto
+{
+    public string HomePlayer { get; set; } = string.Empty;
+    public string AwayPlayer { get; set; } = string.Empty;
+    public string HomePosition { get; set; } = string.Empty;
+    public string AwayPosition { get; set; } = string.Empty;
+    public string MatchupContext { get; set; } = string.Empty;
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// AI intelligence — market intelligence
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class MarketIntelligenceDto
+{
+    public string Headline { get; set; } = string.Empty;
+    public string Detail { get; set; } = string.Empty;
+
+    /// <summary>"positive" | "negative" | "neutral"</summary>
+    public string Tone { get; set; } = "neutral";
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// AI intelligence — risk intelligence
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class RiskIntelligenceDto
+{
+    public string HomeRiskLabel { get; set; } = string.Empty;
+    public string HomeRiskDetail { get; set; } = string.Empty;
+    public string AwayRiskLabel { get; set; } = string.Empty;
+    public string AwayRiskDetail { get; set; } = string.Empty;
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// AI intelligence — tactical matchup (dual bars)
+// ────────────────────────────────────────────────────────────────────────────────
+
+public class TacticalMatchupDto
+{
+    public TacticalDimension Attack { get; set; } = new();
+    public TacticalDimension Defense { get; set; } = new();
+    public TacticalDimension Transition { get; set; } = new();
+    public TacticalDimension SetPiece { get; set; } = new();
+    public TacticalDimension Form { get; set; } = new();
+    public TacticalDimension Discipline { get; set; } = new();
+}
+
+public class TacticalDimension
+{
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Home score 0–10.</summary>
+    public double HomeScore { get; set; }
+
+    /// <summary>Away score 0–10.</summary>
+    public double AwayScore { get; set; }
 }

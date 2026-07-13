@@ -12,4 +12,7 @@ public interface IUserMatchFollowRepository
     Task RemoveAsync(int userId, int matchId);
     Task<List<UserMatchFollow>> GetByUserAsync(int userId);
     Task<List<UserMatchFollow>> GetByMatch(int matchId);
+
+    /// <summary>Synchronous follower count — safe to call from synchronous use cases.</summary>
+    int CountByMatchId(int matchId);
 }

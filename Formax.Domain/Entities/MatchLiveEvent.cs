@@ -16,6 +16,9 @@ namespace Formax.Domain.Entities
 
         public string? Player { get; set; }
 
+        /// <summary>Free-text detail from the provider, e.g. "Normal Goal", "Yellow Card".</summary>
+        public string? Detail { get; set; }
+
         public double ImpactScore { get; set; }
 
         public DateTime CreatedAt { get; set; }

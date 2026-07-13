@@ -8,14 +8,13 @@ namespace Formax.Application.Services
     public class AIAnalysisService : IAIAnalysisService
     {
         private readonly IMatchReadRepository _matchReadRepository;
-        private readonly ICouponReadRepository _couponReadRepository;
+        
 
         public AIAnalysisService(
-            IMatchReadRepository matchReadRepository,
-            ICouponReadRepository couponReadRepository)
+            IMatchReadRepository matchReadRepository )
         {
             _matchReadRepository = matchReadRepository;
-            _couponReadRepository = couponReadRepository;
+            
         }
 
         public AIAnalysisDto AnalyzeMatch(int matchId)
@@ -44,28 +43,6 @@ namespace Formax.Application.Services
             {
                 Probability = probability,
                 Comment = "Maç bazlı analiz"
-            };
-        }
-
-        public AIAnalysisDto AnalyzeCoupon(int couponId)
-        {
-            var coupon = _couponReadRepository.GetById(couponId);
-            if (coupon == null || coupon.Items.Count == 0)
-            {
-                return new AIAnalysisDto
-                {
-                    Probability = 0,
-                    Comment = "Kupon boş"
-                };
-            }
-
-            double probability = 0.55 - (coupon.Items.Count * 0.03);
-            probability = Normalize(probability);
-
-            return new AIAnalysisDto
-            {
-                Probability = probability,
-                Comment = "Kupon bazlı analiz"
             };
         }
 

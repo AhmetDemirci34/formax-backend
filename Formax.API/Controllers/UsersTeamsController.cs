@@ -2,19 +2,22 @@
 using Formax.Application.DTOs.Teams;
 using Formax.Application.Interfaces;
 using Formax.Application.UseCases.Teams;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Formax.API.Controllers
 {
     [ApiController]
     [Route("api/users/me/teams")]
+    [Authorize]
     public class UsersTeamsController : ControllerBase
     {
         [HttpGet]
         public async Task<IActionResult> GetMyTeams([FromServices] GetMyTeamsUseCase useCase)
         {
-            int userId = 1; // şimdilik sabit (senin mevcut pattern’in)
-            return Ok(await useCase.ExecuteAsync(userId));
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
+            return Ok(await useCase.ExecuteAsync(userId.Value));
         }
 
         [HttpPost]
@@ -22,8 +25,9 @@ namespace Formax.API.Controllers
             [FromBody] SetMyTeamsRequest request,
             [FromServices] SetMyTeamsUseCase useCase)
         {
-            int userId = 1;
-            await useCase.ExecuteAsync(userId, request.TeamIds);
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
+            await useCase.ExecuteAsync(userId.Value, request.TeamIds);
             return Ok();
         }
 

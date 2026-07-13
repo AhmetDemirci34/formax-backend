@@ -1,0 +1,101 @@
+"use client";
+
+import { motion, AnimatePresence } from "framer-motion";
+import { DiscoverHeader } from "@/components/discover/DiscoverHeader";
+import { DiscoverBadgeRow } from "@/components/discover/DiscoverBadgeRow";
+import { HeroCard } from "@/components/discover/HeroCard";
+import { HeroPeek } from "@/components/discover/HeroPeek";
+import { FormaxAIComment } from "@/components/discover/FormaxAIComment";
+import { ReasonChips } from "@/components/discover/ReasonChips";
+import { QuickSignals } from "@/components/discover/QuickSignals";
+import { OtherMatches } from "@/components/discover/OtherMatches";
+import { ActionBar } from "@/components/discover/ActionBar";
+import { SwipeCardStack } from "@/components/feed/SwipeCardStack";
+import { LoadingCard } from "@/components/ui/LoadingState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { useFeedQueue } from "@/hooks/useFeedQueue";
+import { useMatchDetail } from "@/hooks/useMatchDetail";
+
+export default function DiscoverScreen() {
+  const {
+    activeCard, leftPeek, rightPeek,
+    isLoading, isError, isEmpty,
+    refetch, advance, recordDetailOpen,
+  } = useFeedQueue();
+
+  // Aktif maçın gerçek detayı — model sinyalleri (2.5 Üst / KG / Sapma) için (mevcut endpoint).
+  const { data: detail } = useMatchDetail(activeCard?.matchId ?? 0);
+
+  return (
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-transparent pb-28">
+      <DiscoverHeader />
+
+      <main className="flex flex-1 flex-col">
+        {isLoading && (
+          <div className="px-5 pt-4">
+            <LoadingCard />
+          </div>
+        )}
+
+        {isError && (
+          <div className="px-5 pt-10">
+            <ErrorState
+              message="Öneriler şu an yüklenemiyor. Lütfen tekrar dene."
+              onRetry={() => refetch()}
+            />
+          </div>
+        )}
+
+        {isEmpty && (
+          <div className="space-y-3 px-5 pt-20 text-center">
+            <p className="text-3xl">🏁</p>
+            <p className="text-sm font-medium text-text-secondary">Bugünlük bu kadar.</p>
+          </div>
+        )}
+
+        {!isLoading && !isError && activeCard && (
+          <div className="flex flex-col gap-4 px-5 pt-1">
+            {/* Hero üstü rozetler */}
+            <DiscoverBadgeRow card={activeCard} />
+
+            {/* Hero (swipe edilebilir) */}
+            <SwipeCardStack
+              activeCard={activeCard}
+              leftPeek={leftPeek}
+              rightPeek={rightPeek}
+              onSwipe={advance}
+              onDetailOpen={recordDetailOpen}
+              renderPeek={(card) => <HeroPeek card={card} />}
+            >
+              {(card) => <HeroCard card={card} />}
+            </SwipeCardStack>
+
+            {/* Aktif maça ait içerik — kart değişince premium geçiş */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeCard.matchId}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="flex flex-col gap-4"
+              >
+                <FormaxAIComment card={activeCard} detail={detail} />
+                <ReasonChips card={activeCard} detail={detail} />
+                <QuickSignals card={activeCard} detail={detail} />
+                <OtherMatches excludeMatchId={activeCard.matchId} />
+              </motion.div>
+            </AnimatePresence>
+
+            {/* GEÇ · İLGİMİ ÇEKTİ */}
+            <ActionBar
+              onPass={() => advance("left")}
+              onLike={() => advance("right")}
+              disabled={!activeCard}
+            />
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
