@@ -144,6 +144,7 @@ public static class DependencyInjection
         services.AddScoped<Historical.Features.IHistoricalFeatureService, Historical.Features.HistoricalFeatureService>();
         services.AddScoped<Historical.Features.IFeatureStoreBuilder, Historical.Features.FeatureStoreBuilder>();
         services.AddScoped<Historical.Features.IFeatureStoreReader, Historical.Features.FeatureStoreReader>();
+        services.AddScoped<Historical.Dataset.IDatasetBuilder, Historical.Dataset.DatasetBuilder>();
 
         // 🚀 FORMAX GDP — Engine Integration Pipeline (uçtan uca; tüm aşamalar tek akışta)
         services.AddGlobalDataPipeline();

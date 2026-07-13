@@ -86,7 +86,8 @@ public sealed class FeatureStoreBuilder : IFeatureStoreBuilder
 
                 var vector = ComputeFromState(m, state);
                 var json = JsonSerializer.Serialize(vector, Json);
-                var hash = Hash(json);
+                var (tRes, tHg, tAg) = TargetOf(m);
+                var hash = Hash(json + "|" + (tRes ?? "?"));
 
                 if (existing.TryGetValue(m.Id, out var ex))
                 {
@@ -97,9 +98,13 @@ public sealed class FeatureStoreBuilder : IFeatureStoreBuilder
                         var rec = new MatchFeatureRecord { Id = ex.Id, HistoricalMatchId = m.Id };
                         _db.Attach(rec);
                         rec.FeaturesJson = json; rec.FeatureHash = hash; rec.LastUpdatedUtc = DateTime.UtcNow;
+                        rec.TargetResult = tRes; rec.TargetHomeGoals = tHg; rec.TargetAwayGoals = tAg;
                         _db.Entry(rec).Property(x => x.FeaturesJson).IsModified = true;
                         _db.Entry(rec).Property(x => x.FeatureHash).IsModified = true;
                         _db.Entry(rec).Property(x => x.LastUpdatedUtc).IsModified = true;
+                        _db.Entry(rec).Property(x => x.TargetResult).IsModified = true;
+                        _db.Entry(rec).Property(x => x.TargetHomeGoals).IsModified = true;
+                        _db.Entry(rec).Property(x => x.TargetAwayGoals).IsModified = true;
                         updated++;
                     }
                 }
@@ -109,7 +114,8 @@ public sealed class FeatureStoreBuilder : IFeatureStoreBuilder
                     {
                         HistoricalMatchId = m.Id, MatchDate = m.Date, HistoricalCompetitionId = m.CompId,
                         HomeTeamId = m.Home, AwayTeamId = m.Away,
-                        FeaturesJson = json, FeatureHash = hash, LastUpdatedUtc = DateTime.UtcNow
+                        FeaturesJson = json, FeatureHash = hash, LastUpdatedUtc = DateTime.UtcNow,
+                        TargetResult = tRes, TargetHomeGoals = tHg, TargetAwayGoals = tAg
                     });
                     inserted++;
                 }
@@ -261,6 +267,13 @@ public sealed class FeatureStoreBuilder : IFeatureStoreBuilder
         => $"{compId}|{(d.Month >= 7 ? d.Year : d.Year - 1)}";
 
     private static string PairKey(int a, int b) => a < b ? $"{a}|{b}" : $"{b}|{a}";
+
+    /// <summary>Model target'ı: maçın GERÇEK sonucu (label). 1X2 = H/D/A. Oynanmamışsa null.</summary>
+    private static (string? result, int? hg, int? ag) TargetOf(MatchRow m)
+    {
+        if (m.FTHome is not int h || m.FTAway is not int a) return (null, null, null);
+        return (h > a ? "H" : h == a ? "D" : "A", h, a);
+    }
 
     private static string Hash(string s)
     {

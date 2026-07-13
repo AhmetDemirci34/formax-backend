@@ -23,6 +23,12 @@ namespace Formax.Domain.Entities
         /// <summary>İçerik hash'i — aynıysa update atlanır (idempotent).</summary>
         public string FeatureHash { get; set; } = string.Empty;
 
+        // ── Model TARGET (label) — tahmin edilen sonuç. Feature DEĞİL (leakage değil); X yanında y saklanır. ──
+        /// <summary>1X2 sonucu: "H"/"D"/"A". Oynanmamışsa null.</summary>
+        public string? TargetResult { get; set; }
+        public int? TargetHomeGoals { get; set; }
+        public int? TargetAwayGoals { get; set; }
+
         public System.DateTime LastUpdatedUtc { get; set; }
     }
 }
