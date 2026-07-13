@@ -19,6 +19,16 @@ using Formax.Engine.Core.Personality;
 using Formax.Engine.Core.ProbabilityEngine;
 using Formax.Engine.Core.ScoreEngine;
 using Formax.Engine.Core.UserIntelligenceEngine;
+using Formax.Infrastructure.Conflict;
+using Formax.Infrastructure.Coverage;
+using Formax.Infrastructure.MatchIdentity;
+using Formax.Infrastructure.Merge;
+using Formax.Infrastructure.Normalize;
+using Formax.Infrastructure.Pipeline;
+using Formax.Infrastructure.Providers;
+using Formax.Infrastructure.Providers.Configuration;
+using Formax.Infrastructure.Providers.Health;
+using Formax.Infrastructure.Providers.Scheduling;
 using Formax.Infrastructure.Repositories;
 using Formax.Infrastructure.Services.Recommendation;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,8 +102,45 @@ public static class DependencyInjection
         services.AddScoped<FeedIntelligenceService>();
         services.AddScoped<UserBehaviorService>();
         services.AddScoped<ExternalTrendService>();
-       
 
+        // 🌐 FORMAX GDP — Provider Engine (iskelet; somut sağlayıcılar henüz yok)
+        services.AddProviderEngine();
+
+        // ⏱️ FORMAX GDP — Provider Scheduler (merkezi zamanlama; timer/BackgroundService henüz yok)
+        services.AddProviderScheduler();
+
+        // ❤️ FORMAX GDP — Provider Health (merkezi sağlık takibi; health algoritması henüz yok)
+        services.AddProviderHealth();
+
+        // ⚙️ FORMAX GDP — Provider Configuration (merkezi ayar; gerçek config yükleme henüz yok)
+        services.AddProviderConfiguration();
+
+        // 🔄 FORMAX GDP — Normalize Engine (iskelet; eşleştirme sonraki fazda)
+        services.AddNormalizeEngine();
+
+        // 🧩 FORMAX GDP — Match Identity Engine (iskelet; eşleştirme stratejileri sonraki fazda)
+        services.AddMatchIdentityEngine();
+
+        // 🔗 FORMAX GDP — Merge Engine (iskelet; merge stratejileri sonraki fazda)
+        services.AddMergeEngine();
+
+        // ⚖️ FORMAX GDP — Conflict Engine (iskelet; çözüm kriterleri sonraki fazda)
+        services.AddConflictEngine();
+
+        // 📊 FORMAX GDP — Coverage Engine (iskelet; kategori analizörleri sonraki fazda)
+        services.AddCoverageEngine();
+
+        // 🧭 FORMAX GDP — Match Context Resolver (gerçek Match → takım/lig/koordinat; sabit değer yok)
+        services.AddScoped<Providers.Context.IMatchContextResolver, Providers.Context.MatchContextResolver>();
+
+        // 💾 FORMAX GDP — Database Persist (son MergeResult'u kalıcılaştırır)
+        services.AddScoped<Persistence.IGdpMatchPersister, Persistence.GdpMatchPersister>();
+        services.AddScoped<Persistence.IGdpWeatherPersister, Persistence.GdpWeatherPersister>();
+        services.AddScoped<Persistence.H2H.IGdpH2HPersister, Persistence.H2H.GdpH2HPersister>();
+        services.AddScoped<Persistence.Standings.IGdpStandingsPersister, Persistence.Standings.GdpStandingsPersister>();
+
+        // 🚀 FORMAX GDP — Engine Integration Pipeline (uçtan uca; tüm aşamalar tek akışta)
+        services.AddGlobalDataPipeline();
 
         // ── Sprint 1: Lineup repositories ────────────────────────────────────
         services.AddScoped<IMatchLineupRepository, MatchLineupRepository>();

@@ -141,6 +141,10 @@ internal class Program
 
         builder.Services.AddInfrastructure();
 
+        // ---------------- GDP: provider bootstrap (onaylı ücretsiz provider'lar + config seed) ----------------
+        Formax.Infrastructure.Providers.Bootstrap.ProviderBootstrapServiceCollectionExtensions
+            .AddProviderBootstrap(builder.Services);
+
         // ---------------- OPTIONS ----------------
         builder.Services.Configure<AIBehaviorOptions>(
             builder.Configuration.GetSection("AI"));
@@ -900,6 +904,14 @@ internal class Program
         // ---------------- APP ----------------
 
         var app = builder.Build();
+
+        // ---------------- GDP: provider başlangıç kayıtları (BaseUrl'ler ProviderBootstrap katmanından) ----------------
+        using (var gdpScope = app.Services.CreateScope())
+        {
+            gdpScope.ServiceProvider
+                .GetRequiredService<Formax.Infrastructure.Providers.Bootstrap.ProviderBootstrap>()
+                .Run();
+        }
 
         app.UseCors("Frontend");
 
