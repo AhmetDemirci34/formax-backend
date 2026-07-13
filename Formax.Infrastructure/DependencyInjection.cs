@@ -139,6 +139,9 @@ public static class DependencyInjection
         services.AddScoped<Persistence.H2H.IGdpH2HPersister, Persistence.H2H.GdpH2HPersister>();
         services.AddScoped<Persistence.Standings.IGdpStandingsPersister, Persistence.Standings.GdpStandingsPersister>();
 
+        // 🏛️ FORMAX Historical Data Platform — CSV import motoru
+        services.AddScoped<Historical.IHistoricalImportService, Historical.HistoricalImportService>();
+
         // 🚀 FORMAX GDP — Engine Integration Pipeline (uçtan uca; tüm aşamalar tek akışta)
         services.AddGlobalDataPipeline();
 

@@ -152,6 +152,12 @@ namespace Formax.Infrastructure.Data
         public DbSet<Coach> Coaches { get; set; } = null!;
         public DbSet<Referee> Referees { get; set; } = null!;
         public DbSet<Venue> Venues { get; set; } = null!;
+
+        // 🏛️ FORMAX Historical Data Platform (canlı/GDP'den izole tarihsel domain)
+        public DbSet<HistoricalCompetition> HistoricalCompetitions { get; set; } = null!;
+        public DbSet<HistoricalTeam> HistoricalTeams { get; set; } = null!;
+        public DbSet<HistoricalMatch> HistoricalMatches { get; set; } = null!;
+        public DbSet<HistoricalEloRating> HistoricalEloRatings { get; set; } = null!;
         public DbSet<Lineup> Lineups { get; set; } = null!;
         public DbSet<MatchStatistics> MatchStatistics { get; set; } = null!;
         public DbSet<HeadToHead> HeadToHeads { get; set; } = null!;
@@ -413,6 +419,50 @@ namespace Formax.Infrastructure.Data
                 entity.HasIndex(x => x.Name).IsUnique();
                 entity.Property(x => x.City).HasMaxLength(120);
                 entity.Property(x => x.Country).HasMaxLength(80);
+            });
+
+            // 🏛️ Historical Data Platform yapılandırması (dedup için benzersiz kaynak anahtarları)
+            modelBuilder.Entity<HistoricalCompetition>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Division).IsRequired().HasMaxLength(16);
+                entity.HasIndex(x => x.Division).IsUnique();
+                entity.Property(x => x.Name).IsRequired().HasMaxLength(160);
+                entity.Property(x => x.Country).HasMaxLength(80);
+            });
+
+            modelBuilder.Entity<HistoricalTeam>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Name).IsRequired().HasMaxLength(160);
+                entity.Property(x => x.NormalizedKey).IsRequired().HasMaxLength(160);
+                entity.HasIndex(x => x.NormalizedKey).IsUnique();
+                entity.Property(x => x.Country).HasMaxLength(80);
+            });
+
+            modelBuilder.Entity<HistoricalMatch>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).IsRequired().HasMaxLength(200);
+                entity.HasIndex(x => x.SourceKey).IsUnique();
+                entity.HasIndex(x => x.MatchDate);
+                entity.Property(x => x.FTResult).HasMaxLength(4);
+                entity.Property(x => x.HTResult).HasMaxLength(4);
+                entity.Property(x => x.MatchTime).HasMaxLength(8);
+                entity.HasOne<HistoricalCompetition>().WithMany().HasForeignKey(x => x.HistoricalCompetitionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<HistoricalTeam>().WithMany().HasForeignKey(x => x.HomeTeamId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<HistoricalTeam>().WithMany().HasForeignKey(x => x.AwayTeamId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HistoricalEloRating>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).IsRequired().HasMaxLength(200);
+                entity.HasIndex(x => x.SourceKey).IsUnique();
+                entity.Property(x => x.Club).IsRequired().HasMaxLength(160);
+                entity.Property(x => x.Country).HasMaxLength(80);
+                entity.HasIndex(x => new { x.Club, x.Date });
+                entity.HasOne<HistoricalTeam>().WithMany().HasForeignKey(x => x.HistoricalTeamId).OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<CompetitionStanding>(entity =>
