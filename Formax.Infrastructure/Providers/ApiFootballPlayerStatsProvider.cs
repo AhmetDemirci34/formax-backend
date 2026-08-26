@@ -16,7 +16,7 @@ namespace Formax.Infrastructure.Providers
 {
     /// <summary>
     /// Oyuncu istatistik sağlayıcısı — MEVCUT api-football entegrasyonunun genişletilmişi.
-    /// Aynı config (SportsData:ApiKey/BaseUrl), aynı header (x-apisports-key), aynı IMemoryCache
+    /// Aynı config (ApiFootball:ApiKey/BaseUrl), aynı header (x-apisports-key), aynı IMemoryCache
     /// deseni. Anahtar yoksa / oyuncu çözülemezse null → engine graceful fallback yapar.
     /// v1 kimlik: isimle çözer (players/profiles?search); stats: players?id=&season=.
     /// </summary>
@@ -37,8 +37,8 @@ namespace Formax.Infrastructure.Providers
             _http = http;
             _cache = cache;
             _logger = logger;
-            _apiKey = config["SportsData:ApiKey"] ?? string.Empty;
-            var baseUrl = config["SportsData:BaseUrl"] ?? DefaultBaseUrl;
+            _apiKey = config["ApiFootball:ApiKey"] ?? string.Empty;
+            var baseUrl = config["ApiFootball:BaseUrl"] ?? DefaultBaseUrl;
             _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
             if (!string.IsNullOrWhiteSpace(_apiKey))
                 _http.DefaultRequestHeaders.Add("x-apisports-key", _apiKey);

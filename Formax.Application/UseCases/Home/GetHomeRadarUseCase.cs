@@ -71,6 +71,16 @@ namespace Formax.Application.UseCases.Home
             var snapMap = snapshots.ToDictionary(x => x.MatchId, x => x);
             var baselineMap = _leagueBaselineService.Build(candidates, snapshots, utcNow);
 
+            // N+1 FIX (perf): trend istatistikleri döngü içinde maç-başına sorgulanıyordu
+            // (20 aday = 20 ayrı senkron DB round-trip). Tek sorguda çekilir; okunan değerler
+            // ve fallback davranışı (kayıt yoksa deterministik Random(matchId)) AYNI kalır.
+            var candidateIds = candidates.Select(x => x.MatchId).ToList();
+            var trendByMatch = _db.MatchTrendStats
+                .Where(x => candidateIds.Contains(x.MatchId))
+                .ToList()
+                .GroupBy(x => x.MatchId)
+                .ToDictionary(g => g.Key, g => g.First());
+
             var ranked = new List<HomeRadarMatchDto>();
 
             foreach (var match in candidates)
@@ -99,9 +109,8 @@ namespace Formax.Application.UseCases.Home
                     (leagueInterest * 0.2) +
                     (behaviorMomentum * 0.2)));
 
-                // 🔥 TREND (TYPE FIX)
-                var trend = _db.MatchTrendStats
-                    .FirstOrDefault(x => x.MatchId == match.MatchId);
+                // 🔥 TREND (TYPE FIX) — batch map'ten okunur (yukarıda tek sorgu).
+                trendByMatch.TryGetValue(match.MatchId, out var trend);
 
                 int playRate = trend != null
                     ? (int)trend.PlayRate

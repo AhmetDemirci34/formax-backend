@@ -1,83 +1,58 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { MenuIcon, SearchIcon, BellIcon } from "./icons";
-
-interface Props {
-  onMenu?: () => void;
-  onSearch?: () => void;
-  onNotifications?: () => void;
-  onProfile?: () => void;
-  /** Bildirim noktası (PNG'de aktif). */
-  hasUnread?: boolean;
-}
+import { motion, useReducedMotion } from "framer-motion";
+import { useChrome } from "@/context/ChromeContext";
+import { MenuIcon, GlobeIcon } from "./icons";
 
 /**
- * FORMAX · Header (03)
- * PNG referansı: hamburger · marka + "FUTBOLU ANLAYAN ZEKÂ" · search / bell(dot) / profil.
- * Tüm renkler Design Token; ölçüler Layout System.
+ * FORMAX · Header (03) — yeni düzen.
+ * Sol: ☰ (Side Drawer) · Orta: marka (ekranın tam ortasında) · Sağ: 🌍 (Dil).
+ * 3 kolonlu grid, orta kolon ortalanır → FORMAX her zaman ekran ortasında.
+ * Menü ve dil aksiyonları ChromeContext'e bağlıdır (tek kaynak). Bildirim ikonu kaldırıldı.
  */
-export function DiscoverHeader({
-  onMenu,
-  onSearch,
-  onNotifications,
-  onProfile,
-  hasUnread = true,
-}: Props) {
+export function DiscoverHeader() {
+  const { openDrawer, openLang } = useChrome();
+
   return (
-    <header className="flex h-[var(--header-height)] items-center justify-between border-b border-white/5 bg-bg-deep/70 px-4">
-      <div className="flex items-center gap-2.5">
-        <IconButton label="Menü" onClick={onMenu}>
+    <header className="grid h-[var(--header-height)] grid-cols-[1fr_auto_1fr] items-center border-b border-white/5 bg-bg-deep/70 px-2">
+      {/* Sol — menü (Side Drawer) */}
+      <div className="flex justify-start">
+        <IconButton label="Menü" onClick={openDrawer}>
           <MenuIcon size={22} />
         </IconButton>
-        <BrandLogo />
       </div>
 
-      <div className="flex items-center gap-1">
-        <IconButton label="Ara" onClick={onSearch}>
-          <SearchIcon size={21} />
+      {/* Orta — marka, ekranın tam ortasında */}
+      <BrandLogo />
+
+      {/* Sağ — yalnızca dil */}
+      <div className="flex items-center justify-end">
+        <IconButton label="Dil" onClick={openLang}>
+          <GlobeIcon size={21} />
         </IconButton>
-        <IconButton label="Bildirimler" onClick={onNotifications}>
-          <span className="relative">
-            <BellIcon size={21} />
-            {hasUnread ? (
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-neon ring-2 ring-bg-deep" />
-            ) : null}
-          </span>
-        </IconButton>
-        <ProfileAvatar onClick={onProfile} />
       </div>
     </header>
   );
 }
 
 function BrandLogo() {
+  const reduce = useReducedMotion();
   return (
-    <div className="leading-none">
+    <motion.div
+      className="text-center leading-none"
+      // Apple seviyesinde, çok hafif "nefes" — abartısız (scale 1.00↔1.015, ~4.2s).
+      animate={reduce ? undefined : { scale: [1, 1.015, 1] }}
+      transition={reduce ? undefined : { duration: 4.2, ease: "easeInOut", repeat: Infinity }}
+      style={{ transformOrigin: "center" }}
+    >
       <span className="text-[25px] font-black tracking-[-0.01em] text-text-primary">
         FORMA<span className="text-neon">X</span>
       </span>
       <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-text-secondary">
         Futbolu Anlayan Zekâ
       </p>
-    </div>
-  );
-}
-
-function ProfileAvatar({ onClick }: { onClick?: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label="Profil"
-      onClick={onClick}
-      className="fx-glow-soft-green ml-1 grid h-9 w-9 place-items-center rounded-full bg-bg-glass ring-[3px] ring-neon/70 transition-transform active:scale-95"
-    >
-      <span className="flex gap-[3px]">
-        <span className="h-1 w-1 rounded-full bg-neon" />
-        <span className="h-1 w-1 rounded-full bg-neon" />
-        <span className="h-1 w-1 rounded-full bg-neon" />
-      </span>
-    </button>
+    </motion.div>
   );
 }
 

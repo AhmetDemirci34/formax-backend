@@ -60,5 +60,16 @@ namespace Formax.API.Controllers
             await _repository.MarkAsReadAsync(id);
             return NoContent();
         }
+
+        /// <summary>Kullanıcının tüm okunmamış bildirimlerini tek işlemde okundu yapar.</summary>
+        [HttpPost("read-all")]
+        public async Task<IActionResult> MarkAllAsRead()
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+
+            var updated = await _repository.MarkAllAsReadAsync(userId);
+            return Ok(new { updated });
+        }
     }
 }

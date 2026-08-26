@@ -24,10 +24,26 @@ namespace Formax.API.Controllers
     public class GdpController : ControllerBase
     {
         private readonly IGlobalDataPipeline _pipeline;
+        private readonly Formax.Infrastructure.Maintenance.CanonicalIdentityRekeyService _identityRekey;
 
-        public GdpController(IGlobalDataPipeline pipeline)
+        public GdpController(
+            IGlobalDataPipeline pipeline,
+            Formax.Infrastructure.Maintenance.CanonicalIdentityRekeyService identityRekey)
         {
             _pipeline = pipeline;
+            _identityRekey = identityRekey;
+        }
+
+        /// <summary>
+        /// Tek kimlik otoritesine geçiş — News/Evidence/Fixtures kimliklerini yeni deterministik
+        /// (lig-bağımsız + Kind-güvenli) algoritmaya hizalar. apply=false → dry-run raporu;
+        /// apply=true → uygular (transaction, kayıpsız, idempotent).
+        /// </summary>
+        [HttpPost("identity/rekey")]
+        public async Task<IActionResult> RekeyIdentity([FromQuery] bool apply, CancellationToken cancellationToken)
+        {
+            var report = await _identityRekey.RunAsync(apply, cancellationToken);
+            return Ok(report);
         }
 
         // 🚀 GDP pipeline'ını uçtan uca çalıştırır (Provider → … → Coverage).

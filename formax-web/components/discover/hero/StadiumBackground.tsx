@@ -1,3 +1,7 @@
+"use client";
+
+import { motion, type MotionValue } from "framer-motion";
+
 /**
  * FORMAX · StadiumBackground (05) — sinematik atmosfer yığını.
  *
@@ -6,10 +10,24 @@
  * Atmosfer gradient taklidi DEĞİL: temel katman gerçek stadyum fotoğrafı; üstteki
  * ışık/sis/huzme katmanları `screen` blend ile eklenerek gerçek ışık gibi davranır.
  * Takım tonları: sol mavi (home) / sağ kırmızı (away).
+ *
+ * parallaxX: kart swipe edilirken arka plan karttan biraz daha yavaş kayar (çok hafif
+ * parallax). Kenarlarda boşluk oluşmaması için katman scale(1.08) ile hafif taşırılır.
  */
-export function StadiumBackground() {
+export function StadiumBackground({
+  parallaxX,
+  plain = false,
+}: {
+  parallaxX?: MotionValue<number>;
+  /** plain: takım-rengi ışık katmanları + oyuncu ışık havuzları + yeşil ambient gizlenir. */
+  plain?: boolean;
+}) {
   return (
-    <div aria-hidden className="absolute inset-0 overflow-hidden bg-black">
+    <motion.div
+      aria-hidden
+      className="absolute inset-0 overflow-hidden bg-black"
+      style={{ x: parallaxX, scale: 1.08 }}
+    >
       {/* 1 · Stadium Image — sinematik temel */}
       <div
         className="absolute inset-0 bg-cover bg-[center_top] bg-no-repeat"
@@ -31,15 +49,19 @@ export function StadiumBackground() {
         style={{ background: "linear-gradient(to top, rgba(7,7,12,.72), transparent 92%)" }}
       />
 
-      {/* 3 · Team Color Lighting — sol mavi / sağ kırmızı yanal yıkama */}
-      <div
-        className="absolute inset-0 mix-blend-screen"
-        style={{ background: "radial-gradient(78% 92% at -6% 58%, rgba(77,166,255,.40), transparent 55%)" }}
-      />
-      <div
-        className="absolute inset-0 mix-blend-screen"
-        style={{ background: "radial-gradient(78% 92% at 106% 58%, rgba(245,69,77,.38), transparent 55%)" }}
-      />
+      {/* 3 · Team Color Lighting — sol mavi / sağ kırmızı yanal yıkama (plain'de gizli) */}
+      {!plain && (
+        <>
+          <div
+            className="absolute inset-0 mix-blend-screen"
+            style={{ background: "radial-gradient(78% 92% at -6% 58%, rgba(77,166,255,.40), transparent 55%)" }}
+          />
+          <div
+            className="absolute inset-0 mix-blend-screen"
+            style={{ background: "radial-gradient(78% 92% at 106% 58%, rgba(245,69,77,.38), transparent 55%)" }}
+          />
+        </>
+      )}
 
       {/* 4 · Fog — alttan yükselen sinematik sis */}
       <div
@@ -81,25 +103,31 @@ export function StadiumBackground() {
         style={{ background: "radial-gradient(circle, rgba(255,214,214,.26), transparent 66%)" }}
       />
 
-      {/* 6 · Ambient Glow — imza yeşil taban parıltısı */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-2/5 mix-blend-screen"
-        style={{ background: "radial-gradient(70% 60% at 50% 126%, rgba(46,230,110,.24), transparent 62%)" }}
-      />
+      {/* 6 · Ambient Glow — imza yeşil taban parıltısı (plain'de gizli) */}
+      {!plain && (
+        <div
+          className="absolute inset-x-0 bottom-0 h-2/5 mix-blend-screen"
+          style={{ background: "radial-gradient(70% 60% at 50% 126%, rgba(46,230,110,.24), transparent 62%)" }}
+        />
+      )}
 
-      {/* 7 · Player Spotlights — oyuncuların bastığı zemin ışık havuzları */}
-      <div
-        className="absolute bottom-0 left-0 h-[58%] w-[56%] mix-blend-screen blur-xl"
-        style={{ background: "radial-gradient(58% 55% at 32% 100%, rgba(77,166,255,.34), transparent 60%)" }}
-      />
-      <div
-        className="absolute bottom-0 right-0 h-[58%] w-[56%] mix-blend-screen blur-xl"
-        style={{ background: "radial-gradient(58% 55% at 68% 100%, rgba(245,69,77,.32), transparent 60%)" }}
-      />
+      {/* 7 · Player Spotlights — oyuncuların bastığı zemin ışık havuzları (plain'de gizli) */}
+      {!plain && (
+        <>
+          <div
+            className="absolute bottom-0 left-0 h-[58%] w-[56%] mix-blend-screen blur-xl"
+            style={{ background: "radial-gradient(58% 55% at 32% 100%, rgba(77,166,255,.34), transparent 60%)" }}
+          />
+          <div
+            className="absolute bottom-0 right-0 h-[58%] w-[56%] mix-blend-screen blur-xl"
+            style={{ background: "radial-gradient(58% 55% at 68% 100%, rgba(245,69,77,.32), transparent 60%)" }}
+          />
+        </>
+      )}
 
       {/* Sahne ışık hatları — ince detay */}
       <div className="absolute inset-x-0 top-6 h-px bg-white/5" />
       <div className="absolute inset-x-0 top-10 h-px bg-white/[0.03]" />
-    </div>
+    </motion.div>
   );
 }

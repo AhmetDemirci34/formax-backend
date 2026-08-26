@@ -31,6 +31,15 @@ namespace Formax.Domain.Entities
         // Sprint 20A — API-Football team mapping
         public int? ApiFootballTeamId { get; set; }
 
+        /// <summary>
+        /// Fixture Expansion v2 — takım Timeline'ının (last=N geçmiş + next=N gelecek)
+        /// en son ne zaman senkronlandığı. null = hiç senkronlanmadı (Cold Start adayı).
+        /// HistoricalSyncJob bu damgaya göre önceliklendirir: önce null'lar (cold-start),
+        /// sonra en eski senkronlananlar (Incremental refresh). Yakın zamanda senkronlanan
+        /// takımlar RefreshInterval dolana dek atlanır → API kotası korunur.
+        /// </summary>
+        public DateTime? TimelineSyncedAt { get; set; }
+
         // 🔥 JSON LOOP ENGELİ
         [JsonIgnore]
         public ICollection<Match> HomeMatches { get; set; } = new List<Match>();

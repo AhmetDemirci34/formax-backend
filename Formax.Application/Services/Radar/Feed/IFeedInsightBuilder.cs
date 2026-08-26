@@ -13,5 +13,12 @@ namespace Formax.Application.Services.Radar.Feed
     public interface IFeedInsightBuilder
     {
         Task<IReadOnlyList<FeedInsight>> BuildAsync(DateTime fromUtc, CancellationToken ct = default);
+
+        /// <summary>
+        /// Yalnız verilen maçlar için insight kurar (feed zaten adaylarını biliyor).
+        /// Tüm 120 günlük pencereyi taramak yerine kullanılır; çıktı alanları aynıdır.
+        /// </summary>
+        Task<IReadOnlyList<FeedInsight>> BuildByMatchIdsAsync(
+            IReadOnlyCollection<int> matchIds, CancellationToken ct = default);
     }
 }

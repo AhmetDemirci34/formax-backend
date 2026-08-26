@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { AUTH_GATE_ENABLED } from "@/lib/auth/authGate";
 import { useNotifications, useMarkAsRead } from "@/hooks/useNotifications";
 import type { UserNotificationDto } from "@/lib/api/notifications";
 
@@ -81,6 +82,7 @@ export default function NotificationsPage() {
   const { mutate: markRead } = useMarkAsRead();
 
   useEffect(() => {
+    if (!AUTH_GATE_ENABLED) return;
     if (isHydrated && !isLoggedIn) {
       router.replace("/auth/login");
     }
@@ -88,7 +90,8 @@ export default function NotificationsPage() {
 
   const unreadCount = (notifications ?? []).filter((n) => !n.isRead).length;
 
-  if (!isHydrated || !isLoggedIn) return null;
+  // Auth kapısı pasifken (UI bitene kadar) giriş istenmez — bkz. lib/auth/authGate.ts
+  if (AUTH_GATE_ENABLED && (!isHydrated || !isLoggedIn)) return null;
 
   return (
     <div className="min-h-screen bg-bg-base pb-20">

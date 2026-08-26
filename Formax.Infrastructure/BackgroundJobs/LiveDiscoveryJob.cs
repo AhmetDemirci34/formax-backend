@@ -30,15 +30,30 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<LiveDiscoveryJob> _logger;
+        private readonly Microsoft.Extensions.Configuration.IConfiguration _config;
 
-        public LiveDiscoveryJob(IServiceScopeFactory scopeFactory, ILogger<LiveDiscoveryJob> logger)
+        public LiveDiscoveryJob(
+            IServiceScopeFactory scopeFactory,
+            ILogger<LiveDiscoveryJob> logger,
+            Microsoft.Extensions.Configuration.IConfiguration config)
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
+            _config = config;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            // Aynı ana anahtar: bu job api-football kullanmaz (RSS kaynakları) ama yine de
+            // CANLI skor yazan bir yoklama döngüsüdür. Canlı özellik kapalıyken canlı veri
+            // hiçbir kaynaktan tazelenmez — tek anahtar, tek davranış.
+            if (!LiveMatchDataFlag.IsEnabled(_config))
+            {
+                _logger.LogInformation(
+                    "[LIVE DISC] canlı maç verisi KAPALI (LiveMatchData:Enabled=false) — keşif döngüsü başlatılmadı");
+                return;
+            }
+
             _logger.LogInformation("[LIVE DISC] Global Live Discovery job started");
             await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
 

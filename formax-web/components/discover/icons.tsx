@@ -216,6 +216,90 @@ export function PulseIcon(p: IconProps) {
   );
 }
 
+export function GlobeIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.4 3.8 5.6 3.8 9S14.5 18.6 12 21c-2.5-2.4-3.8-5.6-3.8-9S9.5 5.4 12 3z" />
+    </Base>
+  );
+}
+
+export function SettingsIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.5M12 18.5V21M4.2 7l2.1 1.2M17.7 15.8l2.1 1.2M4.2 17l2.1-1.2M17.7 8.2l2.1-1.2" />
+    </Base>
+  );
+}
+
+export function LifeBuoyIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M4.5 4.5l5 5M14.5 14.5l5 5M19.5 4.5l-5 5M9.5 14.5l-5 5" />
+    </Base>
+  );
+}
+
+export function CrownIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <path d="M4 8l3.5 3L12 5l4.5 6L20 8l-1.5 10h-13z" />
+      <path d="M5.5 18h13" />
+    </Base>
+  );
+}
+
+export function NewspaperIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <path d="M4 5h13v14H5a2 2 0 0 1-2-2V7" />
+      <path d="M17 9h3v8a2 2 0 0 1-2 2M7 8h6M7 11.5h6M7 15h4" />
+    </Base>
+  );
+}
+
+export function UserIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </Base>
+  );
+}
+
+export function RadarIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M6 6a9 9 0 0 0 0 12M18 6a9 9 0 0 1 0 12" />
+    </Base>
+  );
+}
+
+export function ClipboardListIcon(p: IconProps) {
+  // Tahminlerim — pano / kontrol listesi
+  return (
+    <Base {...p}>
+      <rect x="6" y="4" width="12" height="17" rx="2" />
+      <path d="M9 5.5h6" />
+      <path d="M9.5 11l1.6 1.6 3.4-3.6M9.5 16.5h5" />
+    </Base>
+  );
+}
+
+export function CheckIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <path d="M5 12.5l4.5 4.5L19 6" />
+    </Base>
+  );
+}
+
 // Rozet anahtarı → ikon eşlemesi (cardSignals'tan gelen iconKey için).
 export const ICONS = {
   sparkles: SparklesIcon,

@@ -26,7 +26,16 @@ namespace Formax.Application.UseCases.Notifications
                 Title = n.Title,
                 Message = n.Message,
                 IsRead = n.IsRead,
-                CreatedAt = n.CreatedAt
+                CreatedAt = n.CreatedAt,
+
+                EventType = n.EventType.ToString(),
+                Category = n.Category.ToString(),
+                LogoUrl = n.LogoUrl,
+                TeamId = n.TeamId,
+                LeagueId = n.LeagueId,
+                TargetType = n.TargetType.ToString(),
+                // Legacy satırlar için hedef id yoksa maça düş (frontend her zaman yönlenebilsin).
+                TargetId = n.TargetId ?? n.MatchId
             }).ToList();
         }
     }

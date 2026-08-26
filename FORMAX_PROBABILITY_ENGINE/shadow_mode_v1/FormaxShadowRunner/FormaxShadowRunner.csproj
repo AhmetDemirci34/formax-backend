@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shadow mode runner. ÜRETİM servisinin ta kendisini gerçek DB'ye karşı çalıştırır;
+       kopya mantık içermez. Formax.slnx'e eklenmedi. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FormaxShadowRunner</AssemblyName>
+    <RootNamespace>Formax.ShadowRunner</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Formax.Infrastructure\Formax.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

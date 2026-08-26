@@ -21,12 +21,13 @@ function BallIcon({ active }: { active: boolean }) {
     </svg>
   );
 }
-function RadioIcon({ active }: { active: boolean }) {
+function ClipboardIcon({ active }: { active: boolean }) {
+  // Tahminlerim — pano / kontrol listesi
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round">
-      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
-      <path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7" />
-      <path d="M6 6a9 9 0 0 0 0 12M18 6a9 9 0 0 1 0 12" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="6" y="4" width="12" height="17" rx="2" />
+      <path d="M9 4a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 4v.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z" fill={active ? "currentColor" : "none"} />
+      <path d="M9.5 11l1.6 1.6 3.4-3.6M9.5 16.5h5" />
     </svg>
   );
 }
@@ -46,14 +47,35 @@ function UserIcon({ active }: { active: boolean }) {
   );
 }
 
-const HIDE_ON = ["/auth/login", "/auth/register", "/onboarding", "/match/"];
+// "/profile" — Profil Merkezi (SCREEN_15) Stitch görselinde 4 sekmeli KENDİ
+// navigasyonunu taşır (components/profile/ProfileBottomNav.tsx); global 5 sekmeli
+// nav orada gizlenir, aksi halde iki nav üst üste biner.
+// "/account" — Hesabım (SCREEN_12) bir ALT ekrandır; Stitch'te alt navigasyon
+// yoktur, geri butonuyla Profil'e dönülür.
+const HIDE_ON = [
+  "/auth/login",
+  "/auth/register",
+  "/onboarding",
+  "/match/",
+  "/profile",
+  "/account",
+];
 
 const TABS = [
   { href: "/", label: "Keşfet", icon: CompassIcon },
   { href: "/maclar", label: "Maçlar", icon: BallIcon },
-  { href: "/radar", label: "Radar", icon: RadioIcon },
+  { href: "/predictions", label: "Tahminlerim", icon: ClipboardIcon },
   { href: "/following", label: "Takip", icon: HeartIcon },
-  { href: "/profile", label: "Profil", icon: UserIcon },
+  // Profil sekmesi, Profil modülünün alt ekranlarında da AKTİF kalır
+  // (Bildirim Tercihleri SCREEN_04 ve altındaki Sessiz Saatler SCREEN_07).
+  // /profile ve /account zaten HIDE_ON'da (nav gizli); bu prefiksler nav'ın
+  // GÖRÜNDÜĞÜ alt ekranları kapsar.
+  {
+    href: "/profile",
+    label: "Profil",
+    icon: UserIcon,
+    activeOn: ["/notifications/settings"] as const,
+  },
 ];
 
 export function BottomNav() {
@@ -64,7 +86,11 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-bg-deep/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-[var(--app-max-width)] px-2 pb-[max(var(--safe-bottom),22px)] pt-2.5">
         {TABS.map((tab) => {
-          const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+          const active =
+            tab.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(tab.href) ||
+                (tab.activeOn?.some((p) => pathname.startsWith(p)) ?? false);
           const Icon = tab.icon;
           return (
             <Link

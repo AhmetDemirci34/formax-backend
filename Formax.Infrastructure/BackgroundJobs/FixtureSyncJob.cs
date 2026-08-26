@@ -1,5 +1,7 @@
 using Formax.Application.Interfaces;
 using Formax.Domain.Entities;
+using Formax.Infrastructure.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -124,8 +126,20 @@ public sealed class FixtureSyncJob : BackgroundService
 
     // ──────────────────────────────────────────────────────────────────────────
 
-    private async Task RunCycleAsync(CancellationToken ct)
+    /// <summary>
+    /// GERİ DOLDURMA — mevcut sync döngüsünü GEÇMİŞ bir pencere için çalıştırır.
+    /// Yeni ingestion yolu değildir: aynı RunCycleAsync, yalnız gün penceresi dışarıdan
+    /// verilir. Şema genişlediğinde (ör. ilk yarı skoru) eski tamamlanmış maçların
+    /// güncellenmesi için gerekir. Maliyet: pencere gün sayısı kadar istek.
+    /// </summary>
+    public Task RunBackfillAsync(DateTime fromDate, DateTime toDate, CancellationToken ct = default)
+        => RunCycleAsync(ct, fromDate, toDate);
+
+    private async Task RunCycleAsync(CancellationToken ct, DateTime? fromOverride = null, DateTime? toOverride = null)
     {
+        // Kota telemetrisi: bu turda üretilen api-football istekleri bu job'a etiketlenir.
+        using var _quotaScope = Formax.Infrastructure.Telemetry.ApiFootballCallScope.Begin(nameof(FixtureSyncJob));
+
         using var scope = _scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
 
@@ -133,6 +147,7 @@ public sealed class FixtureSyncJob : BackgroundService
         var provider  = sp.GetRequiredService<ISportsDataProvider>();
         var repo      = sp.GetRequiredService<IFixtureSyncRepository>();
         var statsRepo = sp.GetRequiredService<IMatchLiveStatsRepository>();
+        var config    = sp.GetRequiredService<IConfiguration>();
 
         // ── 0. Distributed lock ───────────────────────────────────────────────
         if (!await lockRepo.TryAcquireAsync(_instanceId, LockStaleness, ct))
@@ -142,8 +157,21 @@ public sealed class FixtureSyncJob : BackgroundService
             return;
         }
 
-        var fromDate = DateTime.UtcNow.Date.AddDays(-1);   // yesterday — status reconciliation
-        var toDate   = DateTime.UtcNow.Date.AddDays(7);    // today + 7
+        // MVP Release Hardening: gün penceresi KONFİGÜRE tz'ye göre (UTC-origin gün kaymasını önler).
+        // provider aynı tz'yi timezone= ile gönderir → "dün" yerel güne göre tutarlı olur.
+        var tzId = ApiFootballTimeZone.ResolveId(config[ApiFootballTimeZone.ConfigKey]);
+        var tz   = ApiFootballTimeZone.TryResolve(tzId);
+        if (tz == null)
+        {
+            _logger.LogWarning(
+                "[FIXTURE SYNC] Timezone '{Tz}' çözülemedi — UTC'ye düşülüyor (gün kayması olabilir).", tzId);
+            tz = TimeZoneInfo.Utc;
+        }
+
+        var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz).Date;
+        // Override verilmişse geri doldurma penceresi kullanılır (admin tetiği).
+        var fromDate = fromOverride?.Date ?? todayLocal.AddDays(-1);   // yesterday — status reconciliation
+        var toDate   = toOverride?.Date   ?? todayLocal.AddDays(7);    // today + 7
 
         // ── 1. Fetch ─────────────────────────────────────────────────────────
         var fixtures = await provider.GetFixturesAsync(fromDate, toDate, ct);
@@ -153,6 +181,33 @@ public sealed class FixtureSyncJob : BackgroundService
             _logger.LogDebug("[FIXTURE SYNC] No fixtures returned for window {From}→{To}.", fromDate, toDate);
             return;
         }
+
+        // ── 1b. GDP Final Evolution — COVERAGE-DRIVEN Discovery (elle allow-list yerine) ──
+        // FixtureDiscovery artık sabit liste değil, ligin ÖĞRENİLMİŞ coverage tier'ına göre çalışır.
+        // DiscoveryFloorTier (config) taban tier; varsayılan "Passive" = kısıtlama yok (geri-uyum, cold-start
+        // liglerin öğrenme şansı korunur). Yükseltilirse yalnız o tier'ın üstündeki ligler Matches'e girer.
+        var floorTier = CoveragePolicy.DiscoveryFloorTier(config);
+        var floorRank = CoveragePolicy.TierRank(floorTier);
+        if (floorRank > 0)
+        {
+            var coverage = sp.GetRequiredService<ILeagueCoverageService>();
+            var tierByLeague = coverage.ComputeAll().ToDictionary(l => l.LeagueId, l => l.Tier);
+            var before = fixtures.Count;
+            fixtures = fixtures.Where(f =>
+            {
+                var tier = tierByLeague.TryGetValue(f.LeagueExternalId, out var t) ? t : "Passive";
+                return CoveragePolicy.TierRank(tier) >= floorRank;
+            }).ToList();
+            _logger.LogInformation(
+                "[FIXTURE SYNC] Coverage-driven discovery (taban {Tier}) — {Kept}/{Before} fixture tutuldu.",
+                floorTier, fixtures.Count, before);
+            if (fixtures.Count == 0) return;
+        }
+
+        // Opsiyonel SERT override — açık lig allow-list'i (config) doluysa ek kısıtlama.
+        var allow = CoveragePolicy.LeagueAllowList(config);
+        if (allow.Count > 0)
+            fixtures = fixtures.Where(f => CoveragePolicy.Allows(allow, f.LeagueExternalId)).ToList();
 
         _logger.LogInformation(
             "[FIXTURE SYNC] Fetched {Count} fixture(s) for {From}→{To}.",
@@ -273,11 +328,20 @@ public sealed class FixtureSyncJob : BackgroundService
                 // Update referee/venue if provider supplies them (never clear existing)
                 if (!string.IsNullOrWhiteSpace(fixture.Referee))  existingMatch.Referee = fixture.Referee;
                 if (!string.IsNullOrWhiteSpace(fixture.Venue))    existingMatch.Venue   = fixture.Venue;
+                // Tur/aşama: sağlayıcı verdiyse yazılır (şema sonrası geri doldurma da buradan).
+                if (!string.IsNullOrWhiteSpace(fixture.Round))    existingMatch.Round   = fixture.Round;
                 // Finished ONLY — never touch Live/NotStarted scores.
                 if (isFinished)
                 {
                     existingMatch.HomeScore = fixture.HomeScore!.Value;
                     existingMatch.AwayScore = fixture.AwayScore!.Value;
+                    // İlk yarı — sağlayıcı verdiyse yazılır, vermediyse MEVCUT değer korunur
+                    // (null ile üzerine yazıp veri kaybetmeyelim).
+                    if (fixture.HalfTimeHomeScore.HasValue && fixture.HalfTimeAwayScore.HasValue)
+                    {
+                        existingMatch.HalfTimeHomeScore = fixture.HalfTimeHomeScore;
+                        existingMatch.HalfTimeAwayScore = fixture.HalfTimeAwayScore;
+                    }
                     finishedScoreMatches.Add((existingMatch, fixture.HomeScore.Value, fixture.AwayScore.Value));
                 }
                 matchesUpdated++;
@@ -295,8 +359,13 @@ public sealed class FixtureSyncJob : BackgroundService
                     AwayTeamId      = awayTeam.Id,
                     HomeScore       = isFinished ? fixture.HomeScore!.Value : 0,
                     AwayScore       = isFinished ? fixture.AwayScore!.Value : 0,
+                    // Oynanmamış maçta İY null kalır (0 yazılmaz — 0 gerçek skordur).
+                    HalfTimeHomeScore = isFinished ? fixture.HalfTimeHomeScore : null,
+                    HalfTimeAwayScore = isFinished ? fixture.HalfTimeAwayScore : null,
                     Referee         = fixture.Referee,
                     Venue           = fixture.Venue,
+                    // Sağlayıcının gerçek tur/aşama adı — maç türünün TEK kaynağı.
+                    Round           = string.IsNullOrWhiteSpace(fixture.Round) ? null : fixture.Round,
                     CreatedAt       = DateTime.UtcNow
                 };
                 repo.AddMatch(newMatch);

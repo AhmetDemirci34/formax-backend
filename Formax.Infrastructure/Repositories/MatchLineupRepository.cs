@@ -39,6 +39,9 @@ namespace Formax.Infrastructure.Repositories
             {
                 existing.HomeLineupsReleased = lineup.HomeLineupsReleased;
                 existing.AwayLineupsReleased = lineup.AwayLineupsReleased;
+                // Diziliş her fetch'te tazelenir (teknik direktör açıklamayı değiştirebilir).
+                existing.HomeFormation = lineup.HomeFormation;
+                existing.AwayFormation = lineup.AwayFormation;
                 existing.ReleasedAt ??= lineup.ReleasedAt;   // only set first time
                 existing.FetchedAt = lineup.FetchedAt;
                 _context.MatchLineups.Update(existing);

@@ -1,0 +1,133 @@
+{
+  "schemaName": "FORMAX_PROBABILITY_FEATURE_SCHEMA",
+  "schemaVersion": "1.0.0",
+  "createdUtc": "2026-08-20",
+  "purpose": "Canonical feature field definitions the FORMAX Probability Engine will expect. Declaration only - no values are computed here and no model is defined.",
+  "dataset": {
+    "path": "FORMAX_HISTORICAL_MASTER/FORMAX_HISTORICAL_MODEL_ELIGIBLE.csv",
+    "rows": 33901,
+    "teams": 709,
+    "dateRange": { "from": "2017-06-27", "to": "2026-05-30" },
+    "seasons": ["2017/18","2018/19","2019/20","2020/21","2021/22","2022/23","2023/24","2024/25","2025/26"],
+    "competitionTypes": ["DOMESTIC_LEAGUE","DOMESTIC_PLAYOFF","UEFA_MAIN","UEFA_QUALIFIER","UEFA_QUALIFICATION_PLAYOFF"]
+  },
+  "conventions": {
+    "predictionTimestamp": "Every feature value must be computable from data whose event time is strictly earlier than the Date of the match being predicted.",
+    "nullPolicy": "A feature that cannot be computed for a row is null. Nulls are never imputed with a guessed value at contract level; imputation, if any, is a modelling decision recorded separately.",
+    "sideConvention": "Features that exist per team are emitted twice with the prefixes home_ and away_.",
+    "targetIsNotAFeature": "Score fields of the match itself are targets and must never appear as inputs."
+  },
+  "keys": [
+    { "field": "match_id",        "type": "string",  "nullable": false, "source": "MatchId",         "role": "primary_key" },
+    { "field": "match_date",      "type": "date",    "nullable": false, "source": "Date",            "role": "time_index" },
+    { "field": "kickoff_utc",     "type": "timestamp","nullable": true, "source": "KickoffUtc",      "role": "time_index", "coveragePct": 16.71 },
+    { "field": "season",          "type": "string",  "nullable": false, "source": "Season",          "role": "partition" },
+    { "field": "competition",     "type": "string",  "nullable": false, "source": "Competition",     "role": "partition" },
+    { "field": "competition_type","type": "enum",    "nullable": false, "source": "CompetitionType", "role": "partition",
+      "values": ["DOMESTIC_LEAGUE","DOMESTIC_PLAYOFF","UEFA_MAIN","UEFA_QUALIFIER","UEFA_QUALIFICATION_PLAYOFF"] },
+    { "field": "home_team_id",    "type": "string",  "nullable": false, "source": "HomeTeamId",      "role": "entity" },
+    { "field": "away_team_id",    "type": "string",  "nullable": false, "source": "AwayTeamId",      "role": "entity" }
+  ],
+  "targets": [
+    { "field": "target_home_goals",          "type": "integer", "nullable": false, "source": "HomeGoals",            "definition": "Final score including extra time excluding shootout" },
+    { "field": "target_away_goals",          "type": "integer", "nullable": false, "source": "AwayGoals",            "definition": "Final score including extra time excluding shootout" },
+    { "field": "target_regular_home_goals",  "type": "integer", "nullable": false, "source": "RegularTimeHomeGoals",  "definition": "Score after 90 minutes - recommended target for 1X2 in knockout competitions" },
+    { "field": "target_regular_away_goals",  "type": "integer", "nullable": false, "source": "RegularTimeAwayGoals",  "definition": "Score after 90 minutes" },
+    { "field": "target_ht_home_goals",       "type": "integer", "nullable": true,  "source": "HalfTimeHomeGoals",     "definition": "Half-time score - target for HT markets only", "coveragePct": 98.06 },
+    { "field": "target_ht_away_goals",       "type": "integer", "nullable": true,  "source": "HalfTimeAwayGoals",     "definition": "Half-time score - target for HT markets only", "coveragePct": 98.06 }
+  ],
+  "features": [
+    { "field": "home_matches_played_to_date", "featureId": "F101", "type": "integer", "nullable": false, "availability": "DERIVED", "leakageSafe": true, "status": "CORE",
+      "definition": "Number of in-scope matches the home team played strictly before match_date" },
+    { "field": "away_matches_played_to_date", "featureId": "F101", "type": "integer", "nullable": false, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+
+    { "field": "home_goals_for_rate",  "featureId": "F102", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE",
+      "definition": "Mean goals scored per prior match", "minSampleMatches": 5, "coveragePctBothSides": 93.04 },
+    { "field": "away_goals_for_rate",  "featureId": "F102", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "home_goals_against_rate", "featureId": "F103", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "away_goals_against_rate", "featureId": "F103", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+
+    { "field": "home_win_rate",  "featureId": "F104", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "home_draw_rate", "featureId": "F104", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "home_loss_rate", "featureId": "F104", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "away_win_rate",  "featureId": "F104", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "away_draw_rate", "featureId": "F104", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "away_loss_rate", "featureId": "F104", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+
+    { "field": "home_home_venue_goals_for_rate",     "featureId": "F105", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE",
+      "definition": "Home team scoring rate computed from its prior HOME matches only", "minSampleMatches": 5 },
+    { "field": "home_home_venue_goals_against_rate", "featureId": "F105", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "away_away_venue_goals_for_rate",     "featureId": "F105", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+    { "field": "away_away_venue_goals_against_rate", "featureId": "F105", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+
+    { "field": "home_form_points_last_n", "featureId": "F106", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL",
+      "definition": "Points per match over the last N in-scope matches", "parameter": "n", "candidateValues": [3,5,10], "note": "Window length must be chosen by validation, not by convention" },
+    { "field": "away_form_points_last_n", "featureId": "F106", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+
+    { "field": "home_time_decayed_strength", "featureId": "F107", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL",
+      "definition": "Exponentially weighted prior performance", "parameter": "half_life_days", "value": null, "note": "Half-life deliberately undefined at contract level" },
+    { "field": "away_time_decayed_strength", "featureId": "F107", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+
+    { "field": "home_opponent_adjusted_attack",  "featureId": "F108", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL",
+      "definition": "Attack rating fitted on prior matches only", "note": "Must be refitted with a strictly expanding window to stay leakage-safe" },
+    { "field": "home_opponent_adjusted_defence", "featureId": "F108", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+    { "field": "away_opponent_adjusted_attack",  "featureId": "F108", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+    { "field": "away_opponent_adjusted_defence", "featureId": "F108", "type": "float", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+
+    { "field": "home_days_rest", "featureId": "F109", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL", "coveragePctBothSides": 98.37,
+      "note": "Upper bound - competitions outside the 17 FORMAX scopes are invisible" },
+    { "field": "away_days_rest", "featureId": "F109", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+    { "field": "home_matches_last_14d", "featureId": "F110", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL",
+      "warning": "Systematically undercounts real congestion - do not treat as complete" },
+    { "field": "away_matches_last_14d", "featureId": "F110", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+
+    { "field": "h2h_matches_played",   "featureId": "F111", "type": "integer", "nullable": false, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL", "coveragePctAtLeastOne": 78.94 },
+    { "field": "h2h_home_win_rate",    "featureId": "F111", "type": "float",   "nullable": true,  "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+    { "field": "h2h_avg_total_goals",  "featureId": "F111", "type": "float",   "nullable": true,  "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+
+    { "field": "home_season_points_to_date", "featureId": "F112", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE",
+      "appliesTo": ["DOMESTIC_LEAGUE"], "coveragePctBothSides": 91.88 },
+    { "field": "away_season_points_to_date", "featureId": "F112", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE", "appliesTo": ["DOMESTIC_LEAGUE"] },
+    { "field": "home_season_goal_difference_to_date", "featureId": "F112", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE", "appliesTo": ["DOMESTIC_LEAGUE"] },
+    { "field": "away_season_goal_difference_to_date", "featureId": "F112", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE", "appliesTo": ["DOMESTIC_LEAGUE"] },
+    { "field": "home_season_rank_to_date", "featureId": "F113", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL", "appliesTo": ["DOMESTIC_LEAGUE"] },
+    { "field": "away_season_rank_to_date", "featureId": "F113", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL", "appliesTo": ["DOMESTIC_LEAGUE"] },
+
+    { "field": "home_is_new_to_competition", "featureId": "F114", "type": "boolean", "nullable": false, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+    { "field": "away_is_new_to_competition", "featureId": "F114", "type": "boolean", "nullable": false, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL" },
+
+    { "field": "tie_leg_number",            "featureId": "F115", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE",
+      "appliesTo": ["UEFA_MAIN","UEFA_QUALIFIER","UEFA_QUALIFICATION_PLAYOFF"], "coveragePctOfUefaRows": 85.50 },
+    { "field": "tie_aggregate_home_goals",  "featureId": "F115", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE",
+      "definition": "Aggregate score before this leg - null on first legs" },
+    { "field": "tie_aggregate_away_goals",  "featureId": "F115", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "CORE" },
+
+    { "field": "stage_ordinal", "featureId": "F116", "type": "integer", "nullable": true, "availability": "DERIVED", "leakageSafe": true, "status": "OPTIONAL",
+      "definition": "Canonical ordinal of the Round label", "coveragePct": 96.11, "note": "288 free-text round labels need a canonical mapping first" }
+  ],
+  "futureFields": [
+    { "field": "home_shots", "featureId": "F202", "status": "FUTURE", "reachablePct": 70.40, "importPath": "football-data.co.uk file already owned - HomeShots column at 99.87 percent inside its 23900 rows", "blocker": "no coverage for UEFA and for 2025/26 domestic" },
+    { "field": "home_shots_on_target", "featureId": "F203", "status": "FUTURE", "reachablePct": 70.40, "importPath": "same file - HomeTarget column" },
+    { "field": "home_corners", "featureId": "F204", "status": "FUTURE", "reachablePct": 70.40, "importPath": "same file - HomeCorners column" },
+    { "field": "home_xg", "featureId": "F201", "status": "FUTURE", "reachablePct": 0.0, "importPath": "no owned source carries xG" },
+    { "field": "possession", "featureId": "F206", "status": "FUTURE", "reachablePct": 0.0, "importPath": "api-football fixtures/statistics - one request per fixture" },
+    { "field": "starting_lineup", "featureId": "F301", "status": "FUTURE", "reachablePct": 0.0, "requirement": "snapshot timestamped BEFORE kickoff" },
+    { "field": "injuries", "featureId": "F302", "status": "FUTURE", "reachablePct": 0.0, "requirement": "snapshot timestamped BEFORE kickoff" },
+    { "field": "suspensions", "featureId": "F303", "status": "FUTURE", "reachablePct": 0.0, "requirement": "snapshot timestamped BEFORE kickoff" },
+    { "field": "manager_change", "featureId": "F401", "status": "FUTURE", "reachablePct": 0.0 },
+    { "field": "weather", "featureId": "F402", "status": "FUTURE", "reachablePct": 0.0 },
+    { "field": "referee", "featureId": "F403", "status": "FUTURE", "reachablePct": 0.0 },
+    { "field": "verified_pre_match_context", "featureId": "F404", "status": "FUTURE", "reachablePct": 0.0, "note": "raw verified facts only - no hand-made scoring scheme" },
+    { "field": "market_odds_1x2", "featureId": "F501", "status": "FUTURE", "reachablePct": 70.40, "importPath": "football-data.co.uk OddHome OddDraw OddAway at 99.86 percent inside its rows", "blocker": "no timestamp - closing prices only" }
+  ],
+  "rejectedFields": [
+    { "field": "half_time_score_as_input", "featureId": "F013", "reason": "in-match information" },
+    { "field": "extra_time_or_shootout_as_input", "featureId": "F014/F015", "reason": "in-match information" },
+    { "field": "match_status_as_input", "featureId": "F016", "reason": "reveals that the match went to extra time" },
+    { "field": "source_elo_rating", "featureId": "F601", "reason": "third-party pre-computed rating with unknown timing" },
+    { "field": "source_form_columns", "featureId": "F602", "reason": "third-party pre-computed form with unknown timing" },
+    { "field": "final_league_standing", "featureId": "F603", "reason": "uses matches played after the prediction date" },
+    { "field": "season_aggregate_stats", "featureId": "F604", "reason": "full-season aggregate leaks the future" },
+    { "field": "data_quality_flag", "featureId": "F605", "reason": "pipeline artefact, correlates with season and source not with football" }
+  ]
+}

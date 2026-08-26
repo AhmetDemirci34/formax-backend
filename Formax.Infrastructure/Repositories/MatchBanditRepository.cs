@@ -3,6 +3,10 @@ using Formax.Application.Interfaces;
 using Formax.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Formax.Infrastructure.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 
 
@@ -37,6 +41,29 @@ public class MatchBanditRepository : IMatchBanditRepository
         }
 
         return s;
+    }
+
+    // N+1 fix: TEK sorgu + eksikler için TEK save. GetOrCreate ile birebir aynı değerler (skor değişmez).
+    public async Task<Dictionary<int, MatchBanditStats>> GetOrCreateMany(IReadOnlyCollection<int> matchIds)
+    {
+        var ids = matchIds.Distinct().ToList();
+        var map = (await _context.MatchBanditStats
+                .Where(x => ids.Contains(x.MatchId))
+                .ToListAsync())
+            .ToDictionary(x => x.MatchId);
+
+        var missing = ids.Where(id => !map.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+        {
+            foreach (var id in missing)
+            {
+                var s = new MatchBanditStats { MatchId = id, Impressions = 0, Likes = 0, UpdatedAt = DateTime.UtcNow };
+                _context.MatchBanditStats.Add(s);
+                map[id] = s;
+            }
+            await _context.SaveChangesAsync();
+        }
+        return map;
     }
 
     public async Task IncrementImpression(int matchId)

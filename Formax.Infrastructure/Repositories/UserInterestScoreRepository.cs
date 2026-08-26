@@ -49,11 +49,23 @@ public class UserInterestScoreRepository : IUserInterestScoreRepository
     }
 
     // 🔹 GET ALL
+    // PERF (MVP freeze): UserTrendService.ComputeInterestAffinity her aday maç için
+    // çağrılıyordu → aynı kullanıcı için 100 özdeş sorgu. Repository Scoped olduğundan
+    // önbellek İSTEK BAŞINA geçerlidir; içerik aynı, round-trip 100 → 1.
+    private readonly Dictionary<int, List<UserInterestScore>> _byUserCache = new();
+
     public async Task<List<UserInterestScore>> GetByUser(int userId)
     {
-        return await _context.UserInterestScores
+        if (_byUserCache.TryGetValue(userId, out var cached))
+            return cached;
+
+        var scores = await _context.UserInterestScores
+            .AsNoTracking()
             .Where(x => x.UserId == userId)
             .ToListAsync();
+
+        _byUserCache[userId] = scores;
+        return scores;
     }
 
     // 🔥 ENTITY UPSERT
@@ -76,6 +88,9 @@ public class UserInterestScoreRepository : IUserInterestScoreRepository
         }
 
         await _context.SaveChangesAsync();
+
+        // Yazim sonrasi istek-ici onbellek bayat kalmasin.
+        _byUserCache.Clear();
     }
 
     // 🔥 FULL SET UPSERT
@@ -105,6 +120,9 @@ public class UserInterestScoreRepository : IUserInterestScoreRepository
         }
 
         await _context.SaveChangesAsync();
+
+        // Yazim sonrasi istek-ici onbellek bayat kalmasin.
+        _byUserCache.Clear();
     }
 
     // 🔥 DELTA (ANA METHOD)
@@ -135,5 +153,8 @@ public class UserInterestScoreRepository : IUserInterestScoreRepository
         }
 
         await _context.SaveChangesAsync();
+
+        // Yazim sonrasi istek-ici onbellek bayat kalmasin.
+        _byUserCache.Clear();
     }
 }

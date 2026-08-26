@@ -29,7 +29,23 @@ namespace Formax.Application.Services.Radar.Feed
 
             var insights = await _builder.BuildAsync(DateTime.UtcNow.AddDays(-DefaultLookbackDays), ct);
 
-            return insights
+            return Project(insights, limit);
+        }
+
+        public async Task<IReadOnlyList<FeedInsightDto>> GetFeedByMatchIdsAsync(
+            IReadOnlyCollection<int> matchIds, CancellationToken ct = default)
+        {
+            if (matchIds is null || matchIds.Count == 0)
+                return Array.Empty<FeedInsightDto>();
+
+            var insights = await _builder.BuildByMatchIdsAsync(matchIds, ct);
+
+            return Project(insights, insights.Count);
+        }
+
+        // Ortak sıralama + projeksiyon (davranış birebir korunur).
+        private static List<FeedInsightDto> Project(IReadOnlyList<FeedInsight> insights, int limit)
+            => insights
                 .OrderByDescending(i => i.ImportanceScore)
                 .ThenBy(i => i.MatchId)
                 .Take(limit)
@@ -44,6 +60,5 @@ namespace Formax.Application.Services.Radar.Feed
                     Visibility = i.Visibility.ToString()
                 })
                 .ToList();
-        }
     }
 }

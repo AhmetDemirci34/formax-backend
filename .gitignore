@@ -4,3 +4,49 @@ bin/
 node_modules/
 .env
 *.log
+
+# ── Next.js derleme çıktısı ─────────────────────────────────────────────────
+formax-web/.next/
+formax-web/out/
+
+# ── ÜRETİLEN MOTOR ÇIKTILARI ────────────────────────────────────────────────
+# Bunlar kaynak değil, SONUÇTUR: motor koşturulduğunda yeniden üretilirler.
+# Git'te tutmak her koşuda onlarca MB'lık yeni tam kopya demek olurdu.
+# Motorun GİRDİLERİ (validated_teamstrength_config.json, dixoncoles.config.json,
+# split.config.json, gate.config.json, FORMAX_HISTORICAL_MODEL_ELIGIBLE.csv,
+# FORMAX_HISTORICAL_TEAMS.csv) bu kuralların DIŞINDADIR ve commit edilir.
+FORMAX_PROBABILITY_ENGINE/**/output/
+FORMAX_PROBABILITY_ENGINE/shadow_mode_v1/*.csv
+FORMAX_PROBABILITY_ENGINE/prediction_contract_v1/*.csv
+FORMAX_PROBABILITY_ENGINE/prediction_gate_v1/*.csv
+FORMAX_PROBABILITY_ENGINE/prediction_gate_v1_validation/*.csv
+FORMAX_PROBABILITY_ENGINE/calibration_v1/*.csv
+FORMAX_PROBABILITY_ENGINE/model_validation_v2/*.csv
+FORMAX_PROBABILITY_ENGINE/team_strength/*.csv
+# Kök seviyedeki envanter/kapsam raporları da üretilen çıktıdır (.md sözleşmeler kalır).
+FORMAX_PROBABILITY_ENGINE/*.csv
+
+# ── HAM/TÜRETİLMİŞ TARİHSEL VERİ ────────────────────────────────────────────
+# Yalnız modelin doğrudan okuduğu iki dosya commit edilir (aşağıda muaf tutuldu);
+# ham master, kaynak haritası, boşluk raporları ve maç istatistikleri commit dışıdır.
+FORMAX_HISTORICAL_MASTER/*.csv
+!FORMAX_HISTORICAL_MASTER/FORMAX_HISTORICAL_MODEL_ELIGIBLE.csv
+!FORMAX_HISTORICAL_MASTER/FORMAX_HISTORICAL_TEAMS.csv
+FORMAX_HISTORICAL_GAPS/*.csv
+FORMAX_HISTORICAL_MATCH_STATS/*.csv
+
+# Sağlayıcıdan inen HAM API yanıtları ve koşu günlükleri — kaynak değil, indirme çıktısı.
+FORMAX_HISTORICAL_MASTER/api_raw/
+FORMAX_HISTORICAL_GAPS/raw/
+FORMAX_HISTORICAL_MATCH_STATS/raw/
+**/_api_call_log.txt
+**/_final_stats.txt
+**/_gate_verification.txt
+
+# ── Geçici / yerel çalışma dosyaları ────────────────────────────────────────
+*.bak
+*.bacpac
+*.mdf
+*.ldf
+TEMP_*
+*_DO_NOT_APPLY*

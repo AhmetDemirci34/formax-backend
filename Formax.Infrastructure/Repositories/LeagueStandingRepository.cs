@@ -29,6 +29,19 @@ namespace Formax.Infrastructure.Repositories
                     x.SeasonYear == seasonYear &&
                     x.TeamId == teamId);
 
+        public int? FindLeagueIdForTeam(int seasonYear, IEnumerable<int> candidateTeamIds)
+        {
+            var ids = candidateTeamIds.Where(x => x > 0).Distinct().ToList();
+            if (ids.Count == 0) return null;
+
+            return _context.LeagueStandings
+                .AsNoTracking()
+                .Where(x => x.SeasonYear == seasonYear && ids.Contains(x.TeamId))
+                .OrderBy(x => x.LeagueId)
+                .Select(x => (int?)x.LeagueId)
+                .FirstOrDefault();
+        }
+
         // ── Async writes ───────────────────────────────────────────────────────
 
         public async Task ReplaceAsync(

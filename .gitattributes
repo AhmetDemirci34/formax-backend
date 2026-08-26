@@ -1,0 +1,19 @@
+# FORMAX — satır sonu politikası
+#
+# NEDEN VAR: Prediction Contract V1'in model parmak izi, kilitli config dosyasının
+# BAYTLARININ SHA-256'sıdır (ContractService: SHA256.HashData(File.ReadAllBytes(...))).
+# core.autocrlf=true ile git bu dosyaları depoya LF'e çevirerek yazıyordu; taze bir klonda
+# (Linux, CI, autocrlf=false olan bir Windows) dosya LF olarak açılır ve parmak izi
+# DEĞİŞİR — yani "model değişmedi" güvencesi sessizce bozulur. Ölçüldü: çalışan dosya
+# 3235 bayt → parmak izi 94FC079D…712E; normalize edilmiş blob 3181 bayt → 8101E539…
+#
+# Aşağıdaki dosyalar bu yüzden METİN SAYILMAZ (-text): git baytları olduğu gibi saklar ve
+# olduğu gibi geri verir. İçerikleri KİLİTLİDİR; bu işaretler kaldırılmamalıdır.
+
+FORMAX_PROBABILITY_ENGINE/model_validation_v2/validated_teamstrength_config.json -text
+FORMAX_PROBABILITY_ENGINE/model_validation_v2/split.config.json                   -text
+FORMAX_PROBABILITY_ENGINE/dixon_coles/dixoncoles.config.json                      -text
+FORMAX_PROBABILITY_ENGINE/prediction_gate_v1/gate.config.json                     -text
+
+FORMAX_HISTORICAL_MASTER/FORMAX_HISTORICAL_MODEL_ELIGIBLE.csv                     -text
+FORMAX_HISTORICAL_MASTER/FORMAX_HISTORICAL_TEAMS.csv                              -text

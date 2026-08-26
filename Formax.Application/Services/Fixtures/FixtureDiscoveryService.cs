@@ -68,7 +68,8 @@ namespace Formax.Application.Services.Fixtures
                 if (string.IsNullOrWhiteSpace(home) || string.IsNullOrWhiteSpace(away)) continue;
 
                 var league = _leagues.Resolve(c.League);
-                var id = _idFactory.Create(league, c.DateUtc, home, away);
+                // Kimlik lig-bağımsızdır (tek kimlik otoritesi); lig yalnız sonuç meta verisi olarak taşınır.
+                var id = _idFactory.Create(c.DateUtc, home, away);
 
                 if (!groups.TryGetValue(id, out var list))
                     groups[id] = list = new List<NormalizedCandidate>();

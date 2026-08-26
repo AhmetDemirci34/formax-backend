@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/follows";
 import { trackInterest } from "@/lib/api/interests";
 import { useAuth } from "@/context/AuthContext";
+import { AUTH_GATE_ENABLED } from "@/lib/auth/authGate";
 
 export const FOLLOW_IDS_KEY  = ["follow", "ids"] as const;
 export const FOLLOWED_MATCHES_KEY = ["follow", "matches"] as const;
@@ -90,7 +91,9 @@ export function useFollow(matchId: number) {
 
   const toggle = () => {
     if (!isLoggedIn) {
-      window.location.href = "/auth/login";
+      // Auth kapısı pasifken takip sessizce yok sayılır (bkz. lib/auth/authGate.ts);
+      // UI geliştirirken tek dokunuş kullanıcıyı login'e atmasın.
+      if (AUTH_GATE_ENABLED) window.location.href = "/auth/login";
       return;
     }
     if (isFollowing) {

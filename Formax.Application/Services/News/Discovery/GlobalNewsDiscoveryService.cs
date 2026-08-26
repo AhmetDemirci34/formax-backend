@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -43,9 +41,16 @@ namespace Formax.Application.Services.News.Discovery
 
         public Task<(IReadOnlyList<DedupedNewsItem> Items, MatchNewsContext Context)> DiscoverForMatchAsync(
             string formaxMatchId, string home, string away, string league, string country,
-            DateTime kickoffUtc, CancellationToken ct = default)
+            DateTime kickoffUtc, CancellationToken ct = default,
+            int queryBudget = 0, bool urgent = false)
         {
             var query = _queryBuilder.Build(formaxMatchId, home, away, league, country, kickoffUtc);
+
+            // Sorgu bütçesi maçın kickoff yakınlığından gelir (flash öncelik). Provider'lar
+            // listenin yalnız ilk N sorgusunu çalıştırır → bütçe = tarama derinliği.
+            query.QueryBudget = queryBudget;
+            query.IsUrgent = urgent;
+
             return DiscoverAsync(query, ct);
         }
 
@@ -64,29 +69,46 @@ namespace Formax.Application.Services.News.Discovery
                 }
             });
 
-            var candidates = (await Task.WhenAll(fetches)).SelectMany(x => x).ToList();
-            var totalProviders = candidates.Select(c => c.Provider)
-                                           .Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            var fetched = (await Task.WhenAll(fetches)).SelectMany(x => x).ToList();
+            var totalProviders = fetched.Select(c => c.Provider)
+                                        .Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+            // FUTBOL TRİYAJI KEŞİF ANINDA: başka spor dalı / reklam içeriği keşif katmanına
+            // bile alınmaz. Ölçüldü — "Watch Shields vs Scott" (boks) gibi kayıtlar takım-açı
+            // sorgularıyla geliyor ve depoyu kirletiyordu. Şüpheli değil, KESİN olanlar atılır;
+            // haber-mi-değil-mi kararı yine Evidence kapılarında verilir.
+            var candidates = fetched
+                .Where(c => !Intelligence.MatchIntelligenceService
+                                .IsForeignSportOrPromo(c.Headline + " " + c.Summary))
+                .ToList();
 
             // Duplicate detection → her grup tek habere iner.
             var groups = _dedup.Group(candidates);
-            var homeL = query.HomeTeam.ToLowerInvariant();
-            var awayL = query.AwayTeam.ToLowerInvariant();
 
             var items = new List<DedupedNewsItem>();
             foreach (var g in groups)
             {
-                var rep = g.OrderByDescending(c => c.PublishedUtc).First();
-                var sources = g.Select(c => string.IsNullOrWhiteSpace(c.Publisher) ? c.Provider : c.Publisher)
-                               .Where(s => !string.IsNullOrWhiteSpace(s))
-                               .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                // TEMSİLCİ: gerçek özeti olan kayıt öncelikli — anlatının dayanabileceği tek
+                // malzeme odur. Eşitlikte en yeni.
+                var rep = g.OrderByDescending(c => !string.IsNullOrWhiteSpace(c.Summary))
+                           .ThenByDescending(c => c.PublishedUtc)
+                           .First();
 
-                var titleL = rep.Headline.ToLowerInvariant();
-                var bothTeams = !string.IsNullOrEmpty(homeL) && !string.IsNullOrEmpty(awayL)
-                                && titleL.Contains(homeL) && titleL.Contains(awayL);
+                // KAYNAK SAYISI = GERÇEK YAYINCI sayısı. Arama motorunun kendi adı ("Google
+                // News") yayıncı değildir; yalnız gerçek yayıncı yoksa geriye düşülür.
+                var publishers = g.Select(c => c.Publisher)
+                                  .Where(s => !string.IsNullOrWhiteSpace(s))
+                                  .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var sources = publishers.Count > 0
+                    ? publishers
+                    : g.Select(c => c.Provider).Where(s => !string.IsNullOrWhiteSpace(s))
+                       .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                var bothTeams = Intelligence.MatchIntelligenceService.MentionsBothTeams(
+                    rep.Headline + " " + rep.Summary, query.HomeTeam, query.AwayTeam);
 
                 var clusters = _cluster.Classify(rep.Headline, rep.Summary).ToList();
-                var confidence = _confidence.Score(sources.Count, rep.PublishedUtc, bothTeams);
+                var confidence = _confidence.Score(publishers.Count, rep.PublishedUtc, bothTeams);
 
                 items.Add(new DedupedNewsItem
                 {
@@ -97,10 +119,17 @@ namespace Formax.Application.Services.News.Discovery
                     PublishedUtc = rep.PublishedUtc,
                     Language = rep.Language,
                     Sources = sources,
-                    SourceCount = sources.Count,
+                    SourceCount = Math.Max(1, publishers.Count),
                     Clusters = clusters,
                     Confidence = confidence,
-                    ContentHash = Hash(query.FormaxMatchId + "|" + Normalize(rep.Headline))
+
+                    // TEKİLLEŞTİRME ANAHTARI ARTIK OLAY DÜZEYİNDE. Eskiden ham başlığın
+                    // normalizasyonuydu; aynı gelişmenin farklı yayıncıdaki başlığı
+                    // ("Fenerbahçe'de X sakatlandı" / "X'ten kötü haber") ayrı kayıt oluyordu.
+                    // Olay anahtarı anlam taşıyan kelimelerden türer → aynı olay tek satır.
+                    ContentHash = Intelligence.NewsTextNormalizer.Hash(
+                        query.FormaxMatchId + "|" +
+                        Intelligence.NewsTextNormalizer.EventKey(rep.Headline))
                 });
             }
 
@@ -126,13 +155,5 @@ namespace Formax.Application.Services.News.Discovery
             };
         }
 
-        private static string Normalize(string s) =>
-            new string(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
-
-        private static string Hash(string s)
-        {
-            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(s));
-            return Convert.ToHexString(bytes, 0, 12);
-        }
     }
 }

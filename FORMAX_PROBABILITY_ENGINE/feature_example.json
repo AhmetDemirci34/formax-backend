@@ -1,0 +1,172 @@
+{
+  "_purpose": "Shape example of one pre-match feature record. The identity/context block holds REAL values taken from the dataset. Every derived value is null on purpose: feature values were NOT computed in this phase.",
+  "_valueStatus": "NOT_COMPUTED_IN_THIS_PHASE",
+  "_rulesApplied": [
+    "Every derived value must come from matches strictly earlier than match_date.",
+    "The statistics of THIS match (goals, shots, corners, cards, half-time score) are targets or in-match data and are never inputs.",
+    "A feature with insufficient history stays null - it is never filled with a default or an average."
+  ],
+
+  "identity": {
+    "match_id": "FMXME6088D2C8A4D45EB",
+    "match_date": "2023-08-11",
+    "kickoff_local_time": "20:00",
+    "kickoff_utc": null,
+    "season": "2023/24",
+    "competition": "Premier League",
+    "competition_type": "DOMESTIC_LEAGUE",
+    "round": "Matchday 1",
+    "home_team_id": "FMXT0110",
+    "home_team": "Burnley",
+    "away_team_id": "FMXT0435",
+    "away_team": "Manchester City",
+    "_note": "Real row from FORMAX_HISTORICAL_MODEL_ELIGIBLE.csv, used only to show the shape."
+  },
+
+  "target": {
+    "target_home_goals": 0,
+    "target_away_goals": 3,
+    "target_regular_home_goals": 0,
+    "target_regular_away_goals": 3,
+    "_note": "Shown for completeness. This is the label, never an input."
+  },
+
+  "context": {
+    "is_home_advantage_applicable": true,
+    "is_neutral_venue": null,
+    "tie_id": null,
+    "tie_leg_number": null,
+    "tie_aggregate_home_goals": null,
+    "tie_aggregate_away_goals": null,
+    "season_matches_played_home": null,
+    "season_matches_played_away": null,
+    "_note": "tie_* is null because DOMESTIC_LEAGUE has no two-legged ties. is_neutral_venue is null because the dataset does not carry venue neutrality at all."
+  },
+
+  "team_strength": {
+    "home_attack_strength": null,
+    "home_defence_strength": null,
+    "home_overall_strength": null,
+    "home_home_strength": null,
+    "home_strength_sample_size": null,
+    "home_strength_confidence": null,
+    "home_is_cold_start": null,
+    "away_attack_strength": null,
+    "away_defence_strength": null,
+    "away_overall_strength": null,
+    "away_away_strength": null,
+    "away_strength_sample_size": null,
+    "away_strength_confidence": null,
+    "away_is_cold_start": null,
+    "competition_offset": null,
+    "home_advantage_competition_type": null
+  },
+
+  "scoring_rolling": {
+    "_window": "one of rolling_3 | rolling_5 | rolling_10 | time_decayed - NOT SELECTED YET",
+    "home_goals_for_rate": null,
+    "home_goals_against_rate": null,
+    "home_goal_difference_rate": null,
+    "home_clean_sheet_rate": null,
+    "home_over25_rate": null,
+    "home_btts_rate": null,
+    "away_goals_for_rate": null,
+    "away_goals_against_rate": null,
+    "away_goal_difference_rate": null,
+    "away_clean_sheet_rate": null,
+    "away_over25_rate": null,
+    "away_btts_rate": null,
+    "home_scoring_sample_size": null,
+    "away_scoring_sample_size": null,
+    "_availability": "derivable for 93.04 percent of matches at the >=5 prior-match threshold"
+  },
+
+  "form": {
+    "home_points_per_match_last_n": null,
+    "home_goal_diff_last_n": null,
+    "home_form_vs_opponent_strength": null,
+    "home_home_form": null,
+    "away_points_per_match_last_n": null,
+    "away_goal_diff_last_n": null,
+    "away_form_vs_opponent_strength": null,
+    "away_away_form": null,
+    "_note": "Form is not W W L W W - it carries results, goal difference, opponent strength and venue context."
+  },
+
+  "match_statistics_rolling": {
+    "_source": "FORMAX_HISTORICAL_MATCH_STATS.csv",
+    "_coverage": "70.41 percent of the dataset overall, 88.91 percent of DOMESTIC_LEAGUE, 0 percent for every UEFA type and for 2025/26",
+    "home_shots_for_avg": null,
+    "home_shots_against_avg": null,
+    "home_shots_on_target_for_avg": null,
+    "home_shots_on_target_against_avg": null,
+    "home_shot_conversion_rate": null,
+    "home_corners_for_avg": null,
+    "home_corners_against_avg": null,
+    "home_fouls_avg": null,
+    "home_yellow_avg": null,
+    "home_red_rate": null,
+    "away_shots_for_avg": null,
+    "away_shots_against_avg": null,
+    "away_shots_on_target_for_avg": null,
+    "away_shots_on_target_against_avg": null,
+    "away_shot_conversion_rate": null,
+    "away_corners_for_avg": null,
+    "away_corners_against_avg": null,
+    "away_fouls_avg": null,
+    "away_yellow_avg": null,
+    "away_red_rate": null,
+    "stats_sample_size_home": null,
+    "stats_sample_size_away": null,
+    "_thisMatchValuesForReference": {
+      "_warning": "THESE ARE THE VALUES OF THIS MATCH AND ARE FORBIDDEN AS INPUTS. Listed only to make the rule concrete.",
+      "home_shots": 6, "away_shots": 17,
+      "home_shots_on_target": 1, "away_shots_on_target": 8,
+      "home_corners": 6, "away_corners": 5
+    }
+  },
+
+  "schedule": {
+    "home_days_rest": null,
+    "away_days_rest": null,
+    "home_matches_last_14d": null,
+    "away_matches_last_14d": null,
+    "_warning": "Fixture counters undercount systematically - domestic cups, internationals and friendlies are outside the 17 locked competitions."
+  },
+
+  "head_to_head": {
+    "h2h_matches_played": null,
+    "h2h_home_win_rate": null,
+    "h2h_avg_total_goals": null,
+    "_availability": "at least one previous meeting exists for 78.94 percent of matches"
+  },
+
+  "domestic_season_to_date": {
+    "home_season_points": null,
+    "home_season_goal_difference": null,
+    "home_season_table_position": null,
+    "away_season_points": null,
+    "away_season_goal_difference": null,
+    "away_season_table_position": null,
+    "_note": "Null here is also correct on matchday 1: nothing has been played in the season yet. Season-final standings are forbidden."
+  },
+
+  "future_blocks_not_available": {
+    "xg": null, "possession": null, "lineup": null, "injuries": null,
+    "suspensions": null, "manager_change": null, "weather": null, "referee": null,
+    "verified_pre_match_context": null,
+    "_status": "NOT_AVAILABLE - 0 percent coverage in every owned source; no hand-made scoring scheme is defined"
+  },
+
+  "market_benchmark": {
+    "_status": "FUTURE_BENCHMARK - never an input",
+    "_file": "FORMAX_HISTORICAL_MATCH_STATS/FORMAX_HISTORICAL_MARKET_DATA.csv",
+    "leakage_safe": "UNKNOWN",
+    "odd_home": null, "odd_draw": null, "odd_away": null
+  },
+
+  "audit": {
+    "source_match_ids_used": null,
+    "_note": "For leakage test T1 this list must be produced at least once and every source match date must be strictly earlier than match_date."
+  }
+}

@@ -16,12 +16,31 @@ namespace Formax.Application.Services.Sapma
         private const int LastNVenue = 6;
         private const int LeagueSampleMatches = 200;
 
+        // ── İSTEK-İÇİ MEMOIZASYON (perf; sonuç DEĞİŞMEZ) ──────────────────────
+        // Bu servis Scoped'tır → alanlar istek başına sıfırlanır, istekler arası sızma yok.
+        // Maçlar ekranı 250 maçı tek istekte puanlıyordu ve her maç için:
+        //   • lig baseline'ı (200 satırlık tarama) yeniden hesaplanıyor,
+        //   • aynı takımın form sorguları defalarca tekrarlanıyordu.
+        // Girdiler istek boyunca sabit olduğundan (aynı DB anlık görüntüsü) sonuç birebir
+        // aynıdır; yalnız tekrar eden sorgular elenir.
+        private LeagueBaseline? _leagueBaselineCache;
+        private readonly Dictionary<(int TeamId, bool IsHomeVenue), int> _strengthCache = new();
+        private readonly Dictionary<int, Team?> _teamCache = new();
+
         public GucSkoruCalculator(
             IMatchReadRepository matchReadRepository,
             ITeamReadRepository teamReadRepository)
         {
             _matchReadRepository = matchReadRepository;
             _teamReadRepository = teamReadRepository;
+        }
+
+        private Team? GetTeamCached(int teamId)
+        {
+            if (_teamCache.TryGetValue(teamId, out var cached)) return cached;
+            var team = _teamReadRepository.GetById(teamId);
+            _teamCache[teamId] = team;
+            return team;
         }
 
         public GucSkoruResult CalculateForMatch(int matchId)
@@ -39,13 +58,13 @@ namespace Formax.Application.Services.Sapma
                 };
             }
 
-            var homeTeam = _teamReadRepository.GetById(match.HomeTeamId);
-            var awayTeam = _teamReadRepository.GetById(match.AwayTeamId);
+            var homeTeam = GetTeamCached(match.HomeTeamId);
+            var awayTeam = GetTeamCached(match.AwayTeamId);
 
-            var league = ComputeLeagueBaseline();
+            var league = _leagueBaselineCache ??= ComputeLeagueBaseline();
 
-            var homeStrength = ComputeTeamStrengthDataDriven(match.HomeTeamId, true, homeTeam, league);
-            var awayStrength = ComputeTeamStrengthDataDriven(match.AwayTeamId, false, awayTeam, league);
+            var homeStrength = GetTeamStrengthCached(match.HomeTeamId, true, homeTeam, league);
+            var awayStrength = GetTeamStrengthCached(match.AwayTeamId, false, awayTeam, league);
 
             var delta = homeStrength - awayStrength;
 
@@ -62,6 +81,15 @@ namespace Formax.Application.Services.Sapma
                 HomeStrength = homeStrength,
                 AwayStrength = awayStrength
             };
+        }
+
+        private int GetTeamStrengthCached(int teamId, bool isHomeVenue, Team? team, LeagueBaseline league)
+        {
+            var key = (teamId, isHomeVenue);
+            if (_strengthCache.TryGetValue(key, out var cached)) return cached;
+            var value = ComputeTeamStrengthDataDriven(teamId, isHomeVenue, team, league);
+            _strengthCache[key] = value;
+            return value;
         }
 
         private int ComputeTeamStrengthDataDriven(int teamId, bool isHomeVenue, Team? team, LeagueBaseline league)

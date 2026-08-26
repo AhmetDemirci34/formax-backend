@@ -79,20 +79,12 @@ export function intelTheme(card: RecommendationCardDto): IntelTheme {
   return "radar";
 }
 
-const HERO_SENTENCE: Record<IntelTheme, string> = {
-  importance: "Bugünün öne çıkan karşılaşmalarından biri.",
-  derby: "Derbi atmosferiyle öne çıkan bir karşılaşma.",
-  rank: "Sıralama mücadelesiyle önem kazanan bir maç.",
-  buzz: "Global futbol gündeminde dikkat çeken bir maç.",
-  form: "Form grafikleri bu maçı öne çıkarıyor.",
-  tempo: "Yüksek tempolu geçmesi beklenen bir karşılaşma.",
-  radar: "FORMAX radarında bugün öne çıkan bir eşleşme.",
-};
-
-// Takımların altındaki tek match-intel cümlesi (her zaman dolu). Tahmin DEĞİL.
-export function heroLine(card: RecommendationCardDto): string {
-  return HERO_SENTENCE[intelTheme(card)];
-}
+// KALDIRILDI — HERO_SENTENCE / heroLine().
+// Frontend'de yazılmış 7 sabit cümle vardı ("Form grafikleri bu maçı öne çıkarıyor",
+// "FORMAX radarında bugün öne çıkan bir eşleşme" …) ve "her zaman dolu" olduğu için
+// gerçek analiz olmayan maçlarda bile klişe metin gösteriyordu.
+// Keşfet teaser'ı artık YALNIZCA Decision paketinden seçilir: components/discover/teaser.ts
+// (buildTeaserLines → decision.reading). Frontend cümle üretmez.
 
 // ── Radar — discovery signal strength (radarScore, else recommendation score) ──
 function radarValue(card: RecommendationCardDto): number {
@@ -165,49 +157,10 @@ export function leagueLabel(card: RecommendationCardDto): string | null {
   return card.leagueName?.trim() || null;
 }
 
-// ── FORMAX AI — dünya/intelligence sentezi (kullanıcıyı DEĞİL, maçı/dünyayı anlatır). ──
-// Her satır GERÇEK bir alana bağlıdır; hedge'li dil, kesin tahmin değil. 2–3 satır, çok-kaynak hissi.
-// Gol satırı ile Gol sinyali AYNI tag'den gelir → çelişmez (#5).
-export function aiIntelligence(card: RecommendationCardDto): string[] {
-  const text = `${card.storyHeadline ?? ""} ${card.storyBody ?? ""}`;
-  const titles = (card.keySignals ?? []).map((s) => stripEmoji(s?.title));
-  const goalTag = (card.tags ?? []).map(stripEmoji).find((t) => /gol|skor/i.test(t));
-  const importance = Number(card.matchImportance ?? 0);
-
-  // Aday satırlar (her biri tema etiketli + gerçek bir alana bağlı). Hero'nun temasını dışlarız.
-  const cand: { theme: IntelTheme; line: string }[] = [];
-
-  if ((card.globalTrendScore ?? 0) > 0.6 || BUZZ.test(text))
-    cand.push({ theme: "buzz", line: "Uluslararası futbol gündeminde bu karşılaşma dikkat çekiyor." });
-
-  if (goalTag && /yüksek/i.test(goalTag))
-    cand.push({ theme: "tempo", line: "Akışta yüksek tempolu, gollü bir maç beklentisi öne çıkıyor." });
-  else if (goalTag && /(düşük|az)/i.test(goalTag))
-    cand.push({ theme: "tempo", line: "Öne çıkan beklenti kontrollü, düşük tempolu bir oyun yönünde." });
-
-  if (titles.some((t) => /derbi/i.test(t)))
-    cand.push({ theme: "derby", line: "Derbi atmosferi maçın belirleyici yönü olarak değerlendiriliyor." });
-  else if (titles.some((t) => /(zirve|lider|rekabet)/i.test(t)))
-    cand.push({ theme: "rank", line: "Sıralama mücadelesi maçın önemini artıran başlıklar arasında." });
-  else if (titles.some((t) => /form/i.test(t)))
-    cand.push({ theme: "form", line: "Takım formu, analizlerde öne çıkarılan başlıklar arasında." });
-
-  if (importance >= IMPORTANCE_HIGH)
-    cand.push({ theme: "importance", line: "Önem sinyalleri bu karşılaşmayı listenin üst sıralarına taşıyor." });
-
-  const exclude = intelTheme(card); // Hero bu temayı zaten kullanıyor → AI tekrar etmez.
-  let lines = cand.filter((c) => c.theme !== exclude).map((c) => c.line);
-
-  // Hero tek temayı aldıysa AI boş kalmasın → backend'in kendi gerçek anlatısı.
-  if (lines.length === 0) {
-    const fb = stripEmoji(card.storyBody) || stripEmoji(card.storyHeadline);
-    if (fb) lines = [fb];
-  }
-
-  return lines.slice(0, 3);
-}
-
-export const AI_DISCLAIMER = "FORMAX Intelligence özeti · kesin tahmin değildir.";
+// KALDIRILDI — aiIntelligence() ve AI_DISCLAIMER.
+// Frontend'de yazılmış cümle bankasıydı ("Derbi atmosferi maçın belirleyici yönü olarak
+// değerlendiriliyor.", "Akışta yüksek tempolu, gollü bir maç beklentisi öne çıkıyor." …).
+// Keşfet teaser'ı artık YALNIZCA Decision paketinden seçilir: components/discover/teaser.ts
 
 // ── Maç zamanı — gerçek MatchDate'ten. Gelecek: Bugün/Yarın/tarih · Başladı: Canlı · Geçmiş: Bitti.
 // NOT: feed'de canlı DAKİKA yok (yalnız MatchDate izinli) → "Canlı" dakikasız; yapı dakikaya hazır.
@@ -240,6 +193,39 @@ export function matchTime(card: RecommendationCardDto): MatchTimeVM | null {
 
   if (-diffMin <= LIVE_WINDOW_MIN) return { text: "Canlı", live: true };
   return { text: "Bitti", live: false };
+}
+
+// Discovery'ye uygun OLMAYAN maç durumları (ürün anayasası).
+const NON_DISCOVERABLE_STATUSES = new Set([
+  "finished",
+  "fulltime",
+  "afterextratime",
+  "afterpenalties",
+  "cancelled",
+  "canceled",
+  "postponed",
+  "suspended",
+  "abandoned",
+  "walkover",
+  "awarded",
+  "ended",
+]);
+
+/**
+ * GEÇİCİ GÜVENLİK KATMANI (ürün anayasası) — Hero/Discovery'de BİTMİŞ maç asla görünmesin.
+ * Öncelik: backend `Status` alanı; yoksa gerçek `matchDate` (canlı penceresi dışında geçmiş = bitmiş).
+ * Bu FRONTEND filtresi geçicidir: backend Recommendation Engine yalnız Upcoming/Live döndürünce
+ * kaldırılabilir. Sıralama/AI hesabı YAPMAZ; yalnız güvenlik amaçlı durum elemesidir.
+ */
+export function isDiscoverable(card: RecommendationCardDto): boolean {
+  const s = card.status?.toString().toLowerCase().replace(/\s+|_/g, "");
+  if (s) return !NON_DISCOVERABLE_STATUSES.has(s);
+  const iso = card.matchDate;
+  if (!iso) return false;
+  const ts = new Date(iso).getTime();
+  if (isNaN(ts)) return false;
+  const diffMin = (ts - Date.now()) / 60000;
+  return diffMin > 0 || -diffMin <= LIVE_WINDOW_MIN;
 }
 
 // ── Kısa AI etiketi — trending kartı için tek kelime, intel temasından (gerçek veriye bağlı).

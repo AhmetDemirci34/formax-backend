@@ -203,8 +203,8 @@ namespace Formax.Application.Services.Players.Intelligence
             {
                 var home = _teams.GetById(match.HomeTeamId)?.Name ?? "";
                 var away = _teams.GetById(match.AwayTeamId)?.Name ?? "";
-                var formaxId = _matchIdFactory.Create(match.League, match.MatchDate, home, away);
-                var ctx = await _evidence.GetContextAsync(formaxId, ct);
+                var formaxId = _matchIdFactory.Create(match.MatchDate, home, away);
+                var ctx = await _evidence.GetContextAsync(formaxId, home, away, ct);
                 var all = new List<string>();
                 all.AddRange(ctx.TopHeadlines);
                 all.AddRange(ctx.LatestHeadlines);

@@ -25,6 +25,17 @@ namespace Formax.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        // Ters lookup (bildirim fan-out): bu takımı aktif takip eden kullanıcı id'leri.
+        public Task<List<int>> GetUserIdsByTeamAsync(int teamId)
+        {
+            return _db.Set<UserTeamFollow>()
+                .AsNoTracking()
+                .Where(x => x.TeamId == teamId && x.IsActive)
+                .Select(x => x.UserId)
+                .Distinct()
+                .ToListAsync();
+        }
+
         // Wizard Sync: mevcut aktifleri listene göre ekle/sil
         public async Task SetUserTeamsSyncAsync(int userId, List<int> teamIds)
         {

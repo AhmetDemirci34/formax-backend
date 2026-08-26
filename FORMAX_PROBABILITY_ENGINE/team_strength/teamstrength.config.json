@@ -1,0 +1,42 @@
+{
+  "_comment": "Every tunable of the team strength engine. NONE of these values has been validated against held-out data yet - selection belongs to the walk-forward validation phase. They are here so that no number is hard-coded in the engine.",
+
+  "halfLifeDays": 365.0,
+  "_halfLifeDays": "Exponential time weight. After this many days a match counts half as much and the rating drifts halfway back to its prior. UNVALIDATED.",
+
+  "learningRate": 0.08,
+  "_learningRate": "Step size of the multiplicative update after each match. UNVALIDATED.",
+
+  "shrinkageK": 6.0,
+  "_shrinkageK": "Partial pooling constant: own evidence weight = n_eff / (n_eff + k). Larger k = stronger pull to the prior. UNVALIDATED.",
+
+  "venueShrinkageK": 4.0,
+  "_venueShrinkageK": "Same idea for the home-only and away-only indices, which see roughly half the matches.",
+
+  "ratioSmoothing": 0.60,
+  "_ratioSmoothing": "Additive smoothing in the surprise ratio (goals + s) / (expected + s), so a 0-0 cannot drive the index to zero. UNVALIDATED.",
+
+  "minIndex": 0.25,
+  "maxIndex": 4.0,
+  "_indexClamp": "Hard bounds so one freak result cannot explode a rating.",
+
+  "limitedThreshold": 1.0,
+  "developingThreshold": 3.0,
+  "establishedThreshold": 5.0,
+  "richThreshold": 10.0,
+  "_thresholds": "ColdStartClass uses the RAW prior-match count, Confidence uses the TIME-DECAYED count. Reporting labels only - the model is free to use the numeric fields instead.",
+
+  "seedBaselineHomeGoals": 1.5,
+  "seedBaselineAwayGoals": 1.2,
+  "minBaselineSamples": 50,
+  "_baselines": "Goals-per-match baselines are LEARNED per CompetitionType with an expanding window. The seeds are only used until minBaselineSamples matches of that type have been observed, and every snapshot records which prior it used.",
+
+  "useCompetitionTypePool": true,
+  "_useCompetitionTypePool": "When true a team with little history is shrunk towards the pool of its CompetitionType (this is what carries UEFA qualifier clubs). When false the neutral index 1.0 is used.",
+
+  "requiredIdentityConfidence": "CONFIRMED",
+  "_requiredIdentityConfidence": "Rows whose team identity is not CONFIRMED never enter the engine.",
+
+  "acceptedMatchStatuses": [ "FT", "AET", "PEN" ],
+  "_acceptedMatchStatuses": "Awarded, cancelled or unplayed fixtures are not evidence of playing strength."
+}

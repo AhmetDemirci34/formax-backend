@@ -4,8 +4,15 @@ using Formax.Application.Interfaces;
 using Formax.Application.Interfaces.Repositories;
 using Formax.Application.UseCases.Home;
 using Formax.Application.DTOs.Home;
+using Formax.Application.AI.Context;
+using Formax.Application.DTOs.Matches;
+using Formax.Application.Services.Odds;
 using Formax.Application.Services.Radar.Feed;
 using Formax.Application.Services.Radar.Intelligence.Match;
+using Formax.Application.Services.Radar.Intelligence.Scenarios;
+using Formax.Domain.Constants;
+using Formax.Domain.Entities;
+using Microsoft.Extensions.Caching.Memory;
 
 public sealed class GetRecommendationFeedUseCase
 {
@@ -33,6 +40,80 @@ public sealed class GetRecommendationFeedUseCase
     private readonly IRadarFeedAdapter _radarFeedAdapter;
     private readonly IRadarRankingService _radarRanking;
     private readonly IMatchIntelligenceRepository _intelRepo;
+    private readonly IMatchLiveStatsRepository _liveStatsRepo;
+    private readonly ITeamReadRepository _teamReadRepo;
+    private readonly IMatchAiContextBuilder _aiContextBuilder;
+    private readonly MarketProbabilityEngine _decisionEngine;
+    private readonly IMatchOddsRepository _oddsRepo;
+    private readonly IMemoryCache _cache;
+
+    /// <summary>
+    /// Anlatı deposu — YALNIZ OKUMA. Keşfet kartına, daha önce üretilmiş Match
+    /// Intelligence anlatısı varsa taşınır; burada üretim BAŞLATILMAZ.
+    /// </summary>
+    private readonly Formax.Application.AI.Radar.IRadarNarrativeStore _narrativeStore;
+
+    /// <summary>Decision paketi deterministiktir; kısa TTL yalnız tekrar-kurulumu önler.</summary>
+    private static readonly TimeSpan DecisionCacheTtl = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// DISCOVER AI KALİTE KAPISI — bir maçın ana Discover sunumuna girebilmesi için gereken
+    /// en düşük <c>DecisionConfidence.Score</c>.
+    ///
+    /// Bu sayı KEYFİ DEĞİLDİR, <see cref="AI.Decision.Modules.ConfidenceEngine"/>'in kendi
+    /// matematiğinden gelir:
+    ///   coverage = Clamp(activeSignalCount / 8.0, 0.3, 1.0)
+    /// activeSignalCount 1 ve 2 iken coverage ALT SINIRA (0.3) kelepçelenir — yani motor bu iki
+    /// durumu birbirinden ayırt EDEMEZ, ikisi de "taban" muamelesi görür. Kelepçeden çıkılan ilk
+    /// seviye activeSignalCount = 3'tür (0.375) ve gerçek ölçümde bu seviyenin karşılığı 12'dir.
+    /// 217 maçlık gerçek ölçümde skorlar {0, 5..9, 12} kümesinde toplandı; 11 ile 13 arasında
+    /// hiç değer yok — 12 ölçülmüş bir kırılma noktasıdır.
+    ///
+    /// 12 "YÜKSEK GÜVEN" DEĞİLDİR (motorun kendi sınıflandırmasında hâlâ DÜŞÜK: eşikler 50/68).
+    /// Yalnızca AI sinyal kapsamının anlamlı ölçülmeye başladığı minimum teknik kalite kapısıdır.
+    /// Confidence formülüne, aralığına veya seviye etiketlerine DOKUNULMAZ.
+    /// </summary>
+    private const int MinDiscoverConfidence = 12;
+
+    /// <summary>
+    /// Aday havuzu boyu (en yakın kickoff'tan itibaren). AI kalite kapısı eklenince 100'lük
+    /// pencere yetersiz kaldı: gerçek ölçümde kapıyı geçen maçlar (aktif sinyali 3+ olanlar)
+    /// bu pencerenin DIŞINDA kalıyor ve Discover gereksiz yere boşalıyordu. Havuz genişletmek
+    /// sıralamayı DEĞİŞTİRMEZ — yalnız aynı sıralamanın değerlendirdiği aday sayısını artırır.
+    /// Decision paketleri cache'li olduğu için maliyet yalnız ilk isteğe düşer.
+    /// </summary>
+    private const int CandidatePoolSize = 250;
+
+    /// <summary>
+    /// Zaman cezasının TABANI: en uzak maç bile keşif sinyalinin bu oranını korur.
+    /// 1.0 = ceza yok. Eleme değil, ağırlıklandırma — hiçbir maç listeden çıkmaz.
+    /// </summary>
+    private const double TimeProximityFloor = 0.55;
+
+    /// <summary>
+    /// DISCOVER ZAMAN YAKINLIĞI (0–100) — Hero/Feed sıralamasının zaman terimi.
+    ///
+    /// Neden Discover'a özel bir merdiven: mevcut
+    /// <see cref="GetHomeLiveSignalsUseCase"/> hesabı 48 saatten sonra 20'de DÜZLEŞİR;
+    /// +3 gün ile +19 gün aynı puanı alır. Discover'ın sorusu "şimdi/çok yakında
+    /// keşfetmeye değer ne var?" olduğu için ayrım tam orada gerekiyor.
+    ///
+    /// Aday havuzu kapsam allow-list'i küçük olduğundan 250 maç ≈ 19 güne yayılıyor
+    /// (ölçüldü: 17 Ağu → 5 Eyl). Bu merdiven hiçbir maçı ELEMEZ — uzak maç yalnız
+    /// sıralamada geriler; "Maçlar" ekranı ve DB etkilenmez.
+    /// </summary>
+    private static int ComputeDiscoverTimeProximity(DateTime kickoffUtc, DateTime utcNow)
+    {
+        var hours = (kickoffUtc - utcNow).TotalHours;
+        if (hours <= 0)  return 100;  // başlamak üzere
+        if (hours <= 24) return 95;   // bugün / 24 saat içinde
+        if (hours <= 48) return 80;   // yarın
+        if (hours <= 72) return 60;   // +2 gün
+        if (hours <= 96) return 40;   // +3 gün
+        if (hours <= 120) return 20;  // +4 gün — düşük ama mümkün
+        if (hours <= 168) return 8;   // +5..+7 gün — ciddi dezavantaj
+        return 0;                     // +7 gün ötesi — normal şartlarda Hero dışı
+    }
 
     private static readonly JsonSerializerOptions _signalJsonOpts =
         new() { PropertyNameCaseInsensitive = true };
@@ -49,8 +130,21 @@ public sealed class GetRecommendationFeedUseCase
         IFeedInsightQueryService feedInsightQuery,
         IRadarFeedAdapter radarFeedAdapter,
         IRadarRankingService radarRanking,
-        IMatchIntelligenceRepository intelRepo)
+        IMatchIntelligenceRepository intelRepo,
+        IMatchLiveStatsRepository liveStatsRepo,
+        ITeamReadRepository teamReadRepo,
+        IMatchAiContextBuilder aiContextBuilder,
+        MarketProbabilityEngine decisionEngine,
+        IMatchOddsRepository oddsRepo,
+        IMemoryCache cache,
+        Formax.Application.AI.Radar.IRadarNarrativeStore narrativeStore)
     {
+        _narrativeStore = narrativeStore;
+        _teamReadRepo = teamReadRepo;
+        _aiContextBuilder = aiContextBuilder;
+        _decisionEngine = decisionEngine;
+        _oddsRepo = oddsRepo;
+        _cache = cache;
         _radarUseCase = radarUseCase;
         _engine = engine;
         _userRepository = userRepository;
@@ -63,16 +157,52 @@ public sealed class GetRecommendationFeedUseCase
         _radarFeedAdapter = radarFeedAdapter;
         _radarRanking = radarRanking;
         _intelRepo = intelRepo;
+        _liveStatsRepo = liveStatsRepo;
     }
 
-    public async Task<List<RecommendationCardDto>> Execute(int userId, int page = 1, int pageSize = 10)
+    /// <param name="maxHorizonDays">
+    /// HERO/SWIPE UFKU (opsiyonel). Verilirse aday havuzu bugünden itibaren bu kadar takvim
+    /// günüyle sınırlanır (bugün dahil, gün sonuna kadar). null = sınır yok (mevcut davranış).
+    ///
+    /// Neden parametre: Discover Hero/swipe kuyruğu ile "Sana Özel", "Günün AI Kombini",
+    /// /tumu ve Trending AYNI ucu okuyor. Ufku global uygulamak Sana Özel'in geniş tarih
+    /// evrenini de daraltırdı. Yalnız Hero yüzeyi bu parametreyi gönderir; diğer yüzeyler
+    /// parametresiz çağırır ve HİÇ ETKİLENMEZ.
+    /// </param>
+    public async Task<List<RecommendationCardDto>> Execute(
+        int userId, int page = 1, int pageSize = 10, int? maxHorizonDays = null)
     {
+        // ── DISCOVER FILTER (MVP KİLİTLİ KARAR) ───────────────────────────────
+        // Discover ekranının amacı canlı skor göstermek DEĞİL, kullanıcının izleyeceği
+        // maçları KEŞFETMESİDİR. Bu nedenle Discover YALNIZ henüz başlamamış (NotStarted)
+        // maçları döndürür. Live/Halftime/ExtraTime/Penalties/Finished/AfterPenalties/
+        // Cancelled/Postponed/Abandoned/Suspended durumlarının HEPSİ elenir — hepsi coarse
+        // Status "Live"/"Finished"/"Postponed"/"Cancelled"'a düştüğü için allow-list dışında
+        // kalır. Tek yetkili filtre BURASIDIR; frontend filtre uygulamaz, durum ÜRETMEZ.
+        // (allow-list = güvenli: gelecekte yeni bir "oynanmış" durum sızamaz.)
+        var discoverableStatuses = new[] { "NotStarted", MatchStatuses.PreMatch };
+
+        // HERO UFKU — aday üretiminde uygulanır (sıralamada değil): ufuk dışı maç Hero/swipe
+        // kuyruğuna HİÇ GİRMEZ. Takvim günü mantığı: bugün + N gün, günün sonuna kadar dahil.
+        // (Zaman yakınlığı cezası ayrı mekanizmadır ve korunur; o sıralar, bu havuzu belirler.)
+        // maxHorizonDays null ise sınır yoktur → Sana Özel/Kombin/Trending aynı evreni görür.
+        var horizonCutoff = maxHorizonDays.HasValue
+            ? DateTime.UtcNow.Date.AddDays(maxHorizonDays.Value + 1)
+            : (DateTime?)null;
+
         var matches = _matchRepo.Query()
-            .OrderByDescending(x => x.MatchDate)
-            .Take(100)
+            .Where(x => discoverableStatuses.Contains(x.Status) && x.MatchDate >= DateTime.UtcNow)
+            .Where(x => horizonCutoff == null || x.MatchDate < horizonCutoff)
+            .OrderBy(x => x.MatchDate)   // keşif önceliği: en yakın kickoff önce
+            .Take(CandidatePoolSize)
             .ToList();
 
         var matchById = matches.ToDictionary(m => m.Id);
+
+        // #1 Canlı skor: canlı maçlar için MatchLiveStats'tan batch oku (feed'de skor gösterilsin).
+        var liveStatsByMatch = _liveStatsRepo
+            .GetByMatchIds(matches.Select(m => m.Id).ToHashSet())
+            .ToDictionary(s => s.MatchId);
 
         var followedTeamIds = (await _teamFollowRepo.GetActiveByUserAsync(userId))
             .Select(x => x.TeamId)
@@ -109,7 +239,12 @@ public sealed class GetRecommendationFeedUseCase
             BehaviorMomentumScore = 0,
             MatchHeatScore = 0,
             LeagueBaselineScore = 0,
-            TimeProximityScore = 0,
+            // ZAMAN YAKINLIĞI — eskiden sabit 0'dı, yani ranking'in zaman terimi ÖLÜYDÜ:
+            // RecommendationEngine `freshness = TimeProximityScore / 100.0` okuyor ve
+            // bugünkü maç ile 19 gün sonraki maç zaman açısından eşit yarışıyordu.
+            // Artık gerçek kickoff uzaklığından besleniyor (yeni skor TÜRÜ değil, mevcut
+            // alanın doğru değeri). Hiçbir maç ELENMEZ — yalnız sırada aşağı iner.
+            TimeProximityScore = ComputeDiscoverTimeProximity(m.MatchDate, DateTime.UtcNow),
 
             Freshness = "NEW",
             Explainability = "",
@@ -130,10 +265,17 @@ public sealed class GetRecommendationFeedUseCase
         var actions = await _actionRepository.GetByUserIdAsync(userId);
         var weights = await _prefRepo.GetOrCreate(userId);
 
+        // N+1 FIX (perf): 100 aday maçın bandit istatistiğini TEK sorguda önceden çek (döngü içinde
+        // maç-başına sıralı await yerine). Değerler birebir aynı → RANKING/skor DEĞİŞMEZ.
+        var banditByMatch = await _banditRepo.GetOrCreateMany(result.Select(r => r.MatchId).ToList());
+
         foreach (var x in result)
         {
+            // RANKING davranışsal bileşeni: floor'suz RawUserTrendScore (gerçek UserTrendService
+            // çıktısı) okunur — böylece UserInterestScores etkisi sıralamada floor'la maskelenmez.
+            // UI hâlâ x.UserTrendScore (display, floor'lu) gösterir. Weight/formül DEĞİŞMEDİ (0.5).
             var baseScore =
-                (0.5 * x.UserTrendScore) +
+                (0.5 * x.RawUserTrendScore) +
                 (0.3 * x.MarketTrendScore) +
                 (0.2 * x.MomentumScore);
 
@@ -169,7 +311,7 @@ public sealed class GetRecommendationFeedUseCase
             userBoost = Math.Max(-0.4, Math.Min(0.4, userBoost));
             userBoost *= decay;
 
-            var stats = await _banditRepo.GetOrCreate(x.MatchId);
+            var stats = banditByMatch[x.MatchId];
 
             double ucb = 0;
 
@@ -241,7 +383,11 @@ public sealed class GetRecommendationFeedUseCase
                 matchEntity?.League);
 
             x.StoryBody = BuildStoryBody(
-                x.StoryHeadline, x.TeamA, x.TeamB);
+                x.StoryHeadline, x.TeamA, x.TeamB,
+                matchEntity?.HomeTeam?.AvgGoalsFor,
+                matchEntity?.AwayTeam?.AvgGoalsFor,
+                matchEntity?.HomeTeam?.IsStableTeam,
+                matchIsHot);
 
             x.Tags = BuildMatchTags(
                 x.TeamA, x.TeamB,
@@ -261,17 +407,28 @@ public sealed class GetRecommendationFeedUseCase
                 x.MomentumScore);
 
             x.Score = x.RecommendationScore * 100;
+
+            // NOT: AiTrustScore burada DOLDURULMAZ. ConfidenceScore bir ÖNERİ/İLGİ skorudur
+            // (RecommendationScore + GlobalTrend), AI'ın maça duyduğu güven DEĞİLDİR. İkisini
+            // aynı etikette göstermek "maç kartı 37 / kombin %69" tutarsızlığını doğuruyordu.
+            // Gerçek AI güveni aşağıda, sayfalanmış kartlar için Decision paketinden gelir.
         }
 
         // ── R.13.4/R.13.5: Radar insights — overlay content + support ranking ─
         // RecommendationScore / UCB / Bandit are NOT modified. Radar only contributes a
         // low, capped (≤15%) support weight to the SORT KEY and fills content fields.
-        var insights = await _feedInsightQuery.GetFeedAsync(int.MaxValue);
+        // PERF (MVP freeze): eskiden GetFeedAsync(int.MaxValue) çağrılıyordu — bu, 120 günlük
+        // pencerede ~13.6k maçın TAMAMINI her istekte yeniden kuruyordu. Feed zaten yalnız
+        // yukarıdaki aday maçları puanlıyor; yalnız onların insight'ı okunur. Aynı kartlar için
+        // aynı insight → RADAR OVERLAY / SIRALAMA DEĞİŞMEZ.
+        var candidateMatchIds = result.Select(r => r.MatchId).Distinct().ToList();
+        var insights = await _feedInsightQuery.GetFeedByMatchIdsAsync(candidateMatchIds);
         var radarByMatch = insights
             .GroupBy(i => i.MatchId)
             .ToDictionary(g => g.Key, g => g.First());
 
-        var finalList = result
+        // SIRALAMA — mevcut Radar destekli sıra matematiği DEĞİŞMEDİ.
+        var ranked = result
             .Select(card =>
             {
                 var radarScore = radarByMatch.TryGetValue(card.MatchId, out var ins)
@@ -279,17 +436,67 @@ public sealed class GetRecommendationFeedUseCase
                     : 0.0;
                 card.RadarScore = radarScore;   // surface the already-computed Radar score
                 var sortKey = _radarRanking.ComputeFinalScore(card.RecommendationScore, radarScore);
+
+                // ── ZAMAN YAKINLIĞI CEZASI (Discover ürün kuralı) ──────────────────
+                // Discover Hero'nun sorusu "şimdi/çok yakında keşfetmeye değer ne var?"dır;
+                // haftalık takvim "Maçlar" ekranının işidir. RecommendationEngine'in kendi
+                // zaman terimi (freshness * 0.03) bu ayrımı yapamıyor: ÖLÇÜLDÜ — en fazla
+                // 0,03 oynatabiliyor, oysa 1. ve 2. kart arasındaki fark 0,0415'ti; +12 günlük
+                // maç Hero'da 1. sırada kalıyordu.
+                //
+                // Bu bir FİLTRE DEĞİL, çarpansal ceza: taban 0,55 → en uzak maç bile keşif
+                // sinyalinin %55'ini korur, hiçbir maç listeden ÇIKMAZ (güçlü uzak maç listede
+                // aşağıda kalır, "Maçlar" ekranı ve DB hiç etkilenmez).
+                // Taban değeri gerçek feed skorlarıyla seçildi: 0,70 yetersiz (+12g maç 2. sırada
+                // kalıyordu), 0,40 gereksiz sert; 0,55 ile ilk 5 kart +3 gün içine giriyor.
+                var proximity = matchById.TryGetValue(card.MatchId, out var mEntity)
+                    ? ComputeDiscoverTimeProximity(mEntity.MatchDate, DateTime.UtcNow)
+                    : 0;
+                sortKey *= TimeProximityFloor + (1 - TimeProximityFloor) * (proximity / 100.0);
+
+                // Discovery Engine sıralama skoru (Hero/Feed sıralamasının tek kaynağı, 0-100).
+                card.DiscoveryScore = Math.Round(sortKey * 100, 2);
                 return (card, sortKey);
             })
-            .OrderByDescending(t => t.sortKey)
+            // P0-2: canlı maçlar (gerçek skor/dakikalı) feed'in BAŞINDA görünsün — aksi halde
+            // RecommendationScore düşükse gömülüp "izlenebilir canlı maç" kullanıcıya ulaşmıyor.
+            .OrderByDescending(t => matchById.TryGetValue(t.card.MatchId, out var mm) && mm.Status == MatchStatuses.Live)
+            .ThenByDescending(t => t.sortKey)
             .ThenBy(t => t.card.MatchId)   // deterministic tie-break → stable pagination
+            .Select(t => t.card)
+            .ToList();
+
+        // ── AI KALİTE KAPISI — Discover YALNIZ AI'ın anlamlı ölçebildiği maçları sunar ──
+        // SIRALAMADAN SONRA, SAYFALAMADAN ÖNCE uygulanır: sıralama matematiğine dokunulmaz,
+        // yalnız AI açısından yetersiz aday elenir. Bir maç sıralamada ne kadar üstte olursa
+        // olsun, kapıyı geçemiyorsa Discover'a GİRMEZ. (Frontend'de "confidence düşükse gizle"
+        // ile kapatmak yetmez — kart yine kuyruğa girer ve swipe sırasında boş AI ekranı olur.)
+        var packagesByMatch = new Dictionary<int, Formax.Application.AI.Decision.AiDecisionPackage>();
+        var eligible = new List<RecommendationCardDto>();
+        foreach (var card in ranked)
+        {
+            var package = TryBuildDecisionPackage(card, matchById);
+            if (package == null) continue;                              // Decision verisi yok
+            if (package.Probabilities.Count == 0) continue;             // olasılık üretilmemiş
+            if (package.Confidence.Score < MinDiscoverConfidence) continue;
+
+            packagesByMatch[card.MatchId] = package;
+            eligible.Add(card);
+        }
+
+        // Yeterli AI verili maç yoksa feed KISA döner — sahte maç/AI üretilmez.
+        var finalList = eligible
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => t.card)
             .ToList();
 
         // R.13.4 — overlay Radar content (StoryHeadline/StoryBody/AiSummary/InsightLabel)
         // onto cards that have an insight. Runs after sort/paginate; scores untouched.
+        // N+1 FIX (perf): sayfadaki kartların intelligence snapshot'ı TEK sorguda çekilir
+        // (döngü içinde kart-başına GetByMatchIdAsync yerine). Değerler birebir aynı.
+        var intelByMatch = await _intelRepo.GetByMatchIdsAsync(
+            finalList.Select(c => c.MatchId).Distinct().ToList());
+
         foreach (var card in finalList)
         {
             if (radarByMatch.TryGetValue(card.MatchId, out var insight))
@@ -297,8 +504,7 @@ public sealed class GetRecommendationFeedUseCase
 
             // Surface the already-computed Match Importance + Key Signals from the
             // intelligence snapshot. No new computation — read-and-map only.
-            var snap = await _intelRepo.GetByMatchIdAsync(card.MatchId);
-            if (snap != null)
+            if (intelByMatch.TryGetValue(card.MatchId, out var snap) && snap != null)
             {
                 card.MatchImportance = snap.ImportanceScore;
                 card.KeySignals = MapKeySignals(snap.SignalsJson);
@@ -308,8 +514,26 @@ public sealed class GetRecommendationFeedUseCase
             // The engine only set Name; the match entity already carries the logo.
             if (matchById.TryGetValue(card.MatchId, out var matchEntity))
             {
-                // Mevcut Match.MatchDate'i feed'e taşı (yeni veri üretilmez).
-                card.MatchDate = matchEntity.MatchDate;
+                // Mevcut Match.MatchDate'i feed'e taşı (yeni veri üretilmez). MatchDate DB'de UTC
+                // saklanır (provider .ToUniversalTime()); ancak EF okuduğunda Kind=Unspecified olur
+                // ve System.Text.Json 'Z' EKLEMEZ → frontend değeri YEREL sanıp saati 3 saat erken
+                // gösterir (maç "başlamış" görünür). UTC Kind işaretleyerek ISO'ya 'Z' eklenir →
+                // frontend doğru yerel kickoff'u gösterir. Saat/karşılaştırma değişmez, yalnız Kind.
+                card.MatchDate = DateTime.SpecifyKind(matchEntity.MatchDate, DateTimeKind.Utc);
+
+                // Discovery durum alanları (gerçek Match entity'sinden — yeni hesaplama yok).
+                card.Status = matchEntity.Status;
+                card.IsLive = matchEntity.Status == MatchStatuses.Live;
+                card.LiveMinute = card.IsLive ? ParseLiveMinute(matchEntity.MatchMinute) : null;
+
+                // #1/P0-2 Canlı skor + dakika — yalnız canlı maçta, MatchLiveStats'tan (tek gerçek kaynak).
+                // Dakika Match.MatchMinute'te DEĞİL (o boş), MatchLiveStats.Minute'te. Yoksa null (uydurulmaz).
+                if (card.IsLive && liveStatsByMatch.TryGetValue(card.MatchId, out var ls))
+                {
+                    card.HomeScore = ls.HomeScore;
+                    card.AwayScore = ls.AwayScore;
+                    if (ls.Minute != null) card.LiveMinute = ls.Minute;
+                }
 
                 if (matchEntity.HomeTeam != null)
                 {
@@ -324,7 +548,162 @@ public sealed class GetRecommendationFeedUseCase
             }
         }
 
+        await ApplyDecisionSurfaceAsync(finalList, packagesByMatch);
+        ApplyDiscoverNarrative(finalList);
+
         return finalList;
+    }
+
+    /// <summary>
+    /// KEŞFET ANLATISI — hazır snapshot varsa karta taşınır, YOKSA HİÇBİR ŞEY YAPILMAZ.
+    ///
+    /// Neden: Keşfet kartı, teaser metnini göstermek için maç detayı ucunu çağırıyordu.
+    /// O uç TEK istekte ÜÇ yüzeyi birden ürettiği için tek bir kartı görüntülemek üç LLM
+    /// çağrısına mal oluyor, kullanıcı kartlar arasında gezindikçe bu tekrarlanıyordu.
+    /// Anlatı artık feed yanıtıyla taşınır ve Keşfet maç detayı ucunu ÇAĞIRMAZ.
+    ///
+    /// ÜRETİM YOK: burada yalnız <see cref="AI.Radar.IRadarNarrativeStore"/> okunur —
+    /// yani daha önce (kullanıcı o maçın detayını açtığında) üretilmiş anlatı. Depoda
+    /// kayıt yoksa alanlar boş kalır ve kart AI yorumu bölümünü göstermez. Böylece aynı
+    /// maç için ikinci bir üretim asla oluşmaz.
+    /// </summary>
+    private void ApplyDiscoverNarrative(List<RecommendationCardDto> cards)
+    {
+        foreach (var card in cards)
+        {
+            if (!_narrativeStore.TryGetLatestForMatch(
+                    Formax.Application.AI.Radar.RadarSurface.Discover, card.MatchId, out var narrative))
+                continue;
+
+            card.RadarSummary = narrative.RadarSummary ?? "";
+            card.RadarHighlights = narrative.Highlights ?? new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// Bir kartın Decision paketini kurar. Deterministik olduğu için (aynı context → aynı paket)
+    /// süreç-içi cache'lenir; Discover AI kapısı 100 adayın hepsini bu yolla değerlendirir ve
+    /// aynı istek içinde ikinci kez kurulmaz. Paket kurulamıyorsa null döner — bu maçın AI
+    /// verisi YOK demektir ve feed'e girmez (uydurma değer üretilmez).
+    /// </summary>
+    private Formax.Application.AI.Decision.AiDecisionPackage? TryBuildDecisionPackage(
+        RecommendationCardDto card,
+        Dictionary<int, Match> matchById)
+    {
+        if (!matchById.TryGetValue(card.MatchId, out var match)) return null;
+
+        var cacheKey = $"decision:pkg:{card.MatchId}";
+        if (_cache.TryGetValue(cacheKey, out Formax.Application.AI.Decision.AiDecisionPackage? cached)
+            && cached != null)
+            return cached;
+
+        try
+        {
+            var homeName = _teamReadRepo.GetById(match.HomeTeamId)?.Name ?? card.TeamA;
+            var awayName = _teamReadRepo.GetById(match.AwayTeamId)?.Name ?? card.TeamB;
+
+            // FAZ 1 — TeamComparison/H2H/GücSkoru artık builder'ın kendi ürettiği GERÇEK veri
+            // (mevcut Matches tablosundan; ek API çağrısı/job YOK). Boş DTO + sabit 50 kalktı.
+            var ctx = _aiContextBuilder.Build(
+                match.Id, match.HomeTeamId, match.AwayTeamId, homeName, awayName);
+
+            var package = _decisionEngine.BuildDecisionPackage(ctx);
+            _cache.Set(cacheKey, package, DecisionCacheTtl);
+            return package;
+        }
+        catch
+        {
+            // Paket kurulamadı → AI verisi yok. Feed'in tamamı düşmez, yalnız bu kart elenir.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// TEK AI KAYNAĞI — Keşfet kartlarına Decision paketinden gerçek AI yüzeyi yazar:
+    /// AiTrustScore (gerçek güven endeksi), TopPrediction ve ilk 3 Prediction (+ gerçek oran).
+    ///
+    /// Neden burada: Maç Detay, AI Olası Sonuçlar ve Günün AI Kombini zaten aynı Decision
+    /// paketini okuyor. Feed kartı farklı bir metrikten ("öneri skoru") beslendiğinde aynı maç
+    /// iki ayrı sayı gösteriyordu. Artık üç yüzey de AYNI motordan gelir.
+    ///
+    /// Paketler AI kapısında zaten kurulmuştur; burada YENİDEN kurulmaz, taşınır.
+    /// </summary>
+    private async Task ApplyDecisionSurfaceAsync(
+        List<RecommendationCardDto> cards,
+        Dictionary<int, Formax.Application.AI.Decision.AiDecisionPackage> packagesByMatch)
+    {
+        if (cards.Count == 0) return;
+
+        // Gerçek oranlar: sayfadaki tüm maçlar için TEK sorgu (N+1 yok).
+        var oddsByMatch = (await _oddsRepo.GetByMatchIdsAsync(cards.Select(c => c.MatchId).ToList()))
+            .GroupBy(o => o.MatchId)
+            .ToDictionary(g => g.Key, g => g.ToDictionary(o => o.MarketKey, StringComparer.Ordinal));
+
+        foreach (var card in cards)
+        {
+            if (!packagesByMatch.TryGetValue(card.MatchId, out var package)) continue;
+
+            // GERÇEK AI güveni — kombindeki/maç detayındaki ile aynı motor, aynı sayı.
+            // AI kapısı sayesinde bu noktada Score > 0 garantidir.
+            card.AiTrustScore = package.Confidence.Score;
+            card.ConfidenceLabel = string.IsNullOrWhiteSpace(package.Confidence.Level)
+                ? card.ConfidenceLabel
+                : package.Confidence.Level;
+
+            oddsByMatch.TryGetValue(card.MatchId, out var oddRows);
+
+            decimal? OddFor(string market)
+            {
+                if (oddRows == null) return null;
+                var key = DecisionMarketOddsMapper.ToOddsKey(market);
+                return key != null && oddRows.TryGetValue(key, out var row) ? row.Odd : null;
+            }
+
+            decimal? PrevOddFor(string market)
+            {
+                if (oddRows == null) return null;
+                var key = DecisionMarketOddsMapper.ToOddsKey(market);
+                return key != null && oddRows.TryGetValue(key, out var row) ? row.PreviousOdd : null;
+            }
+
+            var top3 = package.Probabilities
+                .OrderByDescending(p => p.Probability)
+                .ThenBy(p => p.Market, StringComparer.Ordinal)   // deterministik eşitlik kırıcı
+                .Take(3)
+                .ToList();
+
+            if (top3.Count == 0) continue;
+
+            card.TopPrediction = new TopPredictionDto
+            {
+                Market = top3[0].Market,
+                Probability = top3[0].Probability,
+                Odd = OddFor(top3[0].Market)
+            };
+
+            card.Predictions = top3.Select(p =>
+            {
+                var current = OddFor(p.Market);
+                var previous = PrevOddFor(p.Market);
+                return new AiPredictionDto
+                {
+                    Market = p.Market,
+                    Probability = p.Probability,
+                    Confidence = p.Confidence,
+                    CurrentOdd = current,
+                    PreviousOdd = previous,
+                    Movement = ResolveMovement(current, previous),
+                    UpdatedAt = DateTime.UtcNow
+                };
+            }).ToList();
+        }
+    }
+
+    /// <summary>Oran hareket yönü — GERÇEK iki okuma arasında. Eksikse None.</summary>
+    private static OddsMovement ResolveMovement(decimal? current, decimal? previous)
+    {
+        if (current == null || previous == null || current == previous) return OddsMovement.None;
+        return current > previous ? OddsMovement.Up : OddsMovement.Down;
     }
 
     // Map the persisted MatchSignal[] JSON onto the frontend KeySignal contract.
@@ -347,6 +726,14 @@ public sealed class GetRecommendationFeedUseCase
         {
             return new();
         }
+    }
+
+    // Canlı dakika: Match.MatchMinute (ör. "67", "67'", "45+2") → baştaki tam sayı.
+    private static int? ParseLiveMinute(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var digits = new string(raw.TrimStart().TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var m) ? m : (int?)null;
     }
 
     // ── Deterministic explanation layer ──────────────────────────────────────
@@ -411,19 +798,33 @@ public sealed class GetRecommendationFeedUseCase
     }
 
     private static string BuildStoryBody(
-        string headline, string homeName, string awayName)
+        string headline, string homeName, string awayName,
+        double? homeAvgGoals, double? awayAvgGoals,
+        bool? homeIsStable, bool isHot)
     {
+        // Bağlamsal başlıklar — futbol odaklı, kesinlik/bahis dili YOK.
         if (headline.StartsWith("⭐"))
-            return $"{homeName} bu maçta {awayName} karşısında sahaya çıkıyor.";
+            return $"Takip ettiğin {homeName}, {awayName} karşısında sahaya çıkıyor — formunu bu maçta yakından görebilirsin.";
         if (headline.StartsWith("⚔️"))
-            return $"{homeName} ile {awayName} arasındaki derbi, taraftarların yakından takip ettiği karşılaşmalar arasında.";
+            return $"{homeName} - {awayName} derbisi kendi hikâyesini yazar; iki tarafın da geri adım atmadığı, temposu yüksek bir mücadele bekleniyor.";
         if (headline.StartsWith("🏆"))
-            return $"{homeName} ile {awayName} arasındaki liderlik mücadelesi bu hafta sahaya taşınıyor.";
+            return $"Zirvenin iki ekibi karşı karşıya. {homeName} ile {awayName} arasındaki sonuç, yarışın yönünü değiştirebilir.";
         if (headline.StartsWith("🔝"))
-            return "İki takım da lig üst sıralarında. Bu maçın sonucu puan tablosunu sarsabilir.";
-        if (headline.StartsWith("🔥"))
-            return "Bu maç bu haftanın en çok konuşulan karşılaşmaları arasında.";
-        return $"{homeName} evinde {awayName} ile karşılaşıyor.";
+            return "İki takım da üst sıralarda; puan tablosunda küçük farkların konuşulduğu kritik bir randevu.";
+
+        // Veri odaklı (mevcut sinyaller) — gol üretimi / savunma / ev sahibi formu.
+        var totalGoals = (homeAvgGoals ?? 0) + (awayAvgGoals ?? 0);
+        if (homeAvgGoals is not null && awayAvgGoals is not null && totalGoals >= 3.0)
+            return $"{homeName} ve {awayName} son dönemde gol üretimini yüksek tutuyor; bol pozisyonlu, tempolu bir maç profili öne çıkıyor.";
+        if (homeAvgGoals is not null && awayAvgGoals is not null && totalGoals < 1.8)
+            return $"{homeName} ve {awayName} savunma dengesine güveniyor; az gollü, satranç gibi ilerleyen sabırlı bir maç bekleniyor.";
+        if (homeIsStable == true)
+            return $"{homeName} evindeki istikrarlı çıkışını korumak istiyor; {awayName} bu düzeni bozmak için deplasmanda sürpriz peşinde.";
+        if (isHot)
+            return $"{homeName} - {awayName} karşılaşması, oyun temposu ve iki takımın gidişatıyla bu hafta öne çıkan maçlardan biri.";
+
+        // Doğal varsayılan — kesinlik/bahis dili yok.
+        return $"{homeName} sahasında {awayName} ile karşılaşıyor; iki taraf için de kritik bir 3 puanlık mücadele.";
     }
 
     private static List<string> BuildMatchTags(

@@ -1,8 +1,12 @@
+using System.Diagnostics;
 using Formax.Application.DTOs.Fixtures;
 using Formax.Application.Interfaces;
 using Formax.Domain.Entities;
+using Formax.Infrastructure.Coverage;
 using Formax.Infrastructure.Data;
+using Formax.Infrastructure.Telemetry;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,36 +14,48 @@ using Microsoft.Extensions.Logging;
 namespace Formax.Infrastructure.BackgroundJobs
 {
     /// <summary>
-    /// Historical match backfill (Sprint 19B).
+    /// Fixture Expansion v2 — Per-team Timeline sync (was: Historical backfill, Sprint 19B).
     ///
-    /// Why this exists:
-    ///   TheSportsDB fixture sync brings FUTURE fixtures for niche leagues but no
-    ///   past results, so BuildTeamComparison finds nothing → "Yeterli veri oluşmadı".
-    ///   This job pulls each team's last finished matches (eventslast.php) and feeds
-    ///   them through the SAME upsert path FixtureSync uses (dedup + scored Finished).
+    /// PURPOSE
+    ///   Build a rich per-team fixture Timeline in GDP so downstream AI layers
+    ///   (MarketProbabilityEngine, Editorial Intelligence, LLM) can read deep
+    ///   past/future context. This job ONLY grows GDP's team-based coverage — it
+    ///   writes no AI text, changes no engine math.
     ///
-    /// Design:
-    ///   - SEPARATE job, SEPARATE concern. FixtureSyncJob is untouched.
-    ///   - Reuses IFixtureSyncRepository (GetTeams/Matches ByExternalIds, AddMatch).
-    ///   - Reuses SportsFixtureResult (no new DTO).
-    ///   - Cadence: daily-ish (12 h). Past results change rarely; an aggressive loop
-    ///     would only waste the free-tier request budget. Per-team cache (12 h TTL)
-    ///     makes repeated runs near-free.
-    ///   - Priority: teams with ZERO past finished matches first (the fallback cases).
+    /// WHAT IT DOES
+    ///   For each eligible team it pulls, via the SAME upsert path FixtureSync uses:
+    ///     - past leg   : GET /fixtures?team={id}&last={LastN}   (default 20, finished)
+    ///     - future leg : GET /fixtures?team={id}&next={NextN}   (default 20, all comps)
+    ///   The raw fixtures land in the Matches table — which MatchAiContextBuilder.BuildTimeline
+    ///   already reads (_matchRepo.Query()). No new Timeline table, no context change:
+    ///   filling Matches enriches Timeline automatically and keeps MPE hashes identical.
     ///
-    /// Dedup / safety:
-    ///   - eventslast returns a match for BOTH teams that played it; ExternalMatchId
-    ///     dedup (GetMatchesByExternalIds + in-batch set) keeps it single.
-    ///   - Score is written ONLY for Finished (live engine owns live scores — same
-    ///     rule as FixtureSync / Locked Decision #6).
+    /// COLD START vs INCREMENTAL (watermark = Team.TimelineSyncedAt)
+    ///   - Cold Start : a team never synced (TimelineSyncedAt == null) is picked first.
+    ///   - Incremental: a synced team is re-picked only after RefreshIntervalHours; the
+    ///     ExternalMatchId dedup means already-stored matches are never re-inserted, and
+    ///     the provider's per-team 6 h cache means near-simultaneous cycles cost 0 calls.
+    ///     Recently-synced teams are skipped entirely → API quota is protected.
+    ///
+    /// SEPARATION OF CONCERNS
+    ///   FixtureSyncJob (−1/+7 date window) is UNTOUCHED and remains the operational,
+    ///   near-term updater (status/score reconciliation). This job owns only the deep,
+    ///   team-based Timeline. The two never conflict: ExternalMatchId is the single key,
+    ///   and finished-score writes follow the same Locked-Decision-#6 rule (live scores
+    ///   are owned exclusively by the live engine).
+    ///
+    /// CONFIG (all optional, safe defaults)
+    ///   Timeline:MaxTeamsPerCycle     (default 40)  — teams processed per cycle
+    ///   Timeline:RefreshIntervalHours (default 72)  — re-sync cadence for a synced team
+    ///   Timeline:LastN / Timeline:NextN (default 20)— read by the provider (1..99)
     /// </summary>
     public sealed class HistoricalSyncJob : BackgroundService
     {
         private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(45);
         private static readonly TimeSpan LoopDelay    = TimeSpan.FromHours(12);
 
-        // Per-cycle cap so one run never blows the free-tier budget.
-        private const int MaxTeamsPerCycle = 60;
+        private const int DefaultMaxTeamsPerCycle = 40;
+        private const int DefaultRefreshHours     = 72;
 
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<HistoricalSyncJob> _logger;
@@ -54,7 +70,7 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("[HIST SYNC] Job started.");
+            _logger.LogInformation("[TIMELINE SYNC] Job started.");
             await Task.Delay(StartupDelay, stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
@@ -69,66 +85,165 @@ namespace Formax.Infrastructure.BackgroundJobs
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[HIST SYNC] Cycle failed — retry in {Delay}.", LoopDelay);
+                    _logger.LogError(ex, "[TIMELINE SYNC] Cycle failed — retry in {Delay}.", LoopDelay);
                 }
 
                 await Task.Delay(LoopDelay, stoppingToken);
             }
 
-            _logger.LogInformation("[HIST SYNC] Job stopped.");
+            _logger.LogInformation("[TIMELINE SYNC] Job stopped.");
         }
 
-        /// <summary>
-        /// Public for manual/admin trigger (test). The 12 h schedule above remains
-        /// the only automatic trigger.
-        /// </summary>
+        // ──────────────────────────────────────────────────────────────────────────
+        // Automatic + admin cycle: pick eligible teams by watermark, sync each Timeline.
+        // Returns total matches added across all processed teams.
+        // ──────────────────────────────────────────────────────────────────────────
         public async Task<int> RunCycleAsync(CancellationToken ct)
         {
+            // Kota telemetrisi: bu turda üretilen api-football istekleri bu job'a etiketlenir.
+            using var _quotaScope = Formax.Infrastructure.Telemetry.ApiFootballCallScope.Begin(nameof(HistoricalSyncJob));
+
+            var sw = Stopwatch.StartNew();
+            using var scope = _scopeFactory.CreateScope();
+            var sp = scope.ServiceProvider;
+
+            var db        = sp.GetRequiredService<FormaxDbContext>();
+            var config    = sp.GetRequiredService<IConfiguration>();
+            var metrics   = sp.GetRequiredService<ApiFootballMetrics>();
+            var telemetry = sp.GetRequiredService<TimelineSyncTelemetry>();
+
+            var maxTeams     = ConfigInt(config, "Timeline:MaxTeamsPerCycle", DefaultMaxTeamsPerCycle, 1, 1000);
+            var refreshHours = ConfigInt(config, "Timeline:RefreshIntervalHours", DefaultRefreshHours, 1, 100000);
+            var now = DateTime.UtcNow;
+            var refreshCutoff = now.AddHours(-refreshHours);
+
+            // ── Cold Start Prioritization (TEK otorite: TimelinePriority) ──────────
+            // Kota asla kapsam-dışı/önemsiz takımlara önce harcanmaz: bugün → 7 gün → MVP lig
+            // → takip lig → diğer aktif → arşiv. Watermark ile taze senkronlananlar elenir.
+            var mvp = CoveragePolicy.LeagueAllowList(config);
+            var followed = db.UserLeagueFollows.Where(f => f.IsActive)
+                .Select(f => f.LeagueId).Distinct().ToHashSet();
+            var ranked = TimelinePriority.RankEligible(db, now, refreshCutoff, mvp, followed);
+
+            if (ranked.Count == 0)
+            {
+                _logger.LogInformation("[TIMELINE SYNC] No teams due for Timeline sync (all fresh within {Hours}h).", refreshHours);
+                return 0;
+            }
+
+            var batch = ranked.Take(maxTeams).ToList();
+            var tierSummary = string.Join(", ", batch.GroupBy(b => b.Tier).OrderBy(g => g.Key)
+                .Select(g => $"T{g.Key}={g.Count()}"));
+            _logger.LogInformation(
+                "[TIMELINE SYNC] {Batch}/{Eligible} takım seçildi (öncelik: {Tiers}).",
+                batch.Count, ranked.Count, tierSummary);
+
+            var provider = sp.GetRequiredService<ISportsDataProvider>();
+            var apiBefore = metrics.Snapshot().TotalRequests;
+
+            // ── Fetch each team's Timeline: past (last=N) + future (next=N). ────────
+            var allFixtures = new List<SportsFixtureResult>();
+            int noData = 0;
+            foreach (var r in batch)
+            {
+                var past   = await provider.GetTeamRecentResultsAsync(r.ExternalTeamId!, ct);
+                var future = await provider.GetTeamUpcomingFixturesAsync(r.ExternalTeamId!, ct);
+                if (past.Count + future.Count == 0) noData++;
+                allFixtures.AddRange(past);
+                allFixtures.AddRange(future);
+            }
+
+            var added = await IngestFixturesAsync(sp, allFixtures, ct);
+
+            // ── Stamp watermark on the processed teams (Cold Start → Incremental). ──
+            // Set even when a team returned 0 fixtures (no coverage) so it is not
+            // re-hammered every cycle; RefreshInterval will retry it later.
+            var batchIds = batch.Select(b => b.Id).ToList();
+            var teamEntities = await db.Teams.Where(t => batchIds.Contains(t.Id)).ToListAsync(ct);
+            var stamp = DateTime.UtcNow;
+            foreach (var t in teamEntities) t.TimelineSyncedAt = stamp;
+            await db.SaveChangesAsync(ct);
+
+            sw.Stop();
+            var apiUsed = metrics.Snapshot().TotalRequests - apiBefore;
+            telemetry.RecordCycle("cycle", sw.ElapsedMilliseconds, batch.Count, added, noData, apiUsed);
+
+            _logger.LogInformation(
+                "[TIMELINE SYNC] {Teams} takım senkronlandı → {Added} yeni maç, {NoData} kapsam-dışı, {Api} API isteği, {Ms} ms.",
+                batch.Count, added, noData, apiUsed, sw.ElapsedMilliseconds);
+
+            return added;
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // Targeted single-team sync (admin/test proof). Fetches last+next for ONE team,
+        // ingests, and stamps its watermark. Returns matches added.
+        // ──────────────────────────────────────────────────────────────────────────
+        public async Task<int> RunForTeamAsync(string externalTeamId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(externalTeamId)) return 0;
+
+            // Kota telemetrisi: bu turda üretilen api-football istekleri bu job'a etiketlenir.
+            using var _quotaScope = Formax.Infrastructure.Telemetry.ApiFootballCallScope.Begin(nameof(HistoricalSyncJob));
+
             using var scope = _scopeFactory.CreateScope();
             var sp = scope.ServiceProvider;
 
             var db       = sp.GetRequiredService<FormaxDbContext>();
             var provider = sp.GetRequiredService<ISportsDataProvider>();
-            var repo     = sp.GetRequiredService<IFixtureSyncRepository>();
+
+            var allFixtures = new List<SportsFixtureResult>();
+            allFixtures.AddRange(await provider.GetTeamRecentResultsAsync(externalTeamId, ct));
+            allFixtures.AddRange(await provider.GetTeamUpcomingFixturesAsync(externalTeamId, ct));
+
+            var added = await IngestFixturesAsync(sp, allFixtures, ct);
+
+            // Stamp watermark on the target team if it exists in GDP.
+            var team = await db.Teams.FirstOrDefaultAsync(t => t.ExternalTeamId == externalTeamId, ct);
+            if (team != null)
+            {
+                team.TimelineSyncedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+            }
+
+            _logger.LogInformation(
+                "[TIMELINE SYNC] Team {TeamId} synced → {Added} new match(es).", externalTeamId, added);
+            return added;
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // Shared ingest: team upsert + match upsert (ExternalMatchId dedup = incremental)
+        // + finished-score mirror + team goal-avg / stability enrichment. No AI text.
+        // ──────────────────────────────────────────────────────────────────────────
+        private async Task<int> IngestFixturesAsync(
+            IServiceProvider sp, List<SportsFixtureResult> allFixtures, CancellationToken ct)
+        {
+            if (allFixtures.Count == 0) return 0;
+
+            var repo      = sp.GetRequiredService<IFixtureSyncRepository>();
             var statsRepo = sp.GetRequiredService<IMatchLiveStatsRepository>();
 
-            var nowThreshold = DateTime.UtcNow.AddMinutes(-105);
-
-            // Teams with a real external id, prioritising those with NO past matches.
-            var teams = await db.Teams
-                .Where(t => t.ExternalTeamId != null && t.ExternalTeamId != "")
-                .Select(t => new
-                {
-                    t.Id,
-                    t.ExternalTeamId,
-                    PastCount = db.Matches.Count(m =>
-                        (m.HomeTeamId == t.Id || m.AwayTeamId == t.Id) && m.MatchDate < nowThreshold)
-                })
-                .OrderBy(t => t.PastCount)   // 0-past teams first
-                .Take(MaxTeamsPerCycle)
-                .ToListAsync(ct);
-
-            if (teams.Count == 0)
+            // ── KİLİTLİ MÜSABAKA KAPSAMI ───────────────────────────────────────────
+            // Buradaki fikstürler takımın TÜM takvimidir (team?last/next): kapsam içi bir
+            // takımın hazırlık maçı, rezerv/U-turnuvası veya kapsam dışı kupası da gelir.
+            // Ölçüldü: canonical Matches'e giren kapsam dışı satırların ana kaynağı burasıydı
+            // (13.08'de hâlâ "Friendlies Clubs", "Reserve League", "Paulista - U20" yazılıyordu).
+            // Allow-list boşsa kısıtlama yoktur (geri-uyum).
+            var scope = CoveragePolicy.LeagueAllowList(sp.GetRequiredService<IConfiguration>());
+            if (scope.Count > 0)
             {
-                _logger.LogDebug("[HIST SYNC] No external teams to backfill.");
-                return 0;
+                var beforeScope = allFixtures.Count;
+                allFixtures = allFixtures
+                    .Where(f => CoveragePolicy.Allows(scope, f.LeagueExternalId))
+                    .ToList();
+                if (allFixtures.Count != beforeScope)
+                    _logger.LogInformation(
+                        "[TIMELINE SYNC] Kapsam süzgeci — {Kept}/{Before} fikstür kaldı (kapsam dışı {Dropped} yazılmadı).",
+                        allFixtures.Count, beforeScope, beforeScope - allFixtures.Count);
+                if (allFixtures.Count == 0) return 0;
             }
 
-            // ── 1. Fetch each team's recent results (cached per team) ──────────────
-            var allFixtures = new List<Application.DTOs.Fixtures.SportsFixtureResult>();
-            foreach (var t in teams)
-            {
-                var results = await provider.GetTeamRecentResultsAsync(t.ExternalTeamId!, ct);
-                allFixtures.AddRange(results);
-            }
-
-            if (allFixtures.Count == 0)
-            {
-                _logger.LogInformation("[HIST SYNC] {Teams} team(s) checked, no results returned.", teams.Count);
-                return 0;
-            }
-
-            // ── 2. Team upsert (reuse FixtureSync dedup) ───────────────────────────
+            // ── Team upsert (reuse FixtureSync dedup) ──────────────────────────────
             var teamExtIds = allFixtures
                 .SelectMany(f => new[] { f.HomeTeamExternalId, f.AwayTeamExternalId })
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -137,24 +252,22 @@ namespace Formax.Infrastructure.BackgroundJobs
             var existingTeams = repo.GetTeamsByExternalIds(teamExtIds);
             foreach (var extId in teamExtIds)
             {
+                if (existingTeams.ContainsKey(extId)) continue;
                 var refFix = allFixtures.First(f =>
                     f.HomeTeamExternalId == extId || f.AwayTeamExternalId == extId);
                 var name = refFix.HomeTeamExternalId == extId ? refFix.HomeTeamName : refFix.AwayTeamName;
                 var logo = refFix.HomeTeamExternalId == extId ? refFix.HomeLogoUrl : refFix.AwayLogoUrl;
 
-                if (!existingTeams.ContainsKey(extId))
+                repo.AddTeam(new Team
                 {
-                    repo.AddTeam(new Team
-                    {
-                        Name = name, ExternalTeamId = extId, LogoUrl = logo, CreatedAt = DateTime.UtcNow
-                    });
-                }
+                    Name = name, ExternalTeamId = extId, LogoUrl = logo, CreatedAt = DateTime.UtcNow
+                });
             }
             await repo.SaveChangesAsync(ct);
 
             var teamMap = repo.GetTeamsByExternalIds(teamExtIds);
 
-            // ── 3. Match upsert (ExternalMatchId dedup, Finished score) ────────────
+            // ── Match upsert (ExternalMatchId dedup → only NEW matches written) ─────
             var extMatchIds = allFixtures
                 .Select(f => f.ExternalMatchId)
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -168,8 +281,8 @@ namespace Formax.Infrastructure.BackgroundJobs
             foreach (var f in allFixtures)
             {
                 if (string.IsNullOrWhiteSpace(f.ExternalMatchId)) continue;
-                if (!seen.Add(f.ExternalMatchId)) continue;            // in-batch dedup
-                if (existingMatches.ContainsKey(f.ExternalMatchId)) continue; // already in DB
+                if (!seen.Add(f.ExternalMatchId)) continue;                 // in-batch dedup
+                if (existingMatches.ContainsKey(f.ExternalMatchId)) continue; // already in DB (incremental)
 
                 if (!teamMap.TryGetValue(f.HomeTeamExternalId, out var home) ||
                     !teamMap.TryGetValue(f.AwayTeamExternalId, out var away))
@@ -198,7 +311,7 @@ namespace Formax.Infrastructure.BackgroundJobs
 
             await repo.SaveChangesAsync(ct);
 
-            // ── 4. Mirror finished scores to MatchLiveStats (P0.2 dual-score) ──────
+            // ── Mirror finished scores to MatchLiveStats (dual-score parity) ───────
             foreach (var (m, h, a) in finishedScore)
             {
                 var existing = statsRepo.GetByMatchId(m.Id);
@@ -210,16 +323,22 @@ namespace Formax.Infrastructure.BackgroundJobs
             }
             if (finishedScore.Count > 0) await statsRepo.SaveChangesAsync(ct);
 
-            // ── 5. Team Intelligence Enrichment ──────────────────────────────────
-            // Reuses allFixtures (already in memory — zero extra API/HTTP calls).
-            // Groups fixtures by external team id, computes AvgGoalsFor,
-            // AvgGoalsAgainst, and IsStableTeam, then writes to Team entity.
-            const int StableWindow         = 10;
-            const int StableLossThreshold  = 3;
-            const int MinMatchesForStable  = 5;
+            // ── Team Intelligence Enrichment (data only — AvgGoals*, IsStableTeam) ──
+            // Reuses allFixtures already in memory (zero extra API calls).
+            EnrichTeams(allFixtures, teamMap);
+            await repo.SaveChangesAsync(ct);
 
-            // Build lookup: externalTeamId → finished fixtures involving that team
-            // Each fixture appears twice (once per side), so we handle both roles.
+            return added;
+        }
+
+        // ── Team goal-average + stability enrichment (finished fixtures only). ──────
+        private static void EnrichTeams(
+            List<SportsFixtureResult> allFixtures, Dictionary<string, Team> teamMap)
+        {
+            const int StableWindow        = 10;
+            const int StableLossThreshold = 3;
+            const int MinMatchesForStable = 5;
+
             var fixturesByTeam = new Dictionary<string, List<SportsFixtureResult>>(
                 StringComparer.OrdinalIgnoreCase);
 
@@ -234,7 +353,6 @@ namespace Formax.Infrastructure.BackgroundJobs
                         fixturesByTeam[f.HomeTeamExternalId] = hList = new List<SportsFixtureResult>();
                     hList.Add(f);
                 }
-
                 if (!string.IsNullOrWhiteSpace(f.AwayTeamExternalId))
                 {
                     if (!fixturesByTeam.TryGetValue(f.AwayTeamExternalId, out var aList))
@@ -243,22 +361,16 @@ namespace Formax.Infrastructure.BackgroundJobs
                 }
             }
 
-            int enriched = 0;
-
             foreach (var (extId, team) in teamMap)
             {
                 if (!fixturesByTeam.TryGetValue(extId, out var tf) || tf.Count == 0)
                     continue;
 
-                // Goals scored / conceded per match from this team's perspective
                 var goalsFor     = new List<int>(tf.Count);
                 var goalsAgainst = new List<int>(tf.Count);
-
                 foreach (var f in tf)
                 {
-                    bool isHome = string.Equals(
-                        f.HomeTeamExternalId, extId, StringComparison.OrdinalIgnoreCase);
-
+                    bool isHome = string.Equals(f.HomeTeamExternalId, extId, StringComparison.OrdinalIgnoreCase);
                     goalsFor.Add(isHome     ? f.HomeScore!.Value : f.AwayScore!.Value);
                     goalsAgainst.Add(isHome ? f.AwayScore!.Value : f.HomeScore!.Value);
                 }
@@ -266,37 +378,25 @@ namespace Formax.Infrastructure.BackgroundJobs
                 team.AvgGoalsFor     = Math.Round(goalsFor.Average(),     2);
                 team.AvgGoalsAgainst = Math.Round(goalsAgainst.Average(), 2);
 
-                // IsStableTeam: last StableWindow matches, losses <= StableLossThreshold
-                var last10 = tf
-                    .OrderByDescending(f => f.MatchDate)
-                    .Take(StableWindow)
-                    .ToList();
-
+                var last10 = tf.OrderByDescending(f => f.MatchDate).Take(StableWindow).ToList();
                 if (last10.Count >= MinMatchesForStable)
                 {
                     int losses = last10.Count(f =>
                     {
-                        bool isHome = string.Equals(
-                            f.HomeTeamExternalId, extId, StringComparison.OrdinalIgnoreCase);
+                        bool isHome = string.Equals(f.HomeTeamExternalId, extId, StringComparison.OrdinalIgnoreCase);
                         return isHome
                             ? f.HomeScore!.Value < f.AwayScore!.Value
                             : f.AwayScore!.Value < f.HomeScore!.Value;
                     });
-
                     team.IsStableTeam = losses <= StableLossThreshold;
                 }
-                // fewer than MinMatchesForStable → leave IsStableTeam null (no data)
-
-                enriched++;
             }
+        }
 
-            if (enriched > 0) await repo.SaveChangesAsync(ct);
-
-            _logger.LogInformation(
-                "[HIST SYNC] {Teams} team(s) → {Added} new match(es), {Scored} scored, {Enriched} team(s) enriched.",
-                teams.Count, added, finishedScore.Count, enriched);
-
-            return added;
+        private static int ConfigInt(IConfiguration config, string key, int fallback, int min, int max)
+        {
+            if (int.TryParse(config[key], out var v) && v >= min && v <= max) return v;
+            return fallback;
         }
     }
 }

@@ -31,6 +31,12 @@ public class NabizRawItem
 
 public class NabizFeedItemDto
 {
+    /// <summary>
+    /// Haberin kimliği — depo tekilleştirme anahtarı (MatchNewsArticles.ContentHash).
+    /// UI seçimi ve çeviri önbelleği bunu kullanır. NABIZ kaynaklı ögelerde boş kalır.
+    /// </summary>
+    public string Id { get; set; } = string.Empty;
+
     /// <summary>NabizSourceType enum name: "Flash" | "Yorum" | "Roportaj" | "Official" | "Trend" | "News"</summary>
     public string Type { get; set; } = string.Empty;
 
@@ -45,6 +51,24 @@ public class NabizFeedItemDto
     public string? ImageUrl { get; set; }
     public string SourceUrl { get; set; } = string.Empty;
     public DateTime PublishedAt { get; set; }
+
+    /// <summary>Haberin KENDİ dili (ISO-639-1). Hedef dille aynıysa çeviri istenmez.</summary>
+    public string Language { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Çeviri uygulandıysa true. false iken <see cref="Headline"/>/<see cref="Summary"/>
+    /// SAĞLAYICININ ORİJİNAL metnidir — yarım/uydurma çeviri gösterilmez.
+    /// </summary>
+    public bool IsTranslated { get; set; }
+
+    /// <summary>
+    /// Sağlayıcının orijinal başlığı. Çeviri uygulandığında dolar (kullanıcı kaynağı
+    /// görebilsin), uygulanmadığında null — aynı metni iki kez taşımayız.
+    /// </summary>
+    public string? OriginalHeadline { get; set; }
+
+    /// <summary>Sağlayıcının orijinal özeti. Kuralı <see cref="OriginalHeadline"/> ile aynıdır.</summary>
+    public string? OriginalSummary { get; set; }
 }
 
 /// <summary>

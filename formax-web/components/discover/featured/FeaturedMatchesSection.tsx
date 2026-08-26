@@ -1,24 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { LoadingCard } from "@/components/ui/LoadingState";
 import { HeartIcon, InfoIcon, ArrowRightIcon, ChevronRightIcon } from "@/components/discover/icons";
 import { FeaturedMatchCard } from "./FeaturedMatchCard";
-import { FEATURED_DEMO, type FeaturedMatchVM } from "./featuredData";
+import { useRecommendations } from "@/hooks/useRecommendations";
+import { trackInterest } from "@/lib/api/interests";
+import { homeName, awayName, matchTime, isDiscoverable } from "@/components/discover/cardSignals";
 
 /**
- * FORMAX · Sana Özel Maçlar (10, new)
- * Referans bloğu: kalp başlığı + "Neden bu maçlar?" → yatay öne-çıkan maç kartları
- * → "Tüm önerileri gör" CTA. Kartlar sabit genişlik + yatay scroll (swipe korunur).
- * Scroll pozisyonuna göre kenar okları: sağda maç varsa sağ ok, sola varsa sol ok.
- * Oklar tıklanınca da kaydırır; swipe/dokunmatik davranışı değişmez.
+ * FORMAX · Sana Özel Maçlar — GERÇEK kişisel öneri feed'inden (useRecommendations).
+ * Her kart TIKLANABİLİR (gerçek MatchId → Match Detail). "Tüm önerileri gör" → Maçlar.
+ * Yatay scroll + kenar okları korunur. Mock/fake yok; veri yoksa bölüm gizlenir (uydurmaz).
  */
-export function FeaturedMatchesSection({
-  matches = FEATURED_DEMO,
-}: {
-  matches?: FeaturedMatchVM[];
-}) {
+export function FeaturedMatchesSection({ compact = false }: { compact?: boolean } = {}) {
+  const { data, isLoading } = useRecommendations();
+  // Sıralama backend'e ait; yalnız GEÇİCİ güvenlik katmanı (bitmiş maç Discovery'de görünmesin).
+  const cards = (data?.pages.flat() ?? []).filter(isDiscoverable);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
@@ -32,14 +34,32 @@ export function FeaturedMatchesSection({
 
   useEffect(() => {
     update();
-  }, [matches]);
+  }, [cards.length]);
 
   const scrollByDir = (dir: 1 | -1) => {
     scrollRef.current?.scrollBy({ left: dir * 168, behavior: "smooth" });
   };
 
+  if (isLoading) {
+    return (
+      <GlassCard sectionGlow className="p-4">
+        <SectionHeader
+          icon={<HeartIcon size={16} />}
+          accent="purple"
+          title="Sana Özel Maçlar"
+          subtitle="İlgi alanlarına göre senin için seçtik"
+        />
+        <div className="mt-2">
+          <LoadingCard />
+        </div>
+      </GlassCard>
+    );
+  }
+
+  if (cards.length === 0) return null;
+
   return (
-    <GlassCard sectionGlow className="p-4">
+    <GlassCard sectionGlow className={compact ? "p-2.5" : "p-4"}>
       <SectionHeader
         icon={<HeartIcon size={16} />}
         accent="purple"
@@ -59,12 +79,27 @@ export function FeaturedMatchesSection({
           onScroll={update}
           className="flex items-stretch gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {matches.map((m) => (
-            <FeaturedMatchCard key={m.id} {...m} />
+          {cards.map((card) => (
+            <FeaturedMatchCard
+              key={card.matchId}
+              matchId={card.matchId}
+              time={matchTime(card)?.text ?? ""}
+              home={{ name: homeName(card), logoUrl: card.homeTeam?.logoUrl }}
+              away={{ name: awayName(card), logoUrl: card.awayTeam?.logoUrl }}
+              // Backend TopPrediction gönderirse gösterilir; yoksa alt satır render edilmez.
+              // (Backend, güven endeksi 0 olan maçta bu alanı hiç göndermez.)
+              topPrediction={card.topPrediction ?? null}
+              // Kartın alt satırı = AYNI marketin GERÇEK oranı (backend TopPrediction.Odd).
+              // AI güven yüzdesi (aiTrustScore) buraya BASILMAZ: kartta zaten olasılık
+              // yüzdesi var, ikinci bir yüzde oran sanılıyordu. Oran yoksa satır çıkmaz.
+              odd={card.topPrediction?.odd ?? null}
+              compact={compact}
+              // Öne çıkan maç açılışı = ilgi sinyali (gerçek /api/interests/track).
+              onOpen={() => trackInterest("click", card.matchId)}
+            />
           ))}
         </div>
 
-        {/* Sol ok — yalnızca solda görülmemiş maç varsa */}
         {canLeft ? (
           <button
             type="button"
@@ -78,7 +113,6 @@ export function FeaturedMatchesSection({
           </button>
         ) : null}
 
-        {/* Sağ ok — yalnızca sağda görülmemiş maç varsa */}
         {canRight ? (
           <button
             type="button"
@@ -91,15 +125,15 @@ export function FeaturedMatchesSection({
         ) : null}
       </div>
 
-      <button
-        type="button"
+      <Link
+        href="/maclar"
         className="relative mt-3.5 flex w-full items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] py-3 transition-colors hover:bg-white/[0.04]"
       >
         <span className="text-[13px] font-semibold text-text-secondary">Tüm önerileri gör</span>
         <span className="absolute right-4 text-text-secondary">
           <ArrowRightIcon size={15} />
         </span>
-      </button>
+      </Link>
     </GlassCard>
   );
 }

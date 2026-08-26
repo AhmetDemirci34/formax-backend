@@ -10,7 +10,10 @@ namespace Formax.Application.AI.Radar
         Discover = 0,
 
         /// <summary>Maç detayı — tam rapor + section'lar.</summary>
-        MatchDetail = 1
+        MatchDetail = 1,
+
+        /// <summary>AI İncele — maç listesinden hızlı okunan orta uzunlukta özet.</summary>
+        AiIncele = 2
     }
 
     /// <summary>Bir senaryoya (market) eşlik eden LLM açıklaması. Yüzde LLM'den GELMEZ.</summary>
@@ -40,6 +43,10 @@ namespace Formax.Application.AI.Radar
         public List<string> KeyInsights { get; set; } = new();
         public List<RadarScenarioReason> ScenarioExplanations { get; set; } = new();
         public string EvidenceSummary { get; set; } = "";
+
+        // ── AI İncele ───────────────────────────────────────────────────────────
+        /// <summary>Orta uzunlukta özet — Keşfet'ten uzun, Maç Detayı'ndan kısa.</summary>
+        public string AiIncele { get; set; } = "";
 
         // ── Meta ────────────────────────────────────────────────────────────────
         /// <summary>Reasoning Layer'ın kendi güven skoru (0–100).</summary>

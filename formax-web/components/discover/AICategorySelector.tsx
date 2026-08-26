@@ -41,6 +41,10 @@ export function AICategorySelector({ onChange, defaultKey = "ai" }: AICategorySe
 
   const select = (key: CategoryKey) => {
     setActive(key);
+    // TODO(backend): AI kategori seçimi için backend sözleşmesi yok. Mevcut Interest
+    // sistemi maç/takım/lig boyutludur; "kategori" boyutu YOKTUR ve yeni event tipi
+    // üretilmez. Feed'i kategoriye göre filtreleyecek endpoint/parametre eklendiğinde
+    // onChange gerçek isteğe bağlanacak. Şimdilik yalnız görsel seçim (sahte başarı yok).
     onChange?.(key);
   };
 

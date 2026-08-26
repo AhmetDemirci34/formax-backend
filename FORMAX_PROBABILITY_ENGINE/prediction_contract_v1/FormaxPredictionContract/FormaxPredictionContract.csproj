@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Final prediction contract. Preview/research mode: NOT added to Formax.slnx, no NuGet
+       packages, no production DB wiring, no LLM. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FormaxPredictionContract</AssemblyName>
+    <RootNamespace>Formax.Contract</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\prediction_gate_v1\FormaxPredictionGate\FormaxPredictionGate.csproj" />
+  </ItemGroup>
+
+</Project>

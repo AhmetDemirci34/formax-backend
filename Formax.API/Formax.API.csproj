@@ -16,6 +16,9 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <!-- Sürekli çalışma: Windows Service olarak barındırma (SCM Start/Stop/Recovery).
+         Konsoldan çalıştırıldığında UseWindowsService() NO-OP'tur. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

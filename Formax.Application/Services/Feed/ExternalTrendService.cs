@@ -15,7 +15,8 @@ public class ExternalTrendService
     {
         var e = _engine.Calculate(matchId);
 
-        Console.WriteLine($"[ExternalTrend] id={matchId} mc={e?.MarketConfidence}");
+        // (PERF) Aday maç başına bir Console.WriteLine vardı — feed başına 100 senkron
+        // konsol yazımı. Tanılama değeri yok, kaldırıldı.
 
         // 🔥 fallback
         if (e == null)

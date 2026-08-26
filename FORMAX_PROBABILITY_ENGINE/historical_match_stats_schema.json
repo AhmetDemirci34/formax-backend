@@ -1,0 +1,81 @@
+{
+  "schemaName": "FORMAX_HISTORICAL_MATCH_STATS",
+  "schemaVersion": "1.0.0",
+  "createdUtc": "2026-08-20",
+  "purpose": "Match-level statistics that already exist in an owned source, lifted into a separate layer keyed by the canonical MatchId. The historical master schema is not modified.",
+  "file": "FORMAX_HISTORICAL_MATCH_STATS/FORMAX_HISTORICAL_MATCH_STATS.csv",
+  "rows": 23869,
+  "joinKey": "MatchId",
+  "joinAudit": {
+    "sourceRowsInScope": 23900,
+    "matchedOnExactKey": 23900,
+    "matchedOnNearDate": 0,
+    "unmatched": 0,
+    "exactKeyDefinition": "Competition | Date | HomeTeamId | AwayTeamId",
+    "note": "100 percent of the in-scope source rows resolved to a master row; 31 of them carry no statistics in the source itself and are therefore absent from this layer."
+  },
+  "coverage": {
+    "ofModelEligibleRows": 70.41,
+    "byCompetitionType": {
+      "DOMESTIC_LEAGUE": 88.91,
+      "UEFA_MAIN": 0.0,
+      "UEFA_QUALIFIER": 0.0,
+      "UEFA_QUALIFICATION_PLAYOFF": 0.0,
+      "DOMESTIC_PLAYOFF": 0.0
+    },
+    "bySeason": {
+      "2017/18": 81.21, "2018/19": 80.24, "2019/20": 79.61, "2020/21": 85.18,
+      "2021/22": 78.87, "2022/23": 78.15, "2023/24": 78.64, "2024/25": 74.67, "2025/26": 0.0
+    },
+    "detailFile": "FORMAX_PROBABILITY_ENGINE/historical_match_stats_coverage.csv"
+  },
+  "source": {
+    "name": "football-data.co.uk",
+    "file": "Data/Historical/Matches.csv",
+    "divisions": ["E0","E1","SP1","I1","D1","F1","T1","N1"],
+    "readOnly": true
+  },
+  "columns": [
+    { "field": "MatchId",           "type": "string",  "nullable": false, "role": "join_key",  "source": "master" },
+    { "field": "Season",            "type": "string",  "nullable": false, "role": "context",   "source": "master" },
+    { "field": "Competition",       "type": "string",  "nullable": false, "role": "context",   "source": "master" },
+    { "field": "CompetitionType",   "type": "enum",    "nullable": false, "role": "context",   "source": "master" },
+    { "field": "Date",              "type": "date",    "nullable": false, "role": "time",      "source": "master" },
+    { "field": "HomeTeam",          "type": "string",  "nullable": false, "role": "entity",    "source": "master" },
+    { "field": "AwayTeam",          "type": "string",  "nullable": false, "role": "entity",    "source": "master" },
+    { "field": "HomeTeamId",        "type": "string",  "nullable": false, "role": "entity",    "source": "master" },
+    { "field": "AwayTeamId",        "type": "string",  "nullable": false, "role": "entity",    "source": "master" },
+    { "field": "HomeGoals",         "type": "integer", "nullable": false, "role": "reference", "source": "master", "note": "carried for convenience; the master remains authoritative" },
+    { "field": "AwayGoals",         "type": "integer", "nullable": false, "role": "reference", "source": "master" },
+
+    { "field": "HomeShots",         "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data HomeShots" },
+    { "field": "AwayShots",         "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data AwayShots" },
+    { "field": "HomeShotsOnTarget", "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data HomeTarget" },
+    { "field": "AwayShotsOnTarget", "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data AwayTarget" },
+    { "field": "HomeCorners",       "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data HomeCorners" },
+    { "field": "AwayCorners",       "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data AwayCorners" },
+    { "field": "HomeFouls",         "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data HomeFouls" },
+    { "field": "AwayFouls",         "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data AwayFouls" },
+    { "field": "HomeYellow",        "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data HomeYellow" },
+    { "field": "AwayYellow",        "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data AwayYellow" },
+    { "field": "HomeRed",           "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data HomeRed" },
+    { "field": "AwayRed",           "type": "integer", "nullable": true, "role": "match_statistic", "source": "football-data AwayRed" },
+
+    { "field": "StatsSource",       "type": "string", "nullable": false, "role": "provenance" },
+    { "field": "SourceFile",        "type": "string", "nullable": false, "role": "provenance" },
+    { "field": "SourceDivision",    "type": "string", "nullable": false, "role": "provenance" },
+    { "field": "SourceMatchDate",   "type": "date",   "nullable": false, "role": "provenance", "note": "date as written in the source, kept for auditing" }
+  ],
+  "usageRules": {
+    "sameMatchIsForbidden": "These values describe the match itself and must NEVER be used as an input feature for that same match.",
+    "onlyRollingUse": "Allowed use is rolling aggregates over matches strictly earlier than the prediction date - see prematch_rolling_feature_contract.md.",
+    "partialCoverageWarning": "Zero coverage for every UEFA competition type and for season 2025/26. Any feature built on this layer is undefined for 29.59 percent of the model dataset and correlates with competition type."
+  },
+  "fieldsDeliberatelyNotIncluded": [
+    { "field": "HomeElo / AwayElo", "sourceCoveragePct": 98.71, "reason": "third-party pre-computed rating with unknown timing - cannot be proven to exclude the match itself" },
+    { "field": "Form3Home / Form5Home / Form3Away / Form5Away", "sourceCoveragePct": 100.0, "reason": "same as above" },
+    { "field": "C_LTH / C_LTA / C_VHD / C_VAD / C_HTB / C_PHB", "reason": "present in the source but their meaning is not documented - not turned into features without verified semantics" },
+    { "field": "odds columns", "reason": "moved to FORMAX_HISTORICAL_MARKET_DATA.csv with STATUS=FUTURE_BENCHMARK" }
+  ],
+  "notAvailableAnywhere": ["xG", "xGA", "possession", "passes", "saves", "offsides", "lineups", "injuries", "suspensions"]
+}

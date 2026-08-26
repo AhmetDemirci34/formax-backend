@@ -29,6 +29,14 @@ public sealed record ProviderRequest
     /// <summary>Turnuva/lig adı (gerçek Match'ten).</summary>
     public string? Competition { get; init; }
 
+    /// <summary>
+    /// Seçilen maçın sağlayıcı fikstür kimliği (canonical <c>Match.ExternalMatchId</c>).
+    /// MATCH-SCOPE anahtarıdır: tarih-bazlı sağlayıcılar (ör. api-football <c>/fixtures?date=</c>)
+    /// günün TÜM fikstürlerini döndürür; bu alan doluyken sağlayıcı sonucu yalnız bu fikstüre daraltır.
+    /// Global keşif modunda (match id yok) null'dır ve hiçbir daraltma uygulanmaz.
+    /// </summary>
+    public string? ExternalMatchId { get; init; }
+
     /// <summary>Çözümlenen mekan adı (geocode display_name); yoksa null.</summary>
     public string? VenueName { get; init; }
 

@@ -91,13 +91,6 @@ export default function LoginPage() {
             </Link>
           </p>
         </form>
-
-        <p className="text-center text-xs text-text-muted mt-6">
-          Giriş yapmadan da ana sayfayı görüntüleyebilirsiniz.{" "}
-          <Link href="/" className="text-text-secondary hover:underline">
-            Ana Sayfa →
-          </Link>
-        </p>
       </div>
     </div>
   );

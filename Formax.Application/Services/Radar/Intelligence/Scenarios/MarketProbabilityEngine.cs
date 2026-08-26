@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Formax.Application.DTOs.Matches;
+using Formax.Application.AI.Context;
+using Formax.Application.AI.Decision;
 
 namespace Formax.Application.Services.Radar.Intelligence.Scenarios
 {
@@ -11,26 +12,66 @@ namespace Formax.Application.Services.Radar.Intelligence.Scenarios
     ///
     /// Basit, açıklanabilir bir beklenen-gol modeli kullanır (bahis hassasiyeti değil,
     /// senaryo SIRALAMASI hedeflenir). LLM bu sayılara dokunmaz.
+    ///
+    /// FORMAX BEYNİ (Evolution): <see cref="BuildDecisionPackage"/> aynı UnifiedMatchAiContext'ten
+    /// TAM AI Decision Package üretir (Match DNA + 13 olasılık + senaryolar + güven + risk +
+    /// açıklanabilirlik + canlı projeksiyon). Mevcut <see cref="Evaluate"/> (DTO+LLM geri-uyum)
+    /// DEĞİŞMEDEN korunur. Modüller saf/stateless → motor onları içeride kompoze eder (DI'a dokunmaz).
     /// </summary>
     public sealed class MarketProbabilityEngine
     {
-        public IReadOnlyList<ScenarioCandidate> Evaluate(
-            TeamComparisonDto home,
-            TeamComparisonDto away,
-            H2HDto h2h,
-            int gucSkoru,
-            string homeName,
-            string awayName)
+        // FORMAX BEYNİ — Decision Package boru hattı (saf/stateless modüller kompoze edilir).
+        private readonly DecisionPackageBuilder _decisionBuilder = new();
+
+        /// <summary>
+        /// FORMAX'ın TEK kararı: Unified AI Context'i okuyup AI Decision Package üretir.
+        /// Deterministik (aynı context → aynı paket). Repo/provider/ham veri YOK; LLM'e dokunmaz.
+        /// </summary>
+        public AiDecisionPackage BuildDecisionPackage(UnifiedMatchAiContext ctx)
+            => _decisionBuilder.Build(ctx);
+
+        public IReadOnlyList<ScenarioCandidate> Evaluate(UnifiedMatchAiContext ctx)
         {
+            // FORMAX AI Evolution — motor artık YALNIZ UnifiedMatchAiContext okur:
+            // repository yok, provider yok, ham istatistik hesabı yok. Aşağıdaki beklenen-gol
+            // matematiği FAZ 1'de BİREBİR korunur; girdiler context'ten alias'lanır.
+            var home     = ctx.Home;
+            var away     = ctx.Away;
+            var h2h      = ctx.H2H;
+            var gucSkoru = ctx.GucSkoru;
+            var homeName = ctx.HomeName;
+            var awayName = ctx.AwayName;
+
             var list = new List<ScenarioCandidate>();
 
             // ── Beklenen goller (clamp ile güvenli) ──────────────────────────────
-            var expHome = Clamp(Avg(home.AvgGoalsFor, away.AvgGoalsAgainst, 1.2), 0.2, 3.5);
-            var expAway = Clamp(Avg(away.AvgGoalsFor, home.AvgGoalsAgainst, 1.0), 0.2, 3.5);
+            // FAZ 2 — veri eksik olduğunda sabit 1.2/1.0 yerine LİG-UYARLI baseline'a düş
+            // (context'ten). Ev avantajı asimetrisi korunur. Veri VARSA çıktı DEĞİŞMEZ
+            // (Avg gerçek değeri döndürür; baseline yalnız (a+b)<=0 iken devreye girer).
+            var baseline = ctx.Strength.LeagueGoalBaseline;
+            var fbHome = baseline > 0 ? Clamp(baseline * 1.09, 0.4, 2.6) : 1.2;
+            var fbAway = baseline > 0 ? Clamp(baseline * 0.91, 0.4, 2.6) : 1.0;
+            var expHome = Clamp(Avg(home.AvgGoalsFor, away.AvgGoalsAgainst, fbHome), 0.2, 3.5);
+            var expAway = Clamp(Avg(away.AvgGoalsFor, home.AvgGoalsAgainst, fbAway), 0.2, 3.5);
+
+            // FAZ 3 — KADRO UYGUNLUĞU (yalnız gerçek MatchPlayerStatuses verisi varsa): eksik
+            // oyuncular ilgili takımın gol üretimini kısar. GücSkoru bu sinyali İÇERMEZ (yalnız
+            // skor geçmişi) → çift sayım yok. HasData=false ise hiçbir etki yok (davranış aynı).
+            if (ctx.Availability.HasData)
+            {
+                var homePen = Math.Min(0.30, ctx.Availability.HomeKeyAbsences * 0.06);
+                var awayPen = Math.Min(0.30, ctx.Availability.AwayKeyAbsences * 0.06);
+                expHome = Clamp(expHome * (1.0 - homePen), 0.2, 3.5);
+                expAway = Clamp(expAway * (1.0 - awayPen), 0.2, 3.5);
+            }
+
             var totalExp = expHome + expAway;
             var iyExp = totalExp * 0.42;
 
             var edge = gucSkoru - 50; // + ev sahibi lehine
+            // FAZ 3 — kadro dengesi maç sonucuna: rakip daha çok eksikse ev lehine (bounded ±15).
+            if (ctx.Availability.HasData)
+                edge += Math.Clamp((ctx.Availability.AwayKeyAbsences - ctx.Availability.HomeKeyAbsences) * 3, -15, 15);
             var h2hGollu = h2h.TotalMatches > 0 && (h2h.HomeWins + h2h.AwayWins) >= h2h.Draws;
 
             // ── 1X2 ──────────────────────────────────────────────────────────────
@@ -82,8 +123,13 @@ namespace Formax.Application.Services.Radar.Intelligence.Scenarios
             Add(list, $"{awayName} Gol Atamaz", 100 - pAwayScore, ScenarioFamily.TeamGoals, 0.7, $"{homeName} savunması direngen");
 
             // ── İlk yarı (Half ailesi) ──────────────────────────────────────────
-            Add(list, "İlk Yarı 0.5 Üst", POver(iyExp, 0.5), ScenarioFamily.Half, 0.8, "Erken gol eğilimi");
-            Add(list, "İlk Yarı 1.5 Alt", 100 - POver(iyExp, 1.5), ScenarioFamily.Half, 0.8, "İlk yarı temkinli tempo");
+            // İLK YARI GOL MARKETLERİ ÜRETİLMEZ (ürün kararı, 18.08.2026): "İlk Yarı 0.5 Üst"
+            // ("ilk yarıda gol var" ile aynı anlam) ve "İlk Yarı 1.5 Alt" (İY gol toplamı)
+            // buradan kaldırıldı. Kullanıcıya ilk yarı GOL marketi gösterilmiyor; frontend'de
+            // gizlenmiyor, kaynakta üretilmiyor.
+            //
+            // İlk yarı SONUCU marketleri (Ev Sahibi / Beraberlik / Deplasman) gol marketi
+            // DEĞİLDİR ve korunur.
             var iyDraw = (int)Clamp(44 - Math.Abs(edge) * 0.12, 34, 46);
             var iyRem = 100 - iyDraw;
             var iyHome = (int)Math.Round(iyRem * Clamp(0.5 + edge / 140.0, 0.2, 0.8));
@@ -91,7 +137,23 @@ namespace Formax.Application.Services.Radar.Intelligence.Scenarios
             Add(list, "İlk Yarı Beraberlik", iyDraw, ScenarioFamily.Half, 0.75, "İlk yarı dengeli");
             Add(list, "İlk Yarı Deplasman", Math.Max(6, iyRem - iyHome), ScenarioFamily.Half, 0.75, strongTag);
 
+            // FAZ 2 — DÜRÜST GÜVEN: bağlam verisi zayıfsa (eksik gol geçmişi) güven etiketlerini
+            // bir kademe kıs. Olasılık/sıralama DEĞİŞMEZ (ranking edge'e göre); yalnız kullanıcıya
+            // gösterilen güven, gerçek veri kadar iddialı olur (açıklanabilir AI).
+            if (ctx.DataQuality < 1.0)
+                foreach (var c in list)
+                    c.Confidence = Downgrade(c.Confidence, ctx.DataQuality);
+
             return list;
+        }
+
+        // Güven bir kademe aşağı: veri kısmen eksikse (0.5≤dq<1) yalnız YÜKSEK→ORTA;
+        // çok eksikse (dq<0.5) YÜKSEK→ORTA, ORTA→DÜŞÜK.
+        private static string Downgrade(string confidence, double dq)
+        {
+            if (dq < 0.5)
+                return confidence == "YÜKSEK" ? "ORTA" : "DÜŞÜK";
+            return confidence == "YÜKSEK" ? "ORTA" : confidence;
         }
 
         // ── Yardımcılar ─────────────────────────────────────────────────────────

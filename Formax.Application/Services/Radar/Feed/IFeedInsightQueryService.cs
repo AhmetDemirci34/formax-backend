@@ -13,5 +13,12 @@ namespace Formax.Application.Services.Radar.Feed
     public interface IFeedInsightQueryService
     {
         Task<IReadOnlyList<FeedInsightDto>> GetFeedAsync(int limit = 50, CancellationToken ct = default);
+
+        /// <summary>
+        /// Yalnız verilen maçların insight'ları (öneri feed'i adaylarını zaten biliyor).
+        /// Limit yok — istenen id kümesi zaten sınırlıdır.
+        /// </summary>
+        Task<IReadOnlyList<FeedInsightDto>> GetFeedByMatchIdsAsync(
+            IReadOnlyCollection<int> matchIds, CancellationToken ct = default);
     }
 }

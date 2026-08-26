@@ -24,7 +24,8 @@ namespace Formax.Application.UseCases
 
         public async Task<IReadOnlyList<MatchListItemDto>> Handle(int? userId = null)
         {
-            var matches = await _matchReadRepository.GetMatchListAsync();
+            // Maçlar ekranı: "şimdi" merkezli pencere → biten + canlı + yaklaşan birlikte.
+            var matches = await _matchReadRepository.GetScreenMatchListAsync();
 
             // --------------------------------------------------
             // FORMAX ANA REFERANS v1.1 — Sapma Motoru

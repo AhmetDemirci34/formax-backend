@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Gate policy validation. NOT added to Formax.slnx, no NuGet packages, no production DB. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FormaxGatePolicy</AssemblyName>
+    <RootNamespace>Formax.GatePolicy</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The gate and the frozen model are consumed as-is. -->
+    <ProjectReference Include="..\..\prediction_gate_v1\FormaxPredictionGate\FormaxPredictionGate.csproj" />
+  </ItemGroup>
+
+</Project>

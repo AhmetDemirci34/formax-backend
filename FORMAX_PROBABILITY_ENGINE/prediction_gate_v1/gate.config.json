@@ -1,0 +1,33 @@
+{
+  "_comment": "Prediction gate policy. These are POLICY thresholds, not fitted parameters: the gate decides whether a probability may be published, it never changes one. Nothing here was selected by scoring the test segment.",
+
+  "gateVersion": "PREDICTION_GATE_V1",
+  "modelVersion": "INDEPENDENT_POISSON_V2",
+  "teamStrengthVersion": "TEAM_STRENGTH_V2_VALIDATED",
+
+  "requiredIdentityConfidence": "CONFIRMED",
+
+  "minPriorMatchesPerTeam": 1,
+  "_minPriorMatchesPerTeam": "A side with ZERO prior matches is refused: its snapshot IS the prior, so the published number would describe the opponent and the competition rather than this team. 1 is the declared default - only the zero case is refused. Raising it to 2 or 5 is a legitimate product choice and the README reports what each setting costs in coverage.",
+
+  "minEffectiveMatchesPerTeam": 0.5,
+  "_minEffectiveMatchesPerTeam": "Staleness net: evidence so old that its decayed weight has almost vanished. With the validated halfLifeDays=100000 there is effectively no decay, so this check is dormant by design and exists for configurations that do decay. It is deliberately BELOW minPriorMatchesPerTeam: at 1.0 it fired on 533 matches whose weaker side had exactly one prior match, purely because a 2% decay shaved the effective count below the integer bound. Refusing those matches may be reasonable, but it must be stated as policy through minPriorMatchesPerTeam, not arrive as a rounding artefact.",
+
+  "minCompetitionMatchesObserved": 50,
+  "_minCompetitionMatchesObserved": "Matches the frozen context's own MinBaselineSamples: below it the goal baseline is a config seed rather than learned data, so the lambda scale is not measured.",
+
+  "lambdaMin": 0.05,
+  "lambdaMax": 6.0,
+  "_lambdaClamp": "The frozen model's own clamp. The gate does not apply it - it only refuses a prediction whose lambda is SITTING on it, because such a value is saturated rather than measured.",
+
+  "guardRailTolerance": 1e-9,
+  "probabilitySumTolerance": 1e-12,
+
+  "confidenceLowMin": 1,
+  "confidenceMediumLowMin": 3,
+  "confidenceMediumMin": 5,
+  "confidenceHighMin": 10,
+  "_confidence": "Prior-match thresholds, set by the WEAKER side. Confidence describes the evidence and never the probability - the classifier's input type carries no probability field at all.",
+
+  "maxPriorWeightForFullConfidence": 0.5
+}

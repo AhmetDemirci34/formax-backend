@@ -1,6 +1,8 @@
 using Formax.Application.DTOs.Live;
 using Formax.Application.Interfaces;
+using Formax.Application.UseCases.Follow;
 using Formax.Domain.Entities;
+using Formax.Domain.Enums;
 using Formax.Infrastructure.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -61,6 +63,7 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         private readonly ILogger<LiveMatchIngestionJob> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly Microsoft.Extensions.Configuration.IConfiguration _config;
 
         /// <summary>
         /// Unique id for this process instance: hostname + PID + random guid.
@@ -73,10 +76,12 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         public LiveMatchIngestionJob(
             ILogger<LiveMatchIngestionJob> logger,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            Microsoft.Extensions.Configuration.IConfiguration config)
         {
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _config = config;
         }
 
         // ──────────────────────────────────────────────────────────────────────
@@ -85,6 +90,22 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            // ── CANLI VERİ KAPALI (LiveMatchData:Enabled) ─────────────────────
+            // Bu job api-football'un canlı uçlarını 30 sn'de bir yokluyordu:
+            //   GET /fixtures?live=all           → döngü başına 1 istek (günde ~2.880)
+            //   GET /fixtures/statistics?fixture → değişen maç başına
+            //   GET /fixtures/events?fixture     → her 2. döngüde
+            // Günlük kotanın (7.500) büyük kısmını bu tüketiyordu. Bayrak kapalıyken job HİÇ
+            // çalışmaz — tek istek bile gitmez. Kod, tablolar ve DTO'lar OLDUĞU GİBİ durur;
+            // bayrak true yapılınca özellik aynen geri gelir.
+            if (!LiveMatchDataFlag.IsEnabled(_config))
+            {
+                _logger.LogInformation(
+                    "[LIVE JOB] canlı maç verisi KAPALI (LiveMatchData:Enabled=false) — "
+                    + "api-football canlı uçlarına istek atılmayacak");
+                return;
+            }
+
             _logger.LogInformation(
                 "[LIVE JOB] instance {InstanceId} started", _instanceId);
 
@@ -189,6 +210,13 @@ namespace Formax.Infrastructure.BackgroundJobs
             var statsRepo   = sp.GetRequiredService<IMatchLiveStatsRepository>();
             var momentumRepo = sp.GetRequiredService<IMatchMomentumRepository>();
             var eventRepo   = sp.GetRequiredService<IMatchLiveEventIngestionRepository>();
+            var followUseCase   = sp.GetRequiredService<GetUsersFollowingMatchUseCase>();
+            var notificationRepo = sp.GetRequiredService<IUserNotificationRepository>();
+            // Bildirim fan-out'u yalnız MAÇ takipçilerine gidiyordu; takım ve lig takipçileri
+            // gerçek canlı olaylarda hiç bildirim almıyordu. MatchEventNotificationService'in
+            // zaten uyguladığı 3'lü hedefleme burada da kullanılır (aynı, kayıtlı repo'lar).
+            var teamFollowRepo   = sp.GetRequiredService<IUserTeamFollowRepository>();
+            var leagueFollowRepo = sp.GetRequiredService<IUserLeagueFollowRepository>();
 
             // ── 2. Single batch request — all live fixtures (1 req total) ──────
             var batchEntries = await provider.GetAllLiveFixturesAsync(ct);
@@ -243,6 +271,8 @@ namespace Formax.Infrastructure.BackgroundJobs
                         batchByExternal[match.ExternalMatchId!],
                         statsByMatchId.GetValueOrDefault(match.Id),
                         provider, statsRepo, momentumRepo, eventRepo,
+                        followUseCase, notificationRepo,
+                        matchRepo, teamFollowRepo, leagueFollowRepo,
                         fetchEvents, utcNow, ct);
                 }
                 catch (Exception ex)
@@ -267,6 +297,11 @@ namespace Formax.Infrastructure.BackgroundJobs
             IMatchLiveStatsRepository statsRepo,
             IMatchMomentumRepository momentumRepo,
             IMatchLiveEventIngestionRepository eventRepo,
+            GetUsersFollowingMatchUseCase followUseCase,
+            IUserNotificationRepository notificationRepo,
+            IMatchReadRepository matchRepo,
+            IUserTeamFollowRepository teamFollowRepo,
+            IUserLeagueFollowRepository leagueFollowRepo,
             bool fetchEvents,
             DateTime utcNow,
             CancellationToken ct)
@@ -392,13 +427,130 @@ namespace Formax.Infrastructure.BackgroundJobs
                         CreatedAt   = utcNow
                     }).ToList();
 
-                    await eventRepo.AddNewEventsAsync(matchId, entities, ct);
+                    var newEvents = await eventRepo.AddNewEventsAsync(matchId, entities, ct);
                     await eventRepo.SaveChangesAsync(ct);
 
                     _logger.LogDebug(
-                        "[LIVE JOB] events merged — match {MatchId} provider={Count}",
-                        matchId, events.Count);
+                        "[LIVE JOB] events merged — match {MatchId} provider={Count} new={New}",
+                        matchId, events.Count, newEvents.Count);
+
+                    // ── 12. Notification fan-out — only for genuinely NEW events ──
+                    // Reuses the existing dedup (AddNewEventsAsync) so each real event
+                    // notifies followers exactly once. No new engine/table introduced.
+                    if (newEvents.Count > 0)
+                        await FanOutEventNotificationsAsync(
+                            matchId, newEvents, followUseCase, notificationRepo,
+                            matchRepo, teamFollowRepo, leagueFollowRepo, utcNow, ct);
                 }
+            }
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
+        // Notification fan-out (real event → followers)
+        // ──────────────────────────────────────────────────────────────────────
+
+        private async Task FanOutEventNotificationsAsync(
+            int matchId,
+            IReadOnlyList<MatchLiveEvent> newEvents,
+            GetUsersFollowingMatchUseCase followUseCase,
+            IUserNotificationRepository notificationRepo,
+            IMatchReadRepository matchRepo,
+            IUserTeamFollowRepository teamFollowRepo,
+            IUserLeagueFollowRepository leagueFollowRepo,
+            DateTime utcNow,
+            CancellationToken ct)
+        {
+            // Only high-signal events become notifications (Goal + Red Card),
+            // matching the original MatchEventService intent. Yellow/sub/var skipped.
+            var notif = newEvents
+                .Select(BuildNotificationContent)
+                .Where(c => c != null)
+                .Select(c => c!.Value)
+                .ToList();
+
+            if (notif.Count == 0)
+                return;
+
+            // Hedefleme (MatchEventNotificationService ile aynı 3'lü kural):
+            //   1) maçı takip edenler, 2) iki takımdan birini takip edenler, 3) ligi takip edenler.
+            // HashSet ile tekilleştirilir → bir kullanıcı olay başına tek bildirim alır.
+            var userIds = new HashSet<int>(await followUseCase.ExecuteAsync(matchId));
+
+            var match = matchRepo.GetById(matchId);
+            if (match != null)
+            {
+                foreach (var uid in await teamFollowRepo.GetUserIdsByTeamAsync(match.HomeTeamId))
+                    userIds.Add(uid);
+                foreach (var uid in await teamFollowRepo.GetUserIdsByTeamAsync(match.AwayTeamId))
+                    userIds.Add(uid);
+                foreach (var uid in await leagueFollowRepo.GetUserIdsByLeagueAsync(match.LeagueId))
+                    userIds.Add(uid);
+            }
+
+            if (userIds.Count == 0)
+                return;
+
+            foreach (var userId in userIds)
+            {
+                foreach (var (title, message, eventType) in notif)
+                {
+                    try
+                    {
+                        await notificationRepo.AddAsync(new UserNotification
+                        {
+                            UserId     = userId,
+                            MatchId    = matchId,
+                            Title      = title,
+                            Message    = message,
+                            IsRead     = false,
+                            CreatedAt  = utcNow,
+                            EventType  = eventType,
+                            Category   = NotificationCategory.Match,
+                            TargetType = NotificationTargetType.Match,
+                            TargetId   = matchId
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "[LIVE JOB] could not save notification for user {UserId} / match {MatchId}",
+                            userId, matchId);
+                    }
+                }
+            }
+        }
+
+        // Maps a provider live event to notification content. Returns null to skip.
+        private static (string Title, string Message, NotificationEventType EventType)? BuildNotificationContent(
+            MatchLiveEvent e)
+        {
+            var minute = e.Minute > 0 ? $"{e.Minute}'" : string.Empty;
+            var team   = string.IsNullOrWhiteSpace(e.Team) ? null : e.Team.Trim();
+            var player = string.IsNullOrWhiteSpace(e.Player) ? null : e.Player.Trim();
+
+            switch (e.EventType)
+            {
+                case "Goal":
+                {
+                    var who = player ?? team ?? "Bir takım";
+                    var msg = team != null
+                        ? $"{team} {minute} gol buldu." + (player != null ? $" ({player})" : string.Empty)
+                        : $"{who} {minute} gol buldu.";
+                    return ($"⚽ Gol!", msg.Trim(), NotificationEventType.Goal);
+                }
+
+                // Provider emits "Card" with red distinguished in Detail.
+                case "Card" when e.Detail != null &&
+                                 e.Detail.Contains("Red", StringComparison.OrdinalIgnoreCase):
+                {
+                    var msg = player != null
+                        ? $"{team} takımından {player}, {minute} kırmızı kart gördü."
+                        : $"{team ?? "Bir takım"} {minute} kırmızı kart gördü.";
+                    return ("🟥 Kırmızı Kart", msg.Trim(), NotificationEventType.RedCard);
+                }
+
+                default:
+                    return null;
             }
         }
 

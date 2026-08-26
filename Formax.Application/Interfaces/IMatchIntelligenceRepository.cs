@@ -6,6 +6,9 @@ using Formax.Domain.Entities;
 
 namespace Formax.Application.Interfaces
 {
+    /// <summary>Feed montajının ihtiyaç duyduğu tek şey — intelligence snapshot'ın iki alanı.</summary>
+    public sealed record MatchIntelligenceFeedRow(int MatchId, double ImportanceScore, string PrimarySignal);
+
     /// <summary>
     /// Radar Match Intelligence (R.9.1) — persistence for intelligence snapshots plus
     /// the read access needed to assemble a match profile (match + team facts).
@@ -13,6 +16,22 @@ namespace Formax.Application.Interfaces
     public interface IMatchIntelligenceRepository
     {
         Task<MatchIntelligenceSnapshot?> GetByMatchIdAsync(int matchId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Batch read (perf): snapshots for the given match ids in a SINGLE query.
+        /// Feed/recommendation yollarında maç-başına GetByMatchIdAsync yerine kullanılır —
+        /// dönen veri birebir aynı, yalnız round-trip sayısı N → 1 olur.
+        /// </summary>
+        Task<IReadOnlyDictionary<int, MatchIntelligenceSnapshot>> GetByMatchIdsAsync(
+            IReadOnlyCollection<int> matchIds, CancellationToken ct = default);
+
+        /// <summary>
+        /// Feed kurulumu için hafif projeksiyon: yalnız ImportanceScore + PrimarySignalType.
+        /// Tam entity, büyük SignalsJson metnini de taşır; feed bu alanı KULLANMAZ. Binlerce
+        /// satırda bu kolonu çekmemek okuma süresini belirgin düşürür. Değerler aynıdır.
+        /// </summary>
+        Task<IReadOnlyDictionary<int, MatchIntelligenceFeedRow>> GetFeedRowsFromAsync(
+            DateTime fromUtc, CancellationToken ct = default);
 
         Task UpsertAsync(MatchIntelligenceSnapshot snapshot, CancellationToken ct = default);
 

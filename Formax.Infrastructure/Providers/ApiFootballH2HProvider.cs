@@ -30,8 +30,11 @@ public sealed class ApiFootballH2HProvider : IH2HProvider
             return null;
 
         var baseUrl = _config["ApiFootball:BaseUrl"] ?? "https://v3.football.api-sports.io";
+        // Configurable timezone — tarih alanları yerel güne göre tutarlı olsun.
+        var tz = Formax.Infrastructure.Http.ApiFootballTimeZone.ResolveId(
+            _config[Formax.Infrastructure.Http.ApiFootballTimeZone.ConfigKey]);
         // Free plan: last= ve season= opsiyonel; season olmadan tüm geçmiş gelir
-        var url = $"{baseUrl}/fixtures/headtohead?h2h={homeAfId}-{awayAfId}";
+        var url = $"{baseUrl}/fixtures/headtohead?h2h={homeAfId}-{awayAfId}&timezone={Uri.EscapeDataString(tz)}";
 
         try
         {

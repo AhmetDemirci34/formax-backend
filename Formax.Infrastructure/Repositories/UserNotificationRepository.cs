@@ -49,5 +49,21 @@ namespace Formax.Infrastructure.Repositories
             notification.IsRead = true;
             await _context.SaveChangesAsync();
         }
+
+        public async Task<int> MarkAllAsReadAsync(int userId)
+        {
+            var unread = await _context.UserNotifications
+                .Where(x => x.UserId == userId && !x.IsRead)
+                .ToListAsync();
+
+            if (unread.Count == 0)
+                return 0;
+
+            foreach (var n in unread)
+                n.IsRead = true;
+
+            await _context.SaveChangesAsync();
+            return unread.Count;
+        }
     }
 }

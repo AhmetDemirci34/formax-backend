@@ -70,11 +70,16 @@ public sealed class MatchOutlookEngine : IMatchOutlookEngine
         };
     }
 
-    /// <summary>Narrative güveni yoksa: veri ayrışmasından türetilmiş güven.</summary>
+    /// <summary>
+    /// Narrative güveni yoksa: veri ayrışmasından türetilmiş güven.
+    ///
+    /// YETERLİLİK ÖLÇÜTÜ ARTIK ÖRNEKLEM SAYISI. Eskiden "FormScore &gt; 0 ya da AvgGoalsFor &gt; 0"
+    /// bakılıyordu; hiç maçı olmayan takım da rakibinin değerleri yüzünden bu testi geçiyor ve
+    /// ölçülmemiş bir ayrışmadan güven üretiliyordu. Kanıt eşiği tüm yüzeylerle ortaktır.
+    /// </summary>
     private static int DeriveConfidence(TeamComparisonDto home, TeamComparisonDto away)
     {
-        var hasData = home.FormScore > 0 || away.FormScore > 0 || home.AvgGoalsFor > 0 || away.AvgGoalsFor > 0;
-        if (!hasData) return 0;
+        if (!OutlookEvidence.Both(home, away)) return 0;
         var separation = Math.Abs(home.FormScore - away.FormScore);
         return Math.Clamp(55 + Math.Min(30, separation * 2), 0, 90);
     }

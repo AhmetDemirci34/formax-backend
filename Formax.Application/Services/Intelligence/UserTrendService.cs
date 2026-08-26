@@ -1,23 +1,46 @@
-﻿using Formax.Application.Interfaces.Repositories;
+﻿using System.Globalization;
+using System.Text;
+using Formax.Application.Interfaces.Repositories;
+using Formax.Application.Services.Recommendation;
 using Formax.Domain.Entities;
 
 namespace Formax.Application.Services.Intelligence;
 
 public class UserTrendService
 {
-    private readonly IUserActionRepository _repo;
+    // İkinci davranışsal kaynağın (UserInterestScores) ağırlığı — UserActions'a göre İKİNCİL.
+    // interestAffinity ∈ [0,1] olduğundan bu terim mevcut tanh zarfı içinde doğal olarak
+    // sınırlanır; ilgi verisi yoksa 0 → UserActions davranışı BİREBİR korunur.
+    private const double INTEREST_WEIGHT = 0.20;
 
-    public UserTrendService(IUserActionRepository repo)
+    private readonly IUserActionRepository _repo;
+    private readonly IUserInterestScoreRepository _interestRepo;
+    private readonly InterestDecayService _decay;
+
+    public UserTrendService(
+        IUserActionRepository repo,
+        IUserInterestScoreRepository interestRepo,
+        InterestDecayService decay)
     {
         _repo = repo;
+        _interestRepo = interestRepo;
+        _decay = decay;
     }
 
-    public async Task<double> Calculate(int userId, int matchId, string teamA, string teamB, double currentOdds)
+    public async Task<double> Calculate(
+        int userId, int matchId, string teamA, string teamB, double currentOdds, string? league = null)
     {
         var actions = await _repo.GetByUserIdAsync(userId);
 
+        // İKİNCİ DAVRANIŞSAL KAYNAK: UserInterestScores (Team + League). Ham int Score
+        // KULLANILMAZ; kullanıcının kendi max'ına göre 0..1 normalize + read-time decay.
+        var interestAffinity = await ComputeInterestAffinity(userId, teamA, teamB, league);
+
         if (actions.Count == 0)
-            return 0.3;
+            // Mevcut cold-start davranışı korunur (0.3); yalnız ilgi verisi VARSA doğal dahil edilir.
+            return interestAffinity > 0
+                ? Math.Tanh(0.3 + interestAffinity * INTEREST_WEIGHT)
+                : 0.3;
 
         // 🔹 BASE USER (çok düşük etki)
         double totalScore = 0;
@@ -140,12 +163,74 @@ public class UserTrendService
 
         // 🔥 FINAL SCORE (AGRESİF + AKILLI)
         var final =
-            (teamBoost * 0.65) +   // 🔥 ana sinyal
+            (teamBoost * 0.65) +   // 🔥 ana sinyal (UserActions — BİRİNCİL davranışsal kaynak)
             (oddsBoost * 0.10) +
             (recencyBoost * 0.10) +
             (matchBoost * 0.10) +
-            (userBaseScore * 0.03);
+            (userBaseScore * 0.03) +
+            (interestAffinity * INTEREST_WEIGHT);  // İKİNCİL davranışsal kaynak (UserInterestScores)
 
         return Math.Tanh(final);
+    }
+
+    // ── İKİNCİ DAVRANIŞSAL KAYNAK: UserInterestScores → normalize affinity (0..1) ──────────
+    // Ham int Score DOĞRUDAN kullanılmaz: kullanıcının kendi max skoruna göre göreli normalize
+    // (decay yokluğuna dayanıklı) + read-time InterestDecayService (stored skoru bozmadan).
+    // Team: HomeTeam + AwayTeam İKİSİ değerlendirilir (tek-takım varsayımı yok). League: aynı
+    // davranışsal modele dahildir. ContentType KULLANILMAZ (kartlar arası ayrıştırıcı değil).
+    private async Task<double> ComputeInterestAffinity(int userId, string teamA, string teamB, string? league)
+    {
+        var scores = await _interestRepo.GetByUser(userId);
+        if (scores.Count == 0) return 0.0;
+
+        var now = DateTime.UtcNow;
+        int Decayed(UserInterestScore s) => _decay.ApplyDecay(s.Score, s.LastEventAtUtc, now);
+
+        var teamRows = scores.Where(s => s.Layer == "team").ToList();
+        var leagueRows = scores.Where(s => s.Layer == "league").ToList();
+
+        double maxTeam = teamRows.Count > 0 ? teamRows.Max(s => (double)Decayed(s)) : 0.0;
+        double maxLeague = leagueRows.Count > 0 ? leagueRows.Max(s => (double)Decayed(s)) : 0.0;
+
+        double TeamScore(string name)
+        {
+            var key = Normalize(name);
+            var row = teamRows.FirstOrDefault(s => s.Key == key);
+            return row == null ? 0.0 : Decayed(row);
+        }
+
+        double LeagueScore(string name)
+        {
+            var key = Normalize(name);
+            var row = leagueRows.FirstOrDefault(s => s.Key == key);
+            return row == null ? 0.0 : Decayed(row);
+        }
+
+        // HomeTeam + AwayTeam ikisi de: güçlü olan taraf.
+        double teamAff = maxTeam > 0
+            ? Math.Max(TeamScore(teamA), TeamScore(teamB)) / maxTeam
+            : 0.0;
+
+        double leagueAff = (!string.IsNullOrWhiteSpace(league) && maxLeague > 0)
+            ? LeagueScore(league) / maxLeague
+            : 0.0;
+
+        // Team + League birlikte; güçlü olan (sinyaller arası uydurma weight yok).
+        return Math.Max(teamAff, leagueAff);
+    }
+
+    // UserInterestScoreRepository'nin key normalizasyonuyla BİREBİR aynı (lookup eşleşmesi için).
+    private static string Normalize(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var normalized = value.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder();
+        foreach (var c in normalized)
+        {
+            if (char.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 }

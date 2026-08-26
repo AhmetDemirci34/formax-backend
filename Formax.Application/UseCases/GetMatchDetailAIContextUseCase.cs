@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Formax.Application.AI.Audit;
+using Formax.Application.AI.Context;
 using Formax.Application.AI.Contexts;
 using Formax.Application.AI.Memory;
 using Formax.Application.AI.SelfAudit;
@@ -12,7 +14,9 @@ using Formax.Application.Interfaces.Repositories;
 using Formax.Application.States;
 using Formax.Application.DTOs.Matches;
 using Formax.Application.AI.Radar;
+using Formax.Application.Services.Matches;
 using Formax.Application.Services.Radar.Intelligence.Scenarios;
+using Formax.Application.Services.News.Intelligence;
 using Formax.Domain.Entities;
 using Formax.Domain.States;
 
@@ -44,9 +48,16 @@ namespace Formax.Application.UseCases
         // Radar v2.2 — dinamik senaryo motoru.
         private readonly MarketProbabilityEngine _marketEngine;
         private readonly ScenarioRankingService _scenarioRanking;
+        // FORMAX AI Evolution — GDP-türevli sinyalleri motora tek context olarak veren katman.
+        private readonly IMatchAiContextBuilder _aiContextBuilder;
         // FINAL — Evidence → Reasoning köprüsü (Data Engine v1/v2.1 bağlantısı).
         private readonly Formax.Application.Services.Fixtures.FormaxMatchIdFactory _matchIdFactory;
         private readonly Formax.Application.Interfaces.IMatchEvidenceRepository _evidenceRepository;
+        // SON DAKİKA — liste üretiminin TEK yeri (kapılar + sıralama + tekilleştirme).
+        private readonly Formax.Application.Services.News.Feed.MatchNewsFeedService _newsFeedService;
+        // FAZ 1 — TeamComparison/H2H artık ortak kaynaktan (formül birebir aynı; bkz. MatchComparisonFactory).
+        private readonly Formax.Application.Services.Matches.MatchComparisonFactory _comparisonFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> _logger;
 
         public GetMatchDetailAIContextUseCase(
             IMatchReadRepository matchReadRepository,
@@ -71,9 +82,15 @@ namespace Formax.Application.UseCases
             RadarNarrativePipeline narrativePipeline,
             MarketProbabilityEngine marketEngine,
             ScenarioRankingService scenarioRanking,
+            IMatchAiContextBuilder aiContextBuilder,
             Formax.Application.Services.Fixtures.FormaxMatchIdFactory matchIdFactory,
-            Formax.Application.Interfaces.IMatchEvidenceRepository evidenceRepository)
+            Formax.Application.Interfaces.IMatchEvidenceRepository evidenceRepository,
+            Formax.Application.Services.Matches.MatchComparisonFactory comparisonFactory,
+            Formax.Application.Services.News.Feed.MatchNewsFeedService newsFeedService,
+            Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> logger)
         {
+            _newsFeedService = newsFeedService;
+            _comparisonFactory = comparisonFactory;
             _matchReadRepository = matchReadRepository;
             _aiDecisionTraceWriter = aiDecisionTraceWriter;
             _stateTransitionLogWriter = stateTransitionLogWriter;
@@ -96,8 +113,10 @@ namespace Formax.Application.UseCases
             _narrativePipeline = narrativePipeline;
             _marketEngine = marketEngine;
             _scenarioRanking = scenarioRanking;
+            _aiContextBuilder = aiContextBuilder;
             _matchIdFactory = matchIdFactory;
             _evidenceRepository = evidenceRepository;
+            _logger = logger;
         }
 
         // ────────────────────────────────────────────────────────────────────────
@@ -179,7 +198,7 @@ namespace Formax.Application.UseCases
 
             var homeComparison = BuildTeamComparison(match.HomeTeamId, homeOnly: true);
             var awayComparison = BuildTeamComparison(match.AwayTeamId, awayOnly: true);
-            var h2h            = BuildH2H(match.HomeTeamId, match.AwayTeamId);
+            var h2h            = BuildH2H(match.HomeTeamId, match.AwayTeamId, match.Id);
             var insight        = BuildInsight(
                 homeComparison, awayComparison,
                 homeTeam?.Name ?? "Ev sahibi",
@@ -201,8 +220,12 @@ namespace Formax.Application.UseCases
             var allStandings = _leagueStandingRepository.GetByLeague(match.LeagueId, seasonYear);
             if (allStandings.Count > 0)
             {
-                homeRank = allStandings.FirstOrDefault(s => s.TeamId == match.HomeTeamId)?.Position ?? 0;
-                awayRank = allStandings.FirstOrDefault(s => s.TeamId == match.AwayTeamId)?.Position ?? 0;
+                // LeagueStandings.TeamId EXTERNAL id'dir; canonical id ile aramak YANLIŞ takımı
+                // buluyordu (kimlik uzayları örtüşüyor — bkz. BuildStandingSection, 3588 örneği).
+                var homeStandingId = ResolveTeamExternalId(match.HomeTeamId) ?? match.HomeTeamId;
+                var awayStandingId = ResolveTeamExternalId(match.AwayTeamId) ?? match.AwayTeamId;
+                homeRank = allStandings.FirstOrDefault(s => s.TeamId == homeStandingId)?.Position ?? 0;
+                awayRank = allStandings.FirstOrDefault(s => s.TeamId == awayStandingId)?.Position ?? 0;
             }
 
             // ── Sprint 1: Lineup & player status ─────────────────────────────────
@@ -214,8 +237,11 @@ namespace Formax.Application.UseCases
             var awayNm = awayTeam?.Name ?? "Deplasman";
             var gucSkoru = (int)sapma.GucSkoru;
 
-            var scenarioCandidates = _marketEngine.Evaluate(
+            // FORMAX AI Evolution — motor ham veri yerine tek UnifiedMatchAiContext okur.
+            var aiContext = _aiContextBuilder.Build(
+                match.Id, match.HomeTeamId, match.AwayTeamId,
                 homeComparison, awayComparison, h2h, gucSkoru, homeNm, awayNm);
+            var scenarioCandidates = _marketEngine.Evaluate(aiContext);
             var rankedScenarios = _scenarioRanking.RankTop(scenarioCandidates, 3);
 
             // Geniş havuzdan seçilen en güçlü 3 senaryo → mevcut DTO sözleşmesi (Probabilities).
@@ -233,6 +259,12 @@ namespace Formax.Application.UseCases
 
             // ── Watchers ─────────────────────────────────────────────────────────
             var watchersCount = _followRepository.CountByMatchId(match.Id);
+
+            // ── Takımların ULUSAL ligi ("ligde son N maç" filtresi) ───────────────
+            var homeFormLeagueId = ResolveTeamLeagueId(
+                match.HomeTeamId, ResolveTeamExternalId(match.HomeTeamId), seasonYear);
+            var awayFormLeagueId = ResolveTeamLeagueId(
+                match.AwayTeamId, ResolveTeamExternalId(match.AwayTeamId), seasonYear);
 
             // ── Assemble ─────────────────────────────────────────────────────────
             var aiSummary = aiUxState switch
@@ -263,14 +295,23 @@ namespace Formax.Application.UseCases
                 MatchDate    = match.MatchDate,
                 Status       = match.Status,
                 League       = match.League,
-                Round        = BuildRoundLabel(match.Id),
+                // Sağlayıcının HAM tur adı (teşhis/geri-uyum) ve ondan türeyen Türkçe maç türü.
+                Round        = BuildRoundLabel(match),
+                MatchTypeLabel = Formax.Application.Services.Matches.MatchTypeLabelResolver
+                                     .Resolve(BuildRoundLabel(match)),
                 Referee      = match.Referee,
                 Venue        = match.Venue,
                 Weather      = null,        // reserved — requires dedicated weather API
                 WatchersCount = watchersCount,
 
-                HomeTeamLastMatches = BuildLastMatches(match.HomeTeamId),
-                AwayTeamLastMatches = BuildLastMatches(match.AwayTeamId),
+                // "Ligde son N maç" — takımın KENDİ ulusal ligi (maçın ligi değil: Avrupa
+                // kupası maçında da kullanıcı takımın lig formunu görmek ister). Lig
+                // çözülemezse filtre uygulanmaz ve DTO'daki lig adı null kalır; UI o zaman
+                // başlığı "Son N Maç" yazar — "ligde" demez.
+                HomeTeamLastMatches = BuildLastMatches(match.HomeTeamId, match.Id, homeFormLeagueId),
+                AwayTeamLastMatches = BuildLastMatches(match.AwayTeamId, match.Id, awayFormLeagueId),
+                HomeTeamFormLeague  = homeFormLeagueId.HasValue ? ResolveLeagueName(homeFormLeagueId.Value) : null,
+                AwayTeamFormLeague  = awayFormLeagueId.HasValue ? ResolveLeagueName(awayFormLeagueId.Value) : null,
 
                 Comparison = new ComparisonDto { Home = homeComparison, Away = awayComparison },
                 H2H        = h2h,
@@ -321,7 +362,13 @@ namespace Formax.Application.UseCases
         // ────────────────────────────────────────────────────────────────────────
         public async Task<MatchDetailDto?> ExecuteAsync(int matchId, CancellationToken ct = default)
         {
+            // AŞAMA PROFİLİ — /detail yavaşlığının nereden geldiği ÖLÇÜLEREK bulunur.
+            // Log seviyesi Information; her aşamanın gerçek ms'i "[DETAIL-PROF]" ile yazılır.
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long tSync = 0, tContext = 0, tEvidence = 0, tNews = 0, tNarrative = 0;
+
             var detail = Execute(matchId);
+            tSync = sw.ElapsedMilliseconds;
             if (detail == null) return null;
 
             // AI konuşma izni mevcut guardrail kararından gelir (Silent/SelfRetracted → fallback).
@@ -329,22 +376,72 @@ namespace Formax.Application.UseCases
 
             // Senaryoları (kanıt etiketleriyle) yeniden sırala — DTO ile aynı deterministik sonuç,
             // ek olarak EvidenceTags taşır → LLM "neden öne çıkıyor"u kanıta dayandırır.
-            var candidates = _marketEngine.Evaluate(
+            var aiContext = _aiContextBuilder.Build(
+                detail.MatchId, detail.HomeTeam.Id, detail.AwayTeam.Id,
                 detail.Comparison.Home, detail.Comparison.Away, detail.H2H,
                 detail.Sapma.GucSkoru, detail.HomeTeam.Name, detail.AwayTeam.Name);
+            var candidates = _marketEngine.Evaluate(aiContext);
             var ranked = _scenarioRanking.RankTop(candidates, 3);
 
             // FINAL köprü: maçın FORMAX_MATCH_ID'sini hesapla → Evidence Store'dan
             // Match Intelligence Context çek. Evidence varsa Reasoning ham haber yerine
             // signal-typed kanıtlardan beslenir; yoksa eski NABIZ'e düşer (geri-uyum).
             var formaxMatchId = _matchIdFactory.Create(
-                detail.League, detail.MatchDate, detail.HomeTeam.Name, detail.AwayTeam.Name);
-            var evidenceCtx = await _evidenceRepository.GetContextAsync(formaxMatchId, ct);
+                detail.MatchDate, detail.HomeTeam.Name, detail.AwayTeam.Name);
+            // Kickoff da verilir → haberin maça göre zaman konumu (maç öncesi / maç günü /
+            // eski) okuma anında belirlenir; geçmiş sezona ait içerik bugünkü maçın "son
+            // gelişmesi" olarak anlatıya giremez.
+            //
+            // BİLİNEN KADRO ADLARI: haber olayının öznesi bir oyuncuysa adı YALNIZ bu
+            // listeyle eşleştiğinde taşınır (serbest ad çıkarımı yok). Yeni sorgu/kaynak
+            // YOK — bu maç için zaten çekilmiş oyuncu durumu kullanılır.
+            var knownPlayers = (detail.PlayerStatus?.Injuries ?? new List<PlayerStatusDto>())
+                .Concat(detail.PlayerStatus?.Suspensions ?? new List<PlayerStatusDto>())
+                .Concat(detail.PlayerStatus?.Doubtful ?? new List<PlayerStatusDto>())
+                .Select(p => p.PlayerName)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            var context = _contextBuilder.Build(detail, null, ranked, evidenceCtx);
+            tContext = sw.ElapsedMilliseconds;
 
-            var discover = await _narrativePipeline.GenerateAsync(context, RadarSurface.Discover, aiAllowed, ct);
-            var report   = await _narrativePipeline.GenerateAsync(context, RadarSurface.MatchDetail, aiAllowed, ct);
+            var evidenceCtx = await _evidenceRepository.GetContextAsync(
+                formaxMatchId, detail.HomeTeam.Name, detail.AwayTeam.Name, detail.MatchDate,
+                knownPlayers, ct);
+            tEvidence = sw.ElapsedMilliseconds;
+
+            // SON DAKİKA — maçın gerçek haberleri. Aynı FORMAX_MATCH_ID zaten yukarıda
+            // hesaplandı; ikinci bir kimlik/toplama yolu açılmaz.
+            detail.NabizFeed = await BuildNewsSectionAsync(formaxMatchId, detail, ct);
+            tNews = sw.ElapsedMilliseconds;
+
+            // Availability: aiContext'te ZATEN hesaplanmış (MatchPlayerStatuses + canonical/external
+            // takım kimliği çözümü orada). Yeniden hesaplamak yerine aynı sonuç pack'e taşınır.
+            // ANLATI TARAFI TAM KAYDI GÖRÜR: motorun dar penceresi (aiContext.Availability)
+            // yerine kickoff uzaklığından bağımsız AvailabilityFull taşınır. Motor bu alanı
+            // okumaz → Olası Sonuçlar bu bağlantıdan etkilenmez.
+            var context = _contextBuilder.Build(detail, null, ranked, evidenceCtx, aiContext.AvailabilityFull);
+
+            // ÜÇ YÜZEY PARALEL — daha önce ARDIŞIK üretiliyordu ve cache soğukken üç LLM
+            // çağrısının süresi TOPLANIYORDU (ölçüldü: /detail ~42 sn). Yüzeyler birbirinden
+            // bağımsızdır (aynı context, farklı prompt) → aynı anda üretilebilirler.
+            // AI içeriği, prompt'u ve guard'ı DEĞİŞMEDİ; yalnız bekleme biçimi değişti.
+            var discoverTask = _narrativePipeline.GenerateAsync(context, RadarSurface.Discover, aiAllowed, ct);
+            var reportTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.MatchDetail, aiAllowed, ct);
+            var inceleTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.AiIncele, aiAllowed, ct);
+
+            await Task.WhenAll(discoverTask, reportTask, inceleTask);
+
+            var discover = discoverTask.Result;
+            var report   = reportTask.Result;
+            var incele   = inceleTask.Result;
+            tNarrative = sw.ElapsedMilliseconds;
+
+            _logger.LogInformation(
+                "[DETAIL-PROF] match={MatchId} sync={Sync}ms context={Context}ms evidence={Evidence}ms " +
+                "news={News}ms narrative(LLM)={Narrative}ms total={Total}ms",
+                matchId, tSync, tContext - tSync, tEvidence - tContext,
+                tNews - tEvidence, tNarrative - tNews, tNarrative);
 
             detail.AiNarrative = new RadarNarrativeDto
             {
@@ -361,8 +458,9 @@ namespace Formax.Application.UseCases
                     .Select(s => new RadarScenarioReasonDto { Market = s.Market, Reason = s.Reason })
                     .ToList(),
                 EvidenceSummary    = report.EvidenceSummary,
+                AiIncele           = incele.AiIncele,
                 ReasoningConfidence = report.ReasoningConfidence,
-                IsAiGenerated      = discover.IsAiGenerated || report.IsAiGenerated
+                IsAiGenerated      = discover.IsAiGenerated || report.IsAiGenerated || incele.IsAiGenerated
             };
 
             return detail;
@@ -372,61 +470,28 @@ namespace Formax.Application.UseCases
         // Comparison & form helpers
         // ────────────────────────────────────────────────────────────────────────
 
+        // Hesap ORTAK kaynağa taşındı (MatchComparisonFactory) — formül birebir aynıdır.
+        // Böylece bu ekran ile Discover/Decision/Voice/Narrative/Signals AYNI veriyi görür.
         private TeamComparisonDto BuildTeamComparison(int teamId, bool homeOnly = false, bool awayOnly = false)
+            => _comparisonFactory.BuildTeamComparison(teamId, homeOnly, awayOnly);
+
+        private List<LastMatchDto> BuildLastMatches(int teamId, int? excludeMatchId = null, int? leagueId = null)
         {
-            var recentMatches = _matchReadRepository.GetRecentMatchesForTeam(teamId, 10);
-            if (!recentMatches.Any()) return new TeamComparisonDto();
-
-            var filteredMatches = recentMatches;
-            if (homeOnly)  filteredMatches = recentMatches.Where(x => x.HomeTeamId == teamId).ToList();
-            if (awayOnly)  filteredMatches = recentMatches.Where(x => x.AwayTeamId == teamId).ToList();
-
-            var totalMatches   = recentMatches.Count;
-            var goalsFor       = 0;
-            var goalsAgainst   = 0;
-            var scoredMatches  = 0;
-            var cleanSheets    = 0;
-            var formScore      = 0;
-
-            foreach (var m in recentMatches)
-            {
-                var isHome = m.HomeTeamId == teamId;
-                var gf = isHome ? m.HomeScore : m.AwayScore;
-                var ga = isHome ? m.AwayScore : m.HomeScore;
-                goalsFor     += gf;
-                goalsAgainst += ga;
-                if (gf > 0) scoredMatches++;
-                if (ga == 0) cleanSheets++;
-                if (gf > ga) formScore += 3;
-                else if (gf == ga) formScore += 1;
-            }
-
-            var usedMatches = (filteredMatches.Count == 0 ? recentMatches : filteredMatches);
-            var filteredGoals = usedMatches.Select(m =>
-                m.HomeTeamId == teamId ? m.HomeScore : m.AwayScore).ToList();
-
-            var team = _teamReadRepository.GetById(teamId);
-
-            return new TeamComparisonDto
-            {
-                AvgGoalsFor    = Math.Round((double)goalsFor / totalMatches, 1),
-                AvgGoalsAgainst = Math.Round((double)goalsAgainst / totalMatches, 1),
-                GoalScoringRate = (int)Math.Round((double)scoredMatches / totalMatches * 100),
-                CleanSheetRate  = (int)Math.Round((double)cleanSheets  / totalMatches * 100),
-                HomeAwayAvgGoals = filteredGoals.Any()
-                    ? Math.Round(filteredGoals.Average(), 1) : 0,
-                FormScore  = formScore,
-                LeagueRank = team?.LeagueRank ?? 0
-            };
-        }
-
-        private List<LastMatchDto> BuildLastMatches(int teamId)
-        {
-            var recent = _matchReadRepository.GetRecentMatchesForTeam(teamId, 10);
+            // "Son maçlar" listesi YALNIZ oynanmış maçlardan kurulur: gelecekteki, iptal
+            // edilen veya hâlâ süren maç forma girmez. (Diğer çağıranlar parametresiz
+            // kaldığı için AI metrikleri ve kadro tahmini bu değişiklikten ETKİLENMEZ.)
+            //
+            // leagueId verildiyse liste YALNIZ o ligin maçlarından kurulur → "ligde son 5 maç"
+            // başlığı gerçeği söyler; kupa/Avrupa maçı karışmaz. Ligde 5'ten az maç varsa
+            // liste kısa kalır; eksik başka turnuvadan TAMAMLANMAZ.
+            var recent = _matchReadRepository.GetRecentMatchesForTeam(teamId, 10, finishedOnly: true, leagueId: leagueId);
             var result = new List<LastMatchDto>(recent.Count);
 
             foreach (var m in recent)
             {
+                // Görüntülenen maç kendi form listesine giremez.
+                if (excludeMatchId != null && m.Id == excludeMatchId) continue;
+
                 var isHome = m.HomeTeamId == teamId;
                 var gf = isHome ? m.HomeScore : m.AwayScore;
                 var ga = isHome ? m.AwayScore : m.HomeScore;
@@ -441,55 +506,20 @@ namespace Formax.Application.UseCases
                     Score       = $"{gf}-{ga}",
                     Date        = m.MatchDate.ToString("dd.MM.yyyy"),
                     Competition = m.League,
-                    IsHome      = isHome
+                    IsHome      = isHome,
+                    // İlk yarı MAÇIN yönünde taşınır (ev - deplasman); takım perspektifine
+                    // çevrilmez. UI satırı zaten ev/deplasman sütunlarıyla kuruluyor.
+                    HalfTimeHomeScore = m.HalfTimeHomeScore,
+                    HalfTimeAwayScore = m.HalfTimeAwayScore
                 });
             }
 
             return result;
         }
 
-        private H2HDto BuildH2H(int homeTeamId, int awayTeamId)
-        {
-            var matches = _matchReadRepository.GetHeadToHeadMatches(homeTeamId, awayTeamId, 10);
-
-            int homeWins = 0, awayWins = 0, draws = 0;
-            var matchDtos = new List<H2HMatchDto>();
-
-            foreach (var m in matches)
-            {
-                if (m.HomeScore > m.AwayScore)
-                {
-                    if (m.HomeTeamId == homeTeamId) homeWins++;
-                    else awayWins++;
-                }
-                else if (m.HomeScore < m.AwayScore)
-                {
-                    if (m.AwayTeamId == awayTeamId) awayWins++;
-                    else homeWins++;
-                }
-                else draws++;
-
-                matchDtos.Add(new H2HMatchDto
-                {
-                    MatchDate    = m.MatchDate.ToString("yyyy-MM-dd"),
-                    HomeTeamName = m.HomeTeam?.Name ?? string.Empty,
-                    AwayTeamName = m.AwayTeam?.Name ?? string.Empty,
-                    HomeScore    = m.HomeScore,
-                    AwayScore    = m.AwayScore,
-                    Competition  = m.League
-                });
-            }
-
-            return new H2HDto
-            {
-                TotalMatches = matchDtos.Count,
-                HomeWins     = homeWins,
-                AwayWins     = awayWins,
-                Draws        = draws,
-                Matches      = matchDtos,
-                FetchedAt    = DateTime.UtcNow
-            };
-        }
+        // Hesap ORTAK kaynağa taşındı (MatchComparisonFactory) — formül birebir aynıdır.
+        private H2HDto BuildH2H(int homeTeamId, int awayTeamId, int? excludeMatchId = null)
+            => _comparisonFactory.BuildH2H(homeTeamId, awayTeamId, excludeMatchId);
 
         // ────────────────────────────────────────────────────────────────────────
         // Insight builder — turns the already-computed TeamComparisonDto fields
@@ -498,20 +528,57 @@ namespace Formax.Application.UseCases
         // No LLM / no random story — every number is a real computed value, and
         // the same match always yields the same text (deterministic selection).
         // ────────────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Karşılaştırmalı bir cümle kurmak için HER İKİ takımda gereken en az gerçek maç sayısı.
+        ///
+        /// DEĞER ARTIK BURADA TANIMLI DEĞİL: eşik tüm yorum yüzeyleri için tek yerde
+        /// (<see cref="FormEvidencePolicy.MinSample"/>) tutulur. Aynı sayı Outlook, Reasoning
+        /// paketi ve çıkış guard'ı tarafından da okunur; yüzeyler ayrışamaz.
+        /// </summary>
+        private const int MinComparableSample = FormEvidencePolicy.MinSample;
+
+        /// <summary>
+        /// Yüzde değerine gelen iyelik+bulunma eki ("%90'ında", "%80'inde").
+        /// Ek, sayının OKUNUŞUNA göre değişir; sabit "'inde" yazmak %90/%40/%60'ta hatalıydı.
+        /// Birler basamağı varsa onun okunuşu, yoksa onlar basamağının okunuşu belirler.
+        /// </summary>
+        private static string PercentSuffix(int value)
+        {
+            var n = Math.Clamp(value, 0, 100);
+            if (n == 100) return "ünde";                       // yüz
+            if (n % 10 != 0)
+                return (n % 10) switch                          // bir, iki, üç...
+                {
+                    1 => "inde", 2 => "sinde", 3 => "ünde", 4 => "ünde", 5 => "inde",
+                    6 => "sında", 7 => "sinde", 8 => "inde", _ => "unda"
+                };
+            return (n / 10) switch                              // on, yirmi, otuz...
+            {
+                0 => "ında", 1 => "unda", 2 => "sinde", 3 => "unda", 4 => "ında",
+                5 => "sinde", 6 => "ında", 7 => "inde", 8 => "inde", _ => "ında"
+            };
+        }
+
         private InsightDto BuildInsight(
             TeamComparisonDto home, TeamComparisonDto away,
             string homeName, string awayName)
         {
-            var hasData = home.FormScore > 0 || away.FormScore > 0
-                          || home.AvgGoalsFor > 0 || away.AvgGoalsFor > 0;
+            // VERİ YETERLİLİĞİ KAPISI — karşılaştırmalı her cümle İKİ tarafın da yeterli
+            // örneğine dayanmalıdır. Eksik veri "0" değildir: bir takımın kaydı yokken tüm
+            // oranları 0 dönüyordu ve aşağıdaki ayrışma hesabı bunu gerçek bir fark sanıp
+            // "X %90 ile üstün" gibi yanıltıcı cümle üretiyordu (ölçüldü: Deportivo 0 maç).
+            var comparable = home.SampleCount >= MinComparableSample
+                             && away.SampleCount >= MinComparableSample;
 
-            // No history for either side → honest fallback (don't invent).
-            if (!hasData)
+            if (!comparable)
             {
+                // Tek taraflı/yetersiz veriyle üstünlük iddiası KURULMAZ. Başlık yalnız
+                // doğrulanabilir olguyu söyler; özet BOŞ bırakılır → UI bloğu hiç göstermez
+                // (uydurma cümle yok, "veri yok" duyurusu da yapılmaz).
                 return new InsightDto
                 {
                     Headline = $"{homeName} sahasında {awayName} ile karşılaşıyor.",
-                    Summary  = "İki takım için yeterli son maç verisi henüz oluşmadı."
+                    Summary  = string.Empty
                 };
             }
 
@@ -593,7 +660,7 @@ namespace Formax.Application.UseCases
             {
                 var solid = home.CleanSheetRate > away.CleanSheetRate ? homeName : awayName;
                 var rate = Math.Max(home.CleanSheetRate, away.CleanSheetRate);
-                candidates.Add((csGap / 20.0, $"{solid} savunmada daha güvenli: son maçlarının %{rate}'inde gol yemedi."));
+                candidates.Add((csGap / 20.0, $"{solid} savunmada daha güvenli: son maçlarının %{rate}'{PercentSuffix(rate)} gol yemedi."));
             }
 
             // 3. Defensive weakness (goals conceded)
@@ -611,7 +678,7 @@ namespace Formax.Application.UseCases
             {
                 var consistent = home.GoalScoringRate > away.GoalScoringRate ? homeName : awayName;
                 var rate = Math.Max(home.GoalScoringRate, away.GoalScoringRate);
-                candidates.Add((srGap / 20.0, $"{consistent} istikrarlı skor üretiyor: son maçlarının %{rate}'inde gol attı."));
+                candidates.Add((srGap / 20.0, $"{consistent} istikrarlı skor üretiyor: son maçlarının %{rate}'{PercentSuffix(rate)} gol attı."));
             }
 
             if (candidates.Count == 0)
@@ -794,10 +861,16 @@ namespace Formax.Application.UseCases
             };
         }
 
-        private string? BuildRoundLabel(int matchId)
+        /// <summary>
+        /// Maçın GERÇEK tur/aşama adı. Öncelik sağlayıcının fikstürle birlikte yazdığı
+        /// <c>Match.Round</c>'tur (tüm maçlarda mevcut); yoksa Competition Context'in
+        /// StageName'ine düşülür (yalnız birkaç maçta dolu). Hiçbiri yoksa null — tahmin YOK.
+        /// </summary>
+        private string? BuildRoundLabel(Match match)
         {
-            var ctx = _competitionContextRepository.GetByMatchId(matchId);
-            return ctx?.StageName;
+            if (!string.IsNullOrWhiteSpace(match.Round)) return match.Round.Trim();
+            var ctx = _competitionContextRepository.GetByMatchId(match.Id);
+            return string.IsNullOrWhiteSpace(ctx?.StageName) ? null : ctx!.StageName.Trim();
         }
 
         // ────────────────────────────────────────────────────────────────────────
@@ -817,12 +890,16 @@ namespace Formax.Application.UseCases
                 ShirtNumber = p.ShirtNumber,
                 PlayerName  = p.PlayerName,
                 Position    = p.Position,
+                Grid        = p.Grid,
                 IsCaptain   = p.IsCaptain
             };
 
             return new LineupSectionDto
             {
                 LineupsAnnounced = header.HomeLineupsReleased || header.AwayLineupsReleased,
+                // Diziliş sağlayıcıdan gelir ve takım başına ayrıdır; yoksa null kalır.
+                HomeFormation    = header.HomeFormation,
+                AwayFormation    = header.AwayFormation,
                 HomeStartingXI   = players.Where(p => p.Side == "Home" && p.Role == "Starter").OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
                 HomeBench        = players.Where(p => p.Side == "Home" && p.Role == "Bench")  .OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
                 AwayStartingXI   = players.Where(p => p.Side == "Away" && p.Role == "Starter").OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
@@ -854,11 +931,21 @@ namespace Formax.Application.UseCases
         // Sprint 2: Standings & competition context builders
         // ────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// PUAN DURUMU — ligin TAMAMI (kırpma yok).
+        ///
+        /// Önceki sürüm tabloyu "ilk 3 + iki takımın ±2 komşusu, en fazla 10 satır" olarak
+        /// kırpıyordu; kullanıcı ligin gerçek sıralamasını göremiyordu. Artık ligdeki bütün
+        /// takımlar Position ARTAN döner ve sıralama backend'in verdiğidir.
+        ///
+        /// Maçın kendi ligi için puan durumu olmayabilir (Avrupa kupaları/kupa maçlarının
+        /// LeagueStandings satırı yoktur — ölçüldü: 2026 sezonunda yalnız ulusal ligler dolu).
+        /// O durumda takımların KENDİ ulusal lig tabloları döner; her tabloda yalnız ilgili
+        /// takım vurgulanır. Veri yoksa null — uydurma tablo üretilmez.
+        /// </summary>
         private StandingSectionDto? BuildStandingSection(Domain.Entities.Match match)
         {
             var seasonYear = ResolveSeasonYear(match.MatchDate);
-            var all        = _leagueStandingRepository.GetByLeague(match.LeagueId, seasonYear);
-            if (all.Count == 0) return null;
 
             static TeamStandingDto Map(LeagueStanding s, bool highlight) => new()
             {
@@ -876,39 +963,113 @@ namespace Formax.Application.UseCases
                 IsHighlighted  = highlight
             };
 
-            var homePeek = all.FirstOrDefault(s => s.TeamId == match.HomeTeamId);
-            var awayPeek = all.FirstOrDefault(s => s.TeamId == match.AwayTeamId);
+            // KİMLİK EŞLEŞMESİ: LeagueStandings.TeamId sağlayıcının EXTERNAL takım id'sini tutar
+            // (ör. Galatasaray = 645); maçın home/away'i ise CANONICAL id'dir (ör. 3588). Ölçüldü
+            // (14.08): yalnız canonical id ile arandığı için puan durumu satırı hemen hiçbir maçta
+            // bulunamıyordu (tablo dolu olsa bile Standing null dönüyordu). Aynı çözüm kadro
+            // tarafında zaten uygulanıyor; burada da external id üzerinden eşlenir, canonical
+            // fallback korunur. Yeni tablo/hesap yok.
+            //
+            // KİMLİK ÇAKIŞMASI (ölçüldü 18.08): canonical fallback KOŞULSUZ uygulanınca yanlış
+            // takım vurgulanıyordu. İki kimlik uzayı örtüşür — Eyüpspor'un EXTERNAL id'si 3588,
+            // Fenerbahçe'nin CANONICAL id'si de 3588'dir; Süper Lig tablosunda Fenerbahçe–Lyon
+            // maçı için hem Fenerbahçe (ext 611) hem Eyüpspor (ext 3588) vurgulanıyordu.
+            // Bu yüzden external id çözülebiliyorsa YALNIZ onunla eşleşilir; canonical fallback
+            // ancak external yoksa devreye girer.
+            var homeExt = ResolveTeamExternalId(match.HomeTeamId);
+            var awayExt = ResolveTeamExternalId(match.AwayTeamId);
 
-            var relevantPositions = new HashSet<int>();
-            for (var i = 1; i <= Math.Min(3, all.Count); i++) relevantPositions.Add(i);
+            bool IsHome(LeagueStanding s) =>
+                homeExt.HasValue ? s.TeamId == homeExt.Value : s.TeamId == match.HomeTeamId;
+            bool IsAway(LeagueStanding s) =>
+                awayExt.HasValue ? s.TeamId == awayExt.Value : s.TeamId == match.AwayTeamId;
 
-            void AddWindow(int center)
+            // Gösterilecek lig(ler): önce maçın kendi ligi; yoksa takımların ulusal ligleri.
+            var leagueIds = new List<int>();
+            if (_leagueStandingRepository.GetByLeague(match.LeagueId, seasonYear).Count > 0)
             {
-                for (var d = -2; d <= 2; d++)
-                {
-                    var pos = center + d;
-                    if (pos >= 1 && pos <= all.Count) relevantPositions.Add(pos);
-                }
+                leagueIds.Add(match.LeagueId);
+            }
+            else
+            {
+                var homeLeague = ResolveTeamLeagueId(match.HomeTeamId, homeExt, seasonYear);
+                var awayLeague = ResolveTeamLeagueId(match.AwayTeamId, awayExt, seasonYear);
+                if (homeLeague.HasValue) leagueIds.Add(homeLeague.Value);
+                if (awayLeague.HasValue && awayLeague != homeLeague) leagueIds.Add(awayLeague.Value);
             }
 
-            if (homePeek != null) AddWindow(homePeek.Position);
-            if (awayPeek != null) AddWindow(awayPeek.Position);
+            var tables = new List<StandingTableDto>();
+            LeagueStanding? homePeek = null;
+            LeagueStanding? awayPeek = null;
 
-            var slice = all
-                .Where(s => relevantPositions.Contains(s.Position))
-                .OrderBy(s => s.Position)
-                .Take(10)
-                .Select(s => Map(s, s.TeamId == match.HomeTeamId || s.TeamId == match.AwayTeamId))
-                .ToList();
+            foreach (var leagueId in leagueIds)
+            {
+                var rows = _leagueStandingRepository.GetByLeague(leagueId, seasonYear);
+                if (rows.Count == 0) continue;
+
+                homePeek ??= rows.FirstOrDefault(IsHome);
+                awayPeek ??= rows.FirstOrDefault(IsAway);
+
+                tables.Add(new StandingTableDto
+                {
+                    LeagueId   = leagueId,
+                    LeagueName = ResolveLeagueName(leagueId),
+                    SeasonYear = seasonYear,
+                    Rows = rows
+                        .OrderBy(s => s.Position)
+                        .Select(s => Map(s, IsHome(s) || IsAway(s)))
+                        .ToList()
+                });
+            }
+
+            if (tables.Count == 0) return null;
+
+            var primary = tables[0];
 
             return new StandingSectionDto
             {
-                LeagueId      = match.LeagueId,
+                LeagueId      = primary.LeagueId,
+                LeagueName    = primary.LeagueName,
                 SeasonYear    = seasonYear,
                 HomeTeamPeek  = homePeek != null ? Map(homePeek, true) : null,
                 AwayTeamPeek  = awayPeek != null ? Map(awayPeek, true) : null,
-                TableSlice    = slice
+                // Geri-uyum: eski tüketiciler bu alanı okur. Artık kırpılmamış birincil tablo.
+                TableSlice    = primary.Rows,
+                Tables        = tables
             };
+        }
+
+        /// <summary>
+        /// Takımın ULUSAL LİG kimliği — puan durumu tablosu yalnız ligler için yazıldığından
+        /// gerçek veriye dayalı tek kaynak LeagueStandings'tir. İsimden tahmin yapılmaz.
+        /// </summary>
+        private int? ResolveTeamLeagueId(int canonicalTeamId, int? externalTeamId, int seasonYear)
+        {
+            // Kimlik uzayları örtüştüğü için (bkz. BuildStandingSection'daki 3588 örneği)
+            // external id varsa YALNIZ o kullanılır; canonical yalnız fallback'tir.
+            var candidates = externalTeamId.HasValue
+                ? new[] { externalTeamId.Value }
+                : new[] { canonicalTeamId };
+            return _leagueStandingRepository.FindLeagueIdForTeam(seasonYear, candidates);
+        }
+
+        /// <summary>
+        /// Lig id → ligin GERÇEK adı (Matches.League). Ad üretilmez; kayıt yoksa boş döner.
+        /// </summary>
+        private string ResolveLeagueName(int leagueId)
+            => _matchReadRepository.Query()
+                   .Where(m => m.LeagueId == leagueId && m.League != null && m.League != "")
+                   .Select(m => m.League)
+                   .FirstOrDefault() ?? string.Empty;
+
+        /// <summary>
+        /// Canonical takım → sağlayıcının external takım id'si. Puan durumu ve kadro tabloları
+        /// external id ile yazıldığı için eşleşme bunun üzerinden kurulur. Çözülemezse null.
+        /// </summary>
+        private int? ResolveTeamExternalId(int canonicalTeamId)
+        {
+            var team = _teamReadRepository.GetById(canonicalTeamId);
+            return int.TryParse(team?.ExternalTeamId, out var ext) ? ext : (int?)null;
         }
 
         private CompetitionContextSectionDto? BuildCompetitionContextSection(int matchId)
@@ -992,6 +1153,53 @@ namespace Formax.Application.UseCases
         // ────────────────────────────────────────────────────────────────────────
         // Sprint 4: NABIZ section builder
         // ────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// SON DAKİKA bölümünün gerçek kaynağı.
+        ///
+        /// NEDEN VAR (ölçüldü 18.08.2026): ekran <see cref="BuildNabizSection"/> üzerinden
+        /// MatchSocialFeedItems tablosunu okuyordu; NABIZ hattı `Nabiz:Sources` boş olduğu için
+        /// HİÇ veri üretmiyor ve her maçta "güncel haber bulunmuyor" görünüyordu. Maçın gerçek
+        /// haberleri Data Engine v2'nin MatchNewsArticles tablosunda duruyor (ölçüm: 18.839
+        /// haber / 486 maç) ve zaten FORMAX_MATCH_ID altında, maç kapsam kapılarından geçmiş
+        /// hâlde saklanıyor.
+        ///
+        /// Yeni haber sistemi/polling/provider YOKTUR: var olan depo okunur, var olan DTO
+        /// (<see cref="NabizSectionDto"/>) doldurulur. NABIZ hattı ileride veri üretirse onun
+        /// içeriği korunur (bu yol yalnız boşken devreye girer).
+        ///
+        /// SIRALAMA: en yeni önce (PublishedUtc DESC) — frontend yeniden sıralamaz.
+        /// TEKİLLEŞTİRME: yazarken ContentHash benzersizdir; okurken ek olarak kanonik URL
+        /// üzerinden de ayıklanır (aynı hikâye farklı hash'le iki kez yazılmışsa).
+        /// GÖRSEL: haber hattı görsel URL'si TAŞIMIYOR (ne DedupedNewsItem'da ne tabloda alan
+        /// var) → ImageUrl null bırakılır; görsel UYDURULMAZ.
+        ///
+        /// KAPSAM: MatchNewsArticles bilerek FİLTRESİZ keşif katmanıdır (NewsDiscoveryJob:
+        /// "Ham haber KEŞİF katmanında saklanmaya devam eder"). Ölçüldü (18.08): Fenerbahçe–
+        /// Konyaspor maçının ham listesinin ilk 10 başlığı Fenerbahçe–LYON maçınındı. Bu yüzden
+        /// okuma yolunda MEVCUT kapılar uygulanır — <see cref="MatchIntelligenceService"/>
+        /// içindeki public static süzgeçler; yeni filtre/sistem YAZILMAZ.
+        ///
+        /// KAYNAK KALİTESİ KAPISI UYGULANMAZ: o kapı (MinEvidenceSourceQuality=85) AI'ın
+        /// "gerçek kabul ettiği" kanıt katmanı içindir. Son Dakika bir HABER listesidir;
+        /// Tier-3 yayıncı haberi kullanıcıdan gizlenmez, yalnız yanlış maça ait ve bilgi
+        /// taşımayan içerik elenir.
+        /// </summary>
+        private async Task<NabizSectionDto> BuildNewsSectionAsync(
+            string formaxMatchId, MatchDetailDto detail, CancellationToken ct)
+        {
+            // NABIZ gerçekten veri ürettiyse ona dokunma (geri-uyum).
+            if (detail.NabizFeed.Items.Count > 0) return detail.NabizFeed;
+
+            // Liste üretimi TEK yerde: MatchNewsFeedService. Dile duyarlı /news ucu da aynı
+            // servisi kullanır → aynı maç için iki farklı haber listesi oluşamaz.
+            var items = await _newsFeedService.BuildAsync(
+                formaxMatchId, detail.HomeTeam.Name, detail.AwayTeam.Name, detail.MatchDate, ct);
+
+            // NOT: /detail ÇEVİRİ YAPMAZ. Çeviri LLM çağrısıdır; maç detayının tamamını
+            // bekletmemek için yalnız dile duyarlı /news ucunda uygulanır.
+            return items.Count == 0 ? detail.NabizFeed : new NabizSectionDto { Items = items };
+        }
 
         private NabizSectionDto BuildNabizSection(int matchId)
         {

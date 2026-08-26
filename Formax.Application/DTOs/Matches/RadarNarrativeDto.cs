@@ -27,6 +27,10 @@ public sealed class RadarNarrativeDto
 
     public string EvidenceSummary { get; set; } = "";
 
+    // ── AI İncele ────────────────────────────────────────────────────────────
+    /// <summary>Maç listesinden hızlı okunan orta boy AI özeti.</summary>
+    public string AiIncele { get; set; } = "";
+
     /// <summary>Reasoning Layer'ın kendi güven skoru (0–100).</summary>
     public int ReasoningConfidence { get; set; }
 

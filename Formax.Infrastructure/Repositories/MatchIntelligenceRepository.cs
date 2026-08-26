@@ -5,8 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Formax.Application.Interfaces;
 using Formax.Domain.Entities;
+using Formax.Infrastructure.BackgroundJobs;
 using Formax.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace Formax.Infrastructure.Repositories
 {
@@ -18,14 +20,59 @@ namespace Formax.Infrastructure.Repositories
     {
         private readonly FormaxDbContext _context;
 
-        public MatchIntelligenceRepository(FormaxDbContext context)
+        /// <summary>Kilitli müsabaka kapsamı — Radar/Feed/Commentary de aynı kapıdan geçer.</summary>
+        private readonly HashSet<int> _allowedLeagues;
+
+        public MatchIntelligenceRepository(FormaxDbContext context, IConfiguration config)
         {
             _context = context;
+            _allowedLeagues = CoveragePolicy.LeagueAllowList(config);
         }
+
+        private IQueryable<Match> InScope(IQueryable<Match> source)
+            => _allowedLeagues.Count == 0
+                ? source
+                : source.Where(m => _allowedLeagues.Contains(m.LeagueId));
 
         public async Task<MatchIntelligenceSnapshot?> GetByMatchIdAsync(int matchId, CancellationToken ct = default)
             => await _context.MatchIntelligenceSnapshots
                 .FirstOrDefaultAsync(x => x.MatchId == matchId, ct);
+
+        public async Task<IReadOnlyDictionary<int, MatchIntelligenceSnapshot>> GetByMatchIdsAsync(
+            IReadOnlyCollection<int> matchIds, CancellationToken ct = default)
+        {
+            if (matchIds is null || matchIds.Count == 0)
+                return new Dictionary<int, MatchIntelligenceSnapshot>();
+
+            var rows = await _context.MatchIntelligenceSnapshots
+                .AsNoTracking()
+                .Where(x => matchIds.Contains(x.MatchId))
+                .ToListAsync(ct);
+
+            return rows
+                .GroupBy(x => x.MatchId)
+                .ToDictionary(g => g.Key, g => g.First());
+        }
+
+        public async Task<IReadOnlyDictionary<int, MatchIntelligenceFeedRow>> GetFeedRowsFromAsync(
+            DateTime fromUtc, CancellationToken ct = default)
+        {
+            // Yalnız pencere içindeki maçların snapshot'ı, yalnız iki alan (SignalsJson ÇEKİLMEZ).
+            var rows = await (
+                    from s in _context.MatchIntelligenceSnapshots.AsNoTracking()
+                    join m in InScope(_context.Matches.AsNoTracking()) on s.MatchId equals m.Id
+                    where m.MatchDate >= fromUtc
+                    orderby m.MatchDate
+                    select new MatchIntelligenceFeedRow(
+                        s.MatchId,
+                        s.ImportanceScore,
+                        s.PrimarySignalType.ToString()))
+                .ToListAsync(ct);
+
+            return rows
+                .GroupBy(x => x.MatchId)
+                .ToDictionary(g => g.Key, g => g.First());
+        }
 
         public async Task UpsertAsync(MatchIntelligenceSnapshot snapshot, CancellationToken ct = default)
         {
@@ -57,13 +104,13 @@ namespace Formax.Infrastructure.Repositories
             => _context.SaveChangesAsync(ct);
 
         public async Task<Match?> GetMatchWithTeamsAsync(int matchId, CancellationToken ct = default)
-            => await _context.Matches
-                .Include(m => m.HomeTeam)
-                .Include(m => m.AwayTeam)
+            => await InScope(_context.Matches
+                    .Include(m => m.HomeTeam)
+                    .Include(m => m.AwayTeam))
                 .FirstOrDefaultAsync(m => m.Id == matchId, ct);
 
         public async Task<IReadOnlyList<int>> GetMatchIdsFromAsync(DateTime fromUtc, CancellationToken ct = default)
-            => await _context.Matches
+            => await InScope(_context.Matches)
                 .Where(m => m.MatchDate >= fromUtc)
                 .OrderBy(m => m.MatchDate)
                 .Select(m => m.Id)

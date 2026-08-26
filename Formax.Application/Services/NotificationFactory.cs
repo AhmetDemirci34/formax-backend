@@ -1,5 +1,6 @@
-﻿using Formax.Application.Live;
+using Formax.Application.Live;
 using Formax.Domain.Entities;
+using Formax.Domain.Enums;
 using System;
 
 namespace Formax.Application.Services
@@ -14,6 +15,8 @@ namespace Formax.Application.Services
             var (title, message) =
                 NotificationTemplateProvider.Get(matchEvent);
 
+            var eventType = MapEventType(matchEvent.EventType);
+
             return new UserNotification
             {
                 UserId = userId,
@@ -21,8 +24,43 @@ namespace Formax.Application.Services
                 Title = title,
                 Message = message,
                 IsRead = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+
+                // Frontend'in ikon + filtreleme + yönlendirme için ihtiyaç duyduğu alanlar.
+                EventType = eventType,
+                Category = MapCategory(eventType),
+                TargetType = MapTargetType(eventType),
+                TargetId = matchEvent.MatchId
+                // NOT: MatchEvent'te TeamId/LeagueId/LogoUrl yok → null bırakılır (uydurulmaz).
             };
         }
+
+        /// <summary>Canlı maç event türünü bildirim türüne çevirir.</summary>
+        private static NotificationEventType MapEventType(MatchEventType type) => type switch
+        {
+            MatchEventType.MatchStarted => NotificationEventType.MatchStarted,
+            MatchEventType.MatchEnded => NotificationEventType.MatchFinished,
+            MatchEventType.Goal => NotificationEventType.Goal,
+            MatchEventType.RedCardAwarded => NotificationEventType.RedCard,
+            MatchEventType.RedCardConfirmed => NotificationEventType.RedCard,
+            _ => NotificationEventType.Unknown
+        };
+
+        private static NotificationCategory MapCategory(NotificationEventType type) => type switch
+        {
+            NotificationEventType.Transfer => NotificationCategory.News,
+            NotificationEventType.News => NotificationCategory.News,
+            _ => NotificationCategory.Match
+        };
+
+        private static NotificationTargetType MapTargetType(NotificationEventType type) => type switch
+        {
+            NotificationEventType.Lineup => NotificationTargetType.MatchLineup,
+            NotificationEventType.AIAnalysis => NotificationTargetType.MatchAIAnalysis,
+            NotificationEventType.News => NotificationTargetType.News,
+            NotificationEventType.Transfer => NotificationTargetType.News,
+            NotificationEventType.AICombo => NotificationTargetType.AICombo,
+            _ => NotificationTargetType.Match
+        };
     }
 }

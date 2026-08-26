@@ -39,6 +39,7 @@ namespace Formax.Infrastructure.Data
 
         public DbSet<UserMatchFollow> UserMatchFollows { get; set; }
         public DbSet<UserTeamFollow> UserTeamFollows { get; set; }
+        public DbSet<UserLeagueFollow> UserLeagueFollows { get; set; }
 
         public DbSet<UserNotification> UserNotifications { get; set; }
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
@@ -94,6 +95,22 @@ namespace Formax.Infrastructure.Data
         public DbSet<CompetitionContext> CompetitionContexts { get; set; } = null!;
         public DbSet<LeagueExternalMapping> LeagueExternalMappings { get; set; } = null!;
 
+        // ── Phase 6: api-football team season statistics (/teams/statistics) ──
+        public DbSet<TeamSeasonStatistic> TeamSeasonStatistics { get; set; } = null!;
+
+        // ── Phase 6 / Slice 2: api-football match prediction (/predictions) [AI-only] ──
+        public DbSet<MatchPredictionSignal> MatchPredictionSignals { get; set; } = null!;
+
+        // ── Phase 6 Final: api-football team profile (coach/venue/squad/transfers) [AI-only] ──
+        public DbSet<TeamProfileSignal> TeamProfileSignals { get; set; } = null!;
+
+        // Football Intelligence v1.0 — takım oyuncu-düzeyi zekâsı (PK internal TeamId, AI-only)
+        public DbSet<TeamPlayerIntelligence> TeamPlayerIntelligences { get; set; } = null!;
+
+        // ── Phase 7: Social Discovery — verified official accounts + canonical social posts ──
+        public DbSet<OfficialSocialAccount> OfficialSocialAccounts { get; set; } = null!;
+        public DbSet<SocialPost> SocialPosts { get; set; } = null!;
+
         // ── Sprint 3: Live match intelligence ─────────────────────────────────
         public DbSet<MatchLiveStats> MatchLiveStats { get; set; } = null!;
         public DbSet<MatchMomentumSnapshot> MatchMomentumSnapshots { get; set; } = null!;
@@ -130,6 +147,9 @@ namespace Formax.Infrastructure.Data
         public DbSet<OddsSnapshot> OddsSnapshots { get; set; } = null!;
         public DbSet<OddsMovementSnapshot> OddsMovementSnapshots { get; set; } = null!;
 
+        // ── Real Market Odds — sağlayıcıdan gelen GERÇEK market oranları ────────
+        public DbSet<MatchMarketOdd> MatchMarketOdds { get; set; } = null!;
+
         // ── R.12.1: Radar Commentary ───────────────────────────────────────────
         public DbSet<MatchCommentarySnapshot> MatchCommentarySnapshots { get; set; } = null!;
 
@@ -141,6 +161,9 @@ namespace Formax.Infrastructure.Data
 
         // ── Data Engine v2: Global News Discovery ──────────────────────────────
         public DbSet<MatchNewsArticle> MatchNewsArticles { get; set; } = null!;
+
+        /// <summary>Son Dakika haberlerinin dil karşılıkları — (ContentHash, Language) benzersiz.</summary>
+        public DbSet<MatchNewsTranslation> MatchNewsTranslations { get; set; } = null!;
 
         // ── Data Engine v2.1: Match Intelligence Evidence Store ────────────────
         public DbSet<MatchEvidenceRecord> MatchEvidenceRecords { get; set; } = null!;
@@ -174,9 +197,177 @@ namespace Formax.Infrastructure.Data
         public DbSet<Formax.Infrastructure.Persistence.GdpConflictResolution> GdpConflictResolutions { get; set; } = null!;
         public DbSet<Formax.Infrastructure.Persistence.GdpProviderMatchReference> GdpProviderMatchReferences { get; set; } = null!;
 
+        // ── Prediction Contract V1 (shadow mode) ───────────────────────────
+        // INSERT-ONLY. Bu iki DbSet üzerinden UPDATE yapılmaz; değişmezlik uygulama, EF ve
+        // veritabanı katmanlarında birlikte korunur.
+        public DbSet<Formax.Domain.Entities.Prediction> Predictions { get; set; } = null!;
+        public DbSet<Formax.Domain.Entities.PredictionSettlement> PredictionSettlements { get; set; } = null!;
+
+        // ── Shadow B (NEWS_ADJUSTED deney hattı) ───────────────────────────
+        // AYRI TABLOLAR. Shadow A'nın Predictions/PredictionSettlements şeması, kısıtları ve
+        // tetikleyicileri DEĞİŞMEZ — B kendi tablolarına yazar, A'yı yalnız okur.
+        public DbSet<Formax.Domain.Entities.ShadowBPrediction> ShadowBPredictions { get; set; } = null!;
+        public DbSet<Formax.Domain.Entities.ShadowBPredictionEvidence> ShadowBPredictionEvidence { get; set; } = null!;
+        public DbSet<Formax.Domain.Entities.ShadowBPredictionSettlement> ShadowBPredictionSettlements { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // ── Prediction Contract V1 ─────────────────────────────────────
+            modelBuilder.Entity<Formax.Domain.Entities.Prediction>(entity =>
+            {
+                // EF8'e tablonun TETİKLEYİCİSİ olduğu bildirilir.
+                //
+                // Neden gerekli: SQL Server, tetikleyicili bir tabloya INTO'suz `OUTPUT` yan
+                // tümceli DML kabul etmez. EF bunu bilmezse UPDATE/DELETE için ürettiği SQL
+                // veritabanına ULAŞMADAN hata verir — sonuç yine "engellendi" olur ama yanlış
+                // sebeple: değişmezliği trigger değil, bir uyumsuzluk sağlıyor olur. Bildirimle
+                // birlikte EF trigger-uyumlu SQL üretir, UPDATE gerçekten trigger'a ulaşır ve
+                // trigger'ın kendi mesajıyla reddedilir. INSERT yolu etkilenmez.
+                entity.ToTable("Predictions", tb =>
+                {
+                    tb.HasTrigger("TR_Predictions_NoUpdate");
+                    tb.HasTrigger("TR_Predictions_NoDelete");
+                });
+                entity.HasKey(x => x.Sequence);
+                entity.Property(x => x.Sequence).ValueGeneratedOnAdd();
+
+                entity.HasIndex(x => x.PredictionId).IsUnique();
+                entity.HasIndex(x => new { x.MatchId, x.Sequence }).HasDatabaseName("IX_Predictions_Match_Sequence");
+                entity.HasIndex(x => x.MatchDate);
+                entity.HasIndex(x => new { x.ModelVersion, x.TeamStrengthVersion, x.GateVersion, x.CalibrationVersion })
+                      .HasDatabaseName("IX_Predictions_Versions");
+
+                entity.Property(x => x.PredictionId).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.CanonicalMatchId).HasMaxLength(32);
+                entity.Property(x => x.ModelVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.TeamStrengthVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.GateVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.CalibrationVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ConfidenceClass).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.GateStatus).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.GateReason).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(32).IsRequired();
+
+                // Olasılık ONDALIK saklanır. decimal DEĞİL: decimal sessizce yuvarlar ve
+                // sunum katmanına ait bir kararı şemaya taşır.
+                entity.Property(x => x.HomeProbability).HasColumnType("float");
+                entity.Property(x => x.DrawProbability).HasColumnType("float");
+                entity.Property(x => x.AwayProbability).HasColumnType("float");
+
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
+
+            modelBuilder.Entity<Formax.Domain.Entities.PredictionSettlement>(entity =>
+            {
+                entity.ToTable("PredictionSettlements", tb =>
+                {
+                    tb.HasTrigger("TR_PredictionSettlements_NoUpdate");
+                    tb.HasTrigger("TR_PredictionSettlements_NoDelete");
+                });
+                // PK = PredictionId → bir tahmin iki kez settle EDİLEMEZ (şema düzeyinde).
+                entity.HasKey(x => x.PredictionId);
+                entity.Property(x => x.PredictionId).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.ActualResult).HasMaxLength(8).IsRequired();
+
+                entity.HasOne(x => x.Prediction)
+                      .WithOne(p => p.Settlement)
+                      .HasPrincipalKey<Formax.Domain.Entities.Prediction>(p => p.PredictionId)
+                      .HasForeignKey<Formax.Domain.Entities.PredictionSettlement>(x => x.PredictionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── Shadow B — NEWS_ADJUSTED deney hattı (INSERT-ONLY) ─────────
+            modelBuilder.Entity<Formax.Domain.Entities.ShadowBPrediction>(entity =>
+            {
+                entity.ToTable("ShadowBPredictions", tb =>
+                {
+                    tb.HasTrigger("TR_ShadowBPredictions_NoUpdate");
+                    tb.HasTrigger("TR_ShadowBPredictions_NoDelete");
+                });
+                entity.HasKey(x => x.Sequence);
+                entity.Property(x => x.Sequence).ValueGeneratedOnAdd();
+
+                entity.HasIndex(x => x.PredictionId).IsUnique();
+                entity.HasIndex(x => new { x.MatchId, x.Sequence }).HasDatabaseName("IX_ShadowBPredictions_Match_Sequence");
+                entity.HasIndex(x => x.BasePredictionId).HasDatabaseName("IX_ShadowBPredictions_Base");
+                entity.HasIndex(x => x.MatchDate);
+
+                entity.Property(x => x.PredictionId).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.BasePredictionId).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.Variant).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.CanonicalMatchId).HasMaxLength(32);
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.TeamStrengthVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.GateVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.CalibrationVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.AdjustmentVersion).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ConfidenceClass).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.GateStatus).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.GateReason).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.AdjustmentReason).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(32).IsRequired();
+
+                foreach (var p in new[] { nameof(Formax.Domain.Entities.ShadowBPrediction.HomeProbability),
+                                          nameof(Formax.Domain.Entities.ShadowBPrediction.DrawProbability),
+                                          nameof(Formax.Domain.Entities.ShadowBPrediction.AwayProbability),
+                                          nameof(Formax.Domain.Entities.ShadowBPrediction.BaseHomeProbability),
+                                          nameof(Formax.Domain.Entities.ShadowBPrediction.BaseDrawProbability),
+                                          nameof(Formax.Domain.Entities.ShadowBPrediction.BaseAwayProbability) })
+                    entity.Property(p).HasColumnType("float");
+
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
+
+            modelBuilder.Entity<Formax.Domain.Entities.ShadowBPredictionEvidence>(entity =>
+            {
+                entity.ToTable("ShadowBPredictionEvidence", tb =>
+                {
+                    tb.HasTrigger("TR_ShadowBPredictionEvidence_NoUpdate");
+                    tb.HasTrigger("TR_ShadowBPredictionEvidence_NoDelete");
+                });
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Id).ValueGeneratedOnAdd();
+
+                entity.Property(x => x.PredictionId).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.EvidenceContentHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.EventType).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.RelatedTeam).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Side).HasMaxLength(8).IsRequired();
+                entity.Property(x => x.Source).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Weight).HasColumnType("float");
+
+                entity.HasIndex(x => x.PredictionId).HasDatabaseName("IX_ShadowBPredictionEvidence_Prediction");
+                entity.HasIndex(x => new { x.PredictionId, x.EvidenceId })
+                      .IsUnique().HasDatabaseName("UX_ShadowBPredictionEvidence_Prediction_Evidence");
+
+                entity.HasOne(x => x.Prediction)
+                      .WithMany(p => p.Evidence)
+                      .HasPrincipalKey(p => p.PredictionId)
+                      .HasForeignKey(x => x.PredictionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<Formax.Domain.Entities.ShadowBPredictionSettlement>(entity =>
+            {
+                entity.ToTable("ShadowBPredictionSettlements", tb =>
+                {
+                    tb.HasTrigger("TR_ShadowBPredictionSettlements_NoUpdate");
+                    tb.HasTrigger("TR_ShadowBPredictionSettlements_NoDelete");
+                });
+                // PK = PredictionId → bir B tahmini iki kez settle EDİLEMEZ (şema düzeyinde).
+                entity.HasKey(x => x.PredictionId);
+                entity.Property(x => x.PredictionId).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.ActualResult).HasMaxLength(8).IsRequired();
+
+                entity.HasOne(x => x.Prediction)
+                      .WithOne(p => p.Settlement)
+                      .HasPrincipalKey<Formax.Domain.Entities.ShadowBPrediction>(p => p.PredictionId)
+                      .HasForeignKey<Formax.Domain.Entities.ShadowBPredictionSettlement>(x => x.PredictionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
 
             // ── Data Engine v1: Fixtures (FORMAX_MATCH_ID benzersiz kimlik) ─────
             modelBuilder.Entity<Fixture>(entity =>
@@ -210,6 +401,18 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Language).HasMaxLength(8);
                 entity.Property(x => x.Clusters).HasMaxLength(256);
                 entity.Property(x => x.ContentHash).HasMaxLength(48).IsRequired();
+            });
+
+            // ── Son Dakika: haber çevirisi (ContentHash + dil) ─────────────────
+            modelBuilder.Entity<MatchNewsTranslation>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                // Aynı haber + aynı dil ikinci kez çevrilmez.
+                entity.HasIndex(x => new { x.ContentHash, x.Language }).IsUnique();
+                entity.Property(x => x.ContentHash).HasMaxLength(48).IsRequired();
+                entity.Property(x => x.Language).HasMaxLength(8).IsRequired();
+                entity.Property(x => x.Headline).HasMaxLength(512).IsRequired();
+                entity.Property(x => x.Summary).HasMaxLength(1024);
             });
 
             // ── Data Engine v2.1: Evidence Store ───────────────────────────────
@@ -299,6 +502,17 @@ namespace Formax.Infrastructure.Data
                 entity.HasKey(x => x.Id);
                 entity.HasIndex(x => new { x.MatchId, x.CapturedAtUtc });
             });
+            // Real Market Odds — market başına TEK satır (upsert hedefi).
+            modelBuilder.Entity<MatchMarketOdd>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.MarketKey).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.BookmakerName).HasMaxLength(80);
+                entity.Property(x => x.Odd).HasColumnType("decimal(8,3)");
+                entity.Property(x => x.PreviousOdd).HasColumnType("decimal(8,3)");
+                entity.HasIndex(x => new { x.MatchId, x.MarketKey }).IsUnique();
+            });
+
             modelBuilder.Entity<OddsMovementSnapshot>(entity =>
             {
                 entity.HasKey(x => x.Id);
@@ -390,6 +604,8 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.League)
                       .IsRequired()
                       .HasMaxLength(120);
+                // Sağlayıcının gerçek tur/aşama adı — maç türünün kaynağı.
+                entity.Property(x => x.Round).HasMaxLength(120);
 
                 // ── Sprint 0: fast upsert lookup by external provider ID ──────
                 entity.HasIndex(x => x.ExternalMatchId)
@@ -529,6 +745,88 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Form).HasMaxLength(20);
                 entity.Ignore(x => x.GoalDifference);   // computed property — not stored
                 entity.HasIndex(x => new { x.LeagueId, x.SeasonYear });
+            });
+
+            // TeamSeasonStatistic — composite PK (LeagueId, SeasonYear, TeamId=external)
+            modelBuilder.Entity<TeamSeasonStatistic>(entity =>
+            {
+                entity.HasKey(x => new { x.LeagueId, x.SeasonYear, x.TeamId });
+                entity.Property(x => x.TeamName).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.Form).HasMaxLength(40);
+                entity.HasIndex(x => new { x.LeagueId, x.SeasonYear });
+            });
+
+            // MatchPredictionSignal — PK MatchId (per-match; AI-only)
+            modelBuilder.Entity<MatchPredictionSignal>(entity =>
+            {
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.ExternalMatchId).HasMaxLength(64);
+                entity.Property(x => x.WinnerName).HasMaxLength(160);
+                entity.Property(x => x.WinnerSide).HasMaxLength(8);
+                entity.Property(x => x.Advice).HasMaxLength(512);
+                entity.Property(x => x.UnderOver).HasMaxLength(32);
+            });
+
+            // TeamProfileSignal — PK TeamId (internal; per-team; AI-only)
+            modelBuilder.Entity<TeamProfileSignal>(entity =>
+            {
+                entity.HasKey(x => x.TeamId);
+                entity.Property(x => x.TeamId).ValueGeneratedNever();
+                entity.Property(x => x.ExternalTeamId).HasMaxLength(32);
+                entity.Property(x => x.CoachName).HasMaxLength(160);
+                entity.Property(x => x.VenueName).HasMaxLength(200);
+                entity.Property(x => x.VenueCity).HasMaxLength(120);
+                entity.Property(x => x.VenueSurface).HasMaxLength(40);
+            });
+
+            // TeamPlayerIntelligence — PK TeamId (internal; per-team; Football Intelligence v1.0)
+            modelBuilder.Entity<TeamPlayerIntelligence>(entity =>
+            {
+                entity.HasKey(x => x.TeamId);
+                entity.Property(x => x.TeamId).ValueGeneratedNever();
+                entity.Property(x => x.ExternalTeamId).HasMaxLength(32);
+                entity.Property(x => x.TopScorerName).HasMaxLength(160);
+                entity.Property(x => x.TopAssistName).HasMaxLength(160);
+                entity.Property(x => x.KeyPlayerName).HasMaxLength(160);
+                entity.Property(x => x.MinutesLeaderName).HasMaxLength(160);
+                entity.Property(x => x.InjuredNames).HasMaxLength(1024);
+                entity.Property(x => x.DefenseLeaderName).HasMaxLength(160);
+                entity.Property(x => x.MidfieldBrainName).HasMaxLength(160);
+                entity.Property(x => x.ShotsLeaderName).HasMaxLength(160);
+                entity.Property(x => x.KeyPassLeaderName).HasMaxLength(160);
+                entity.Property(x => x.CardRiskName).HasMaxLength(160);
+            });
+
+            // OfficialSocialAccount — verified official accounts registry
+            modelBuilder.Entity<OfficialSocialAccount>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ScopeType).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.ExternalTeamId).HasMaxLength(32);
+                entity.Property(x => x.Platform).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.Handle).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.FeedUrl).HasMaxLength(512);
+                entity.Property(x => x.AccountName).HasMaxLength(160);
+                entity.HasIndex(x => new { x.Platform, x.Handle }).IsUnique();
+                entity.HasIndex(x => x.ExternalTeamId);
+            });
+
+            // SocialPost — Canonical Social (per-match; feeds AI + UI)
+            modelBuilder.Entity<SocialPost>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.FormaxMatchId).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Platform).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.AccountHandle).HasMaxLength(120);
+                entity.Property(x => x.AccountName).HasMaxLength(160);
+                entity.Property(x => x.Headline).HasMaxLength(512).IsRequired();
+                entity.Property(x => x.Summary).HasMaxLength(1024);
+                entity.Property(x => x.Url).HasMaxLength(1000);
+                entity.Property(x => x.SignalType).HasMaxLength(48);
+                entity.Property(x => x.ContentHash).HasMaxLength(48).IsRequired();
+                entity.HasIndex(x => x.ContentHash).IsUnique();
+                entity.HasIndex(x => x.FormaxMatchId);
             });
 
             // CompetitionContext — MatchId is PK

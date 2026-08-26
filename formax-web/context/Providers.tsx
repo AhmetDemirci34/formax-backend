@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { AuthProvider } from "./AuthContext";
+import { ChromeProvider } from "./ChromeContext";
 
 export function Providers({ children }: { children: ReactNode }) {
   // One QueryClient per browser session
@@ -21,7 +22,9 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <ChromeProvider>{children}</ChromeProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

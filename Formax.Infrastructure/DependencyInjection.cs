@@ -146,6 +146,60 @@ public static class DependencyInjection
         services.AddScoped<Historical.Features.IFeatureStoreReader, Historical.Features.FeatureStoreReader>();
         services.AddScoped<Historical.Dataset.IDatasetBuilder, Historical.Dataset.DatasetBuilder>();
         services.AddScoped<Historical.Dataset.IDatasetValidator, Historical.Dataset.DatasetValidator>();
+        // 🔮 Probability Engine — FAZ 3.1 Feature Loader (yalnız Feature Store'dan okur; Historical'a erişmez)
+        services.AddScoped<Historical.Prediction.IFeatureLoader, Historical.Prediction.FeatureLoader>();
+        // 🔮 Probability Engine — FAZ 3.2 Model Training (yalnız Dataset v1; deterministik softmax)
+        services.AddScoped<Historical.Prediction.ModelTrainer>();
+        services.AddScoped<Historical.Prediction.IModelTrainer>(sp => sp.GetRequiredService<Historical.Prediction.ModelTrainer>());
+        services.AddSingleton<Historical.Prediction.IModelStore, Historical.Prediction.FileModelStore>();
+        // 🔮 Probability Engine — FAZ 3.3 Model Selection (genişletilebilir: yeni model = yeni IModelCandidate)
+        services.AddScoped<Historical.Prediction.Selection.IModelCandidate, Historical.Prediction.Selection.Candidates.LogisticRegressionCandidate>();
+        services.AddScoped<Historical.Prediction.Selection.IModelCandidate, Historical.Prediction.Selection.Candidates.LightGbmCandidate>();
+        services.AddScoped<Historical.Prediction.Selection.IModelSelector, Historical.Prediction.Selection.ModelSelector>();
+        // 🔮 Probability Engine — FAZ 3.4 Ensemble (soft-voting; LR+LightGBM, deterministik ağırlık; XGBoost/CatBoost aynı yapıya eklenebilir)
+        services.AddScoped<Historical.Prediction.Ensemble.IEnsembleBuilder, Historical.Prediction.Ensemble.EnsembleBuilder>();
+        services.AddScoped<Historical.Prediction.Ensemble.IEnsembleStore, Historical.Prediction.Ensemble.FileEnsembleStore>();
+        // 🔮 Probability Engine — FAZ 3.5 Confidence Engine (probability'den AYRI; calibration + reliability + level)
+        services.AddScoped<Historical.Prediction.Confidence.IConfidenceCalibrator, Historical.Prediction.Confidence.ConfidenceCalibrator>();
+        services.AddSingleton<Historical.Prediction.Confidence.IConfidenceCalibrationStore, Historical.Prediction.Confidence.FileConfidenceCalibrationStore>();
+        // 🔮 Probability Engine — FAZ 3.6 Explainability (occlusion/baseline-ablation; ensemble kara-kutu, deterministik)
+        services.AddScoped<Historical.Prediction.Explainability.IExplainerBuilder, Historical.Prediction.Explainability.ExplainerBuilder>();
+        services.AddSingleton<Historical.Prediction.Explainability.IExplainerStore, Historical.Prediction.Explainability.FileExplainerStore>();
+        // 🔮 Probability Engine — FAZ 3.8 Model Registry (versiyonlama, aktif model, rollback)
+        services.AddSingleton<Historical.Prediction.Registry.IModelRegistry, Historical.Prediction.Registry.FileModelRegistry>();
+        // 🔮 Probability Engine — FAZ 3.7 Prediction API (MatchId → Probability + Confidence + Explainability tek response)
+        services.AddSingleton<Historical.Prediction.Api.IPredictiveModelProvider, Historical.Prediction.Api.PredictiveModelProvider>();
+        services.AddScoped<Historical.Prediction.Api.IMatchPredictionService, Historical.Prediction.Api.MatchPredictionService>();
+        // 🛰️ FAZ 4.1 Match Ranking Engine — Radar Score ("Bugün hangi maçı izlemeliyim?"). Config-driven ağırlıklar.
+        // Ağırlıklar config'den bağlanabilir: host'ta AddSingleton(config.GetSection("ProbabilityEngine:RadarWeights").Get<RadarWeights>() ?? RadarWeights.Balanced).
+        services.AddSingleton(Historical.Prediction.Ranking.RadarWeights.Balanced);
+        services.AddSingleton<Historical.Prediction.Ranking.IRadarScoreEngine, Historical.Prediction.Ranking.RadarScoreEngine>();
+        services.AddScoped<Historical.Prediction.Ranking.IRadarInputBuilder, Historical.Prediction.Ranking.RadarInputBuilder>();
+        services.AddScoped<Historical.Prediction.Ranking.IMatchRankingService, Historical.Prediction.Ranking.MatchRankingService>();
+        // 🛰️ FAZ 4.2 User Interest Integration — Base Radar Score + User Interest = Personal Radar Score.
+        // Mevcut UserInterestEngine/MatchAffinityEngine tüketilir (yeniden yazılmaz); Radar Score Engine'e dokunulmaz.
+        services.AddSingleton(Historical.Prediction.Ranking.Personalization.PersonalRadarWeights.Default);
+        services.AddSingleton<Historical.Prediction.Ranking.Personalization.IPersonalRadarScoreEngine, Historical.Prediction.Ranking.Personalization.PersonalRadarScoreEngine>();
+        services.AddScoped<Historical.Prediction.Ranking.Personalization.IUserInterestSignalProvider, Historical.Prediction.Ranking.Personalization.AffinityUserInterestSignalProvider>();
+        services.AddScoped<Historical.Prediction.Ranking.Personalization.IPersonalMatchRankingService, Historical.Prediction.Ranking.Personalization.PersonalMatchRankingService>();
+        // 🛰️ FAZ 4.3 Discovery Engine — Radar Engine'in ÜST katmanı: en değerli + en ÇEŞİTLİ feed (Radar Score değişmez).
+        services.AddSingleton(Historical.Prediction.Ranking.Discovery.DiscoveryWeights.Default);
+        services.AddSingleton<Historical.Prediction.Ranking.Discovery.IDiscoveryEngine, Historical.Prediction.Ranking.Discovery.DiscoveryEngine>();
+        services.AddScoped<Historical.Prediction.Ranking.Discovery.IDiscoveryFeedService, Historical.Prediction.Ranking.Discovery.DiscoveryFeedService>();
+        // 🛰️ FAZ 4.4 Recommendation Engine — Discovery Feed'in ÜST açıklama katmanı ("neden öneriyorum?"). Sıralamayı DEĞİŞTİRMEZ.
+        services.AddSingleton(Historical.Prediction.Ranking.Recommendation.RecommendationWeights.Default);
+        services.AddSingleton<Historical.Prediction.Ranking.Recommendation.IMatchRecommendationEngine, Historical.Prediction.Ranking.Recommendation.MatchRecommendationEngine>();
+        services.AddScoped<Historical.Prediction.Ranking.Recommendation.IMatchRecommendationService, Historical.Prediction.Ranking.Recommendation.MatchRecommendationService>();
+        // 🛰️ Radar üst katmanları için paylaşılan bağlam kurucu (Discovery + Radar breakdown; DRY)
+        services.AddScoped<Historical.Prediction.Ranking.IRadarContextBuilder, Historical.Prediction.Ranking.RadarContextBuilder>();
+        // 🛰️ FAZ 4.5 Hidden Gems — bağımsız analiz katmanı (sıralama/rozet değil; kalite × obscurity)
+        services.AddSingleton(Historical.Prediction.Ranking.HiddenGems.HiddenGemWeights.Default);
+        services.AddSingleton<Historical.Prediction.Ranking.HiddenGems.IHiddenGemsEngine, Historical.Prediction.Ranking.HiddenGems.HiddenGemsEngine>();
+        services.AddScoped<Historical.Prediction.Ranking.HiddenGems.IHiddenGemsService, Historical.Prediction.Ranking.HiddenGems.HiddenGemsService>();
+        // 🛰️ FAZ 4.6 Daily Picks — günün en iyi maç listesi (seçer; sıralamayı bozmaz)
+        services.AddScoped<Historical.Prediction.Ranking.DailyPicks.IDailyPicksService, Historical.Prediction.Ranking.DailyPicks.DailyPicksService>();
+        // 🛰️ FAZ 4.7 Radar API — tüm görünümleri birleştiren sorgu servisi
+        services.AddScoped<Historical.Prediction.Ranking.Api.IRadarQueryService, Historical.Prediction.Ranking.Api.RadarQueryService>();
 
         // 🚀 FORMAX GDP — Engine Integration Pipeline (uçtan uca; tüm aşamalar tek akışta)
         services.AddGlobalDataPipeline();
@@ -157,7 +211,30 @@ public static class DependencyInjection
         // ── Sprint 2: Standings & competition context repositories ────────────
         services.AddScoped<ILeagueStandingRepository, LeagueStandingRepository>();
         services.AddScoped<ICompetitionContextRepository, CompetitionContextRepository>();
+        // GDP League Coverage Intelligence — coverage'ı gerçek DB'den hesaplar (yeni API yok).
+        services.AddScoped<Formax.Application.Interfaces.ILeagueCoverageService,
+            Formax.Infrastructure.Coverage.LeagueCoverageService>();
+        // Timeline Operations & Coverage — salt-okunur, cache'li operasyonel dashboard (gerçek veri).
+        services.AddScoped<Formax.Application.Interfaces.ITimelineCoverageService,
+            Formax.Infrastructure.Coverage.TimelineCoverageService>();
         services.AddScoped<ILeagueExternalMappingRepository, LeagueExternalMappingRepository>();
+
+        // ── Phase 6: api-football team season statistics repository ───────────
+        services.AddScoped<ITeamSeasonStatisticRepository, TeamSeasonStatisticRepository>();
+
+        // ── Phase 6 / Slice 2: api-football match prediction repository (AI-only) ──
+        services.AddScoped<IMatchPredictionSignalRepository, MatchPredictionSignalRepository>();
+
+        // ── Phase 6 Final: api-football team profile repository (AI-only) ──────
+        services.AddScoped<ITeamProfileSignalRepository, TeamProfileSignalRepository>();
+        // Football Intelligence v1.0 — player/squad intelligence repo + ingestion service.
+        services.AddScoped<Formax.Application.Interfaces.ITeamPlayerIntelligenceRepository,
+            Formax.Infrastructure.Repositories.TeamPlayerIntelligenceRepository>();
+        services.AddScoped<Formax.Infrastructure.Services.PlayerIntelligenceIngestionService>();
+
+        // ── Phase 7: Social Discovery repositories (Canonical Social) ──────────
+        services.AddScoped<IOfficialSocialAccountRepository, OfficialSocialAccountRepository>();
+        services.AddScoped<ISocialPostRepository, SocialPostRepository>();
 
         // ── Sprint 3: Live match intelligence repositories ────────────────────
         services.AddScoped<IMatchLiveStatsRepository, MatchLiveStatsRepository>();

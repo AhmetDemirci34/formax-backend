@@ -17,5 +17,10 @@ public sealed class H2HMatchDto
     public string AwayTeamName { get; init; } = "";
     public int HomeScore { get; init; }
     public int AwayScore { get; init; }
+
+    /// <summary>İlk yarı skoru (ev - deplasman). Sağlayıcı vermediyse null.</summary>
+    public int? HalfTimeHomeScore { get; init; }
+    public int? HalfTimeAwayScore { get; init; }
+
     public string? Competition { get; init; }
 }

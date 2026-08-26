@@ -30,6 +30,31 @@
   --signal-red:     #F5454D;   /* oran ↑ / kritik */
   --signal-blue:    #4DA6FF;
   --signal-yellow:  #F5C84B;
+
+  /* ── GOALAI Match Center — "Velocity Kinetic" scoped identity (additive) ──
+     Bu tokenlar SADECE GOALAI Match Center ekranında kullanılır; kilitli
+     FORMAX paletini (--neon #2EE66E vb.) değiştirmez. Kaynak: Product
+     Constitution + Technical Blueprint. */
+  --goalai-surface:        #131313;  /* Surface — ana zemin */
+  --goalai-surface-bright: #1c1b1b;  /* Surface Container Low — ikincil konteyner */
+  --goalai-accent:         #ccff00;  /* Primary — Velocity Neon Lime */
+  --goalai-border:         #393939;  /* Border — kart/buton çizgisi */
+  --goalai-glass-border:   rgba(255, 255, 255, .10);
+
+  /* ── FORMAX Profil Merkezi (SCREEN_15) — scoped palet (additive) ──
+     Kaynak: UI Specification §8 + Developer Handoff §11. Bu tokenlar YALNIZCA
+     Profil Merkezi ağacında kullanılır; kilitli FORMAX/GOALAI paletini bozmaz. */
+  --profile-surface:   #121317;  /* Background (Surface) */
+  --profile-container: #1A1B1F;  /* Card / Item BG — Surface Container Low */
+  --profile-accent:    #CCFF00;  /* Accent (Lime) */
+  --profile-border:    #38393D;  /* Header border-b + avatar çerçevesi */
+  --profile-muted:     #808080;  /* Secondary Text (Gray) */
+  --profile-chevron:   #4D4D4D;  /* Chevron Right */
+  --profile-divider:   rgba(255, 255, 255, .05); /* Satır ayırıcı — %5 white */
+  --profile-divider-strong: rgba(255, 255, 255, .10); /* Hesabım — daha görünür ayırıcı */
+  --profile-stat-rule: rgba(255, 255, 255, .12); /* Hero istatistik dikey ayırıcı */
+  --profile-premium-bg: #1B2210;  /* Premium satırı — koyu yeşil zemin */
+  --profile-danger:    #FF453A;  /* Danger (Hesabı Sil) — System Red */
 }
 
 @theme inline {
@@ -58,6 +83,23 @@
   --color-signal-red:     var(--signal-red);
   --color-signal-blue:    var(--signal-blue);
   --color-signal-yellow:  var(--signal-yellow);
+
+  /* GOALAI scoped palet → Tailwind sınıfları
+     (bg-goalai-surface, text-goalai-accent, border-goalai-accent …) */
+  --color-goalai-surface:        var(--goalai-surface);
+  --color-goalai-surface-bright: var(--goalai-surface-bright);
+  --color-goalai-accent:         var(--goalai-accent);
+  --color-goalai-border:         var(--goalai-border);
+
+  /* Profil Merkezi scoped palet → Tailwind sınıfları
+     (bg-profile-surface, bg-profile-container, text-profile-accent …) */
+  --color-profile-surface:   var(--profile-surface);
+  --color-profile-container: var(--profile-container);
+  --color-profile-accent:    var(--profile-accent);
+  --color-profile-border:    var(--profile-border);
+  --color-profile-muted:     var(--profile-muted);
+  --color-profile-chevron:   var(--profile-chevron);
+  --color-profile-danger:    var(--profile-danger);
 }
 
 * {
@@ -162,6 +204,117 @@ body {
   background: radial-gradient(130% 85% at 100% 0%, rgba(168, 85, 247, .12), transparent 60%);
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   GOALAI Match Center — scoped utilities (Velocity Kinetic)
+   Yalnızca Match Center ekranında kullanılır; global stilleri etkilemez.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Hero F+ ikonu — arkadaki lime radial parıltı (pulse framer ile sürülür) */
+.goalai-fplus-glow {
+  background: radial-gradient(circle, rgba(204, 255, 0, .55) 0%, rgba(204, 255, 0, 0) 70%);
+  filter: blur(8px);
+}
+/* F+ rozetinin kendi neon box-shadow'u */
+.goalai-fplus-badge {
+  box-shadow: 0 0 22px rgba(204, 255, 0, .30), inset 0 0 12px rgba(204, 255, 0, .12);
+}
+
+/* Glassmorphic yüzey — blueprint reçetesi (bg-white/5 + blur + white/10) */
+.goalai-glass {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--goalai-glass-border);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Primary CTA — neon dolgu + yumuşak parıltı */
+.goalai-cta {
+  background: var(--goalai-accent);
+  box-shadow: 0 0 28px rgba(204, 255, 0, .28);
+}
+
+/* Typing caret — yanıp sönen imleç (typing efekti tamamlanana kadar) */
+.goalai-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--goalai-accent);
+  animation: goalai-blink 1s steps(1) infinite;
+}
+@keyframes goalai-blink { 50% { opacity: 0; } }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FORMAX Profil Merkezi (SCREEN_15) — scoped utilities
+   Kaynak: UI Spec §13 (Developer Notes) + Interaction Spec §5 (Animation).
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Sticky header — backdrop-filter: blur(20px) + %80 opacity background
+   (Developer Handoff §5 · UI Spec §13). */
+.profile-header-blur {
+  background: color-mix(in srgb, var(--profile-surface) 80%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+/* Hero Profile Card — gradient zemin (Stitch görseli).
+   Gradient belirginleştirildi: üst köşede çok hafif lime sızıntı + daha geniş
+   aralıklı koyu geçiş, üstte 1px iç ışık çizgisi (premium his). Dış gölge
+   YOKTUR — derinlik yalnızca yüzey renk farkıyla verilir. */
+.profile-hero-card {
+  background:
+    radial-gradient(115% 85% at 0% 0%, rgba(204, 255, 0, .07), transparent 55%),
+    linear-gradient(150deg, #26272E 0%, #1B1C21 48%, #131418 100%);
+  border: 1px solid rgba(255, 255, 255, .09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+
+/* Page Slide — 300ms | cubic-bezier(.4,0,.2,1) | translateX %100 → 0
+   (Lifecycle §1 · Animation §5).
+
+   Neden JS değil CSS: framer-motion `initial={{x:"100%"}}` kullanıldığında,
+   kare üretilmeyen bir sekmede animasyon ilerlemez ve ekran translateX(100%)
+   konumunda ASILI kalır (içerik viewport dışına düşer). CSS keyframe'de
+   dinlenme konumu transform'suz haldir; animasyon hiç çalışmasa bile ekran
+   doğru yerde durur. */
+.profile-page-enter {
+  animation: profile-page-enter .3s cubic-bezier(.4, 0, .2, 1) both;
+}
+@keyframes profile-page-enter {
+  from { transform: translateX(100%); }
+  to   { transform: none; }
+}
+
+/* İçerik — header sabitlendikten 50ms sonra %0 → %100 fade-in (Lifecycle §1). */
+.profile-content-enter {
+  animation: profile-content-enter .3s cubic-bezier(.4, 0, .2, 1) 50ms both;
+}
+@keyframes profile-content-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Skeleton Wave — 1.5s | Linear | Background Gradient Shift (Interaction §5). */
+.profile-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--profile-container) 0%,
+    rgba(255, 255, 255, .06) 50%,
+    var(--profile-container) 100%
+  );
+  background-size: 200% 100%;
+  animation: profile-shimmer 1.5s linear infinite;
+}
+@keyframes profile-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+  .goalai-caret { animation: none; }
+  .profile-shimmer { animation: none; }
+  .profile-page-enter, .profile-content-enter { animation: none; }
 }
+

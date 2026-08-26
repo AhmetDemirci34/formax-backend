@@ -57,11 +57,19 @@ public sealed class MatchContextResolver : IMatchContextResolver
         var competition = NullIfBlank(match.League);
         var formaxMatchId = $"fx-match-{match.Id}";
 
+        // Maçın UTC GÜNÜ — tarih-bazlı sağlayıcılar (ör. api-football /fixtures?date=) bu pencereyi ister.
+        // Match.MatchDate DB'de UTC saklanır (Kind çoğunlukla Unspecified) → UTC kabul edilir, kaydırılmaz.
+        // Pencere tek gündür: gün başlangıcı .. gün sonu. Aralık verilmezse sağlayıcı "bugün"e düşerdi
+        // ve ilgili maçın gününü hiç sorgulamazdı.
+        var kickoffUtc = DateTime.SpecifyKind(match.MatchDate, DateTimeKind.Utc);
+        var dayStartUtc = new DateTimeOffset(kickoffUtc.Date, TimeSpan.Zero);
+        var dayEndUtc = dayStartUtc.AddDays(1).AddTicks(-1);
+
         var (latitude, longitude, venueName) = await GeocodeAsync(homeTeam, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "MatchContextResolver: match={MatchId} formaxId={FormaxId} home={Home} away={Away} competition={Competition} coords=({Lat},{Lon}) venue={Venue}",
-            matchId, formaxMatchId, homeTeam, awayTeam, competition, latitude, longitude, venueName);
+            "MatchContextResolver: match={MatchId} formaxId={FormaxId} home={Home} away={Away} competition={Competition} coords=({Lat},{Lon}) venue={Venue} utcDay={Day:yyyy-MM-dd}",
+            matchId, formaxMatchId, homeTeam, awayTeam, competition, latitude, longitude, venueName, dayStartUtc);
 
         return new ProviderRequest
         {
@@ -72,7 +80,11 @@ public sealed class MatchContextResolver : IMatchContextResolver
             VenueName = venueName,
             Latitude = latitude,
             Longitude = longitude,
-            FromUtc = new DateTimeOffset(DateTime.SpecifyKind(match.MatchDate, DateTimeKind.Utc), TimeSpan.Zero)
+            FromUtc = dayStartUtc,
+            ToUtc = dayEndUtc,
+            // MATCH-SCOPE: tarih-bazlı sağlayıcı günün tamamını döndürse bile yalnız bu fikstür işlenir.
+            // Maçın external kimliği yoksa null kalır → daraltma yapılmaz (mevcut davranış).
+            ExternalMatchId = NullIfBlank(match.ExternalMatchId)
         };
     }
 

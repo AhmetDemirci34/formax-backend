@@ -1,61 +1,94 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { PrimaryCtaButton } from "@/components/ui/PrimaryCtaButton";
-import { FlameIcon, ShieldIcon } from "@/components/discover/icons";
+import { LoadingCard } from "@/components/ui/LoadingState";
+import { FlameIcon } from "@/components/discover/icons";
+import { useRecommendations } from "@/hooks/useRecommendations";
+import { trackInterest } from "@/lib/api/interests";
 import { ComboLegItem } from "./ComboLegItem";
-import { ComboTotalCard } from "./ComboTotalCard";
-import { COMBO_DEMO, type ComboVM } from "./comboData";
-
-/** Başlık sağındaki AI güven kalkanı (referans: shield + "AI GÜVENİ" + %). */
-function ConfidenceShield({ value }: { value: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-neon/20 bg-neon/[0.06] px-3 py-1.5">
-      <ShieldIcon size={15} className="text-neon" />
-      <div className="flex flex-col leading-none">
-        <span className="text-[7.5px] font-bold uppercase tracking-wide text-text-muted">AI Güveni</span>
-        <span className="text-[13px] font-extrabold leading-none tabular-nums text-neon">{value}</span>
-      </div>
-    </div>
-  );
-}
+import { homeName, awayName, matchTime } from "@/components/discover/cardSignals";
+import { selectComboLegs, comboTotalOdd } from "@/lib/combo/selectComboLegs";
 
 /**
- * FORMAX · Günün AI Kombini (09, new)
- * Referans Home bloğu: başlık + AI güven kalkanı → yatay kombin ayakları ("+" ile) + özet kart → CTA.
- * Section kalıbı Hero/AI Olası Sonuçlar ile aynı: GlassCard sectionGlow p-5 + SectionHeader.
+ * FORMAX · Günün AI Kombini — Keşfet kartı (saf View).
+ * Kaynak: /api/home/recommendations. Backend'in gönderdiği sıradan İLK N maç
+ * kombin ayağı olur (frontend sıralama/AI hesabı YAPMAZ). Her ayak TIKLANABİLİR
+ * → Match Detail. "Kombini İncele" → yeni AI Kombin Analizi ekranı (/ai-combo).
  */
-export function AIComboSection({ combo = COMBO_DEMO }: { combo?: ComboVM }) {
+export function AIComboSection() {
+  const router = useRouter();
+  const { data, isLoading } = useRecommendations();
+
+  // TEK SEÇİM NOKTASI — "Kombini İncele" ekranı (/ai-combo) da AYNI fonksiyonu çağırır,
+  // böylece iki ekranın MatchId'leri birebir aynıdır. Market/olasılık/oran backend'in
+  // Decision paketinden gelir (card.topPrediction); frontend hiçbirini hesaplamaz.
+  const legs = selectComboLegs(data?.pages.flat());
+  const totalOdd = comboTotalOdd(legs);
+
+  if (isLoading) {
+    return (
+      <GlassCard sectionGlow className="p-4">
+        <SectionHeader
+          icon={<FlameIcon size={16} />}
+          accent="purple"
+          title="Günün AI Kombini"
+          subtitle="FORMAX AI'nın bugünkü en güçlü kombini"
+        />
+        <div className="mt-2">
+          <LoadingCard />
+        </div>
+      </GlassCard>
+    );
+  }
+
+  if (legs.length < 2) return null;
+
   return (
     <GlassCard sectionGlow className="p-4">
       <SectionHeader
         icon={<FlameIcon size={16} />}
         accent="amber"
         title="Günün AI Kombini"
-        subtitle="FORMAX AI'nın bugünün en güçlü kombini"
+        subtitle="FORMAX AI'nın bugünkü en güçlü kombini"
         right={
-          <div className="flex flex-col items-end gap-1">
-            <ConfidenceShield value={combo.confidence} />
-            {/* Maç sayısı — kombindeki ayak sayısından otomatik */}
-            <span className="text-[9px] font-bold uppercase tracking-wide text-text-muted">
-              {combo.legs.length} Maç
-            </span>
-          </div>
+          <span className="flex items-center gap-2 whitespace-nowrap text-[9px] font-bold uppercase tracking-wide text-text-muted">
+            <span>{legs.length} Maç</span>
+            {/* Toplam oran — yalnız TÜM ayakların gerçek oranı varsa hesaplanır. */}
+            {totalOdd != null ? (
+              <span className="text-neon">Toplam Oran {totalOdd.toFixed(2)}</span>
+            ) : null}
+          </span>
         }
       />
 
-      {/* Kartlar sabit genişlikte; ekrana sığdırılmaz — yatay scroll. TOPLAM ORAN her zaman son. */}
-      <div className="-mx-4 mt-1 flex items-stretch gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {combo.legs.map((leg) => (
-          <div key={leg.id} className="flex items-center gap-2">
-            <ComboLegItem {...leg} />
-            {/* Her maçtan sonra "+" — kartların dikey ortasında; son maçtan sonra TOPLAM ORAN'a bağlanır */}
-            <span className="text-[15px] font-bold leading-none text-text-muted">+</span>
-          </div>
+      {/* Dikey liste — her maç tek satır (Sprint #2 · madde 6). */}
+      <div className="mt-1 flex flex-col gap-2">
+        {legs.map((card) => (
+          <ComboLegItem
+            key={card.matchId}
+            matchId={card.matchId}
+            time={matchTime(card)?.text ?? ""}
+            home={{ name: homeName(card), logoUrl: card.homeTeam?.logoUrl }}
+            away={{ name: awayName(card), logoUrl: card.awayTeam?.logoUrl }}
+            // AI sonucu + olasılık + GERÇEK oran: hepsi backend Decision paketinden.
+            market={card.topPrediction?.market ?? null}
+            probability={card.topPrediction?.probability ?? null}
+            odd={card.topPrediction?.odd ?? null}
+            // Kombin ayağı açılışı = ilgi sinyali (gerçek /api/interests/track).
+            onOpen={() => trackInterest("click", card.matchId)}
+          />
         ))}
-        <ComboTotalCard totalOdds={combo.totalOdds} stars={combo.stars} trend={combo.trend} />
       </div>
 
-      <PrimaryCtaButton label="Kombini İncele" variant="ghost" className="mt-3.5" />
+      <PrimaryCtaButton
+        label="Kombini İncele"
+        variant="ghost"
+        className="mt-3.5"
+        onClick={() => router.push("/ai-combo")}
+      />
     </GlassCard>
   );
 }

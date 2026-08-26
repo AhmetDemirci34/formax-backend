@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { AUTH_GATE_ENABLED } from "@/lib/auth/authGate";
 import { useAllTeams, useSetMyTeams } from "@/hooks/useTeams";
 import type { TeamDto } from "@/types/api";
 
@@ -15,6 +16,8 @@ export default function OnboardingTeamsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   useEffect(() => {
+    // Auth kapısı pasifken giriş istenmez — bkz. lib/auth/authGate.ts
+    if (!AUTH_GATE_ENABLED) return;
     if (!isLoggedIn) {
       router.replace("/auth/login");
     }

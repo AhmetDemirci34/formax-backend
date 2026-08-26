@@ -1,5 +1,6 @@
 ﻿using Formax.Application.Abstractions;
 using Formax.Application.DTOs.Home;
+using Formax.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Formax.Application.Services.Intelligence;
@@ -13,15 +14,54 @@ public class GlobalTrendService
         _context = context;
     }
 
+    // PERF (MVP freeze): GetGlobalScore, öneri motorunun 100 aday maçının HER BİRİ için
+    // ayrı bir UserActions sorgusu atıyordu. Servis Scoped olduğundan aşağıdaki ön-yükleme
+    // İSTEK BAŞINA doldurulur ve aynı satırları (maç başına CreatedAt DESC ilk 100) tek
+    // sorguda getirir. Ön-yükleme yapılmamışsa eski tekil sorgu yolu aynen çalışır →
+    // skor formülü ve sonuç DEĞİŞMEZ.
+    private Dictionary<int, List<UserAction>>? _preloadedByMatch;
+
+    public async Task PreloadForMatchesAsync(IReadOnlyCollection<int> matchIds)
+    {
+        if (matchIds is null || matchIds.Count == 0)
+        {
+            _preloadedByMatch = new Dictionary<int, List<UserAction>>();
+            return;
+        }
+
+        var rows = await _context.UserActions
+            .AsNoTracking()
+            .Where(x => matchIds.Contains(x.MatchId))
+            .ToListAsync();
+
+        _preloadedByMatch = rows
+            .GroupBy(x => x.MatchId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(x => x.CreatedAt).Take(100).ToList());
+    }
+
     public async Task<double> GetGlobalScore(HomeRadarMatchDto match)
     {
         var now = DateTime.UtcNow;
 
-        var actions = await _context.UserActions
-            .Where(x => x.MatchId == match.MatchId)
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(100)
-            .ToListAsync();
+        List<UserAction> actions;
+
+        if (_preloadedByMatch is not null)
+        {
+            actions = _preloadedByMatch.TryGetValue(match.MatchId, out var pre)
+                ? pre
+                : new List<UserAction>();
+        }
+        else
+        {
+            actions = await _context.UserActions
+                .AsNoTracking()
+                .Where(x => x.MatchId == match.MatchId)
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(100)
+                .ToListAsync();
+        }
 
         double baseScore;
 

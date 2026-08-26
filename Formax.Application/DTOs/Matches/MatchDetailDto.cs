@@ -20,15 +20,30 @@ public class MatchDetailDto
 
     // ── Match meta ──────────────────────────────────────────────────────────────
     public string League { get; set; } = string.Empty;
+    /// <summary>Sağlayıcının HAM tur adı ("3rd Qualifying Round", "Regular Season - 1").</summary>
     public string? Round { get; set; }
+
+    /// <summary>
+    /// MAÇ TÜRÜ — ham tur adından türeyen Türkçe etiket ("Eleme Turu", "Son 16 Turu",
+    /// "Lig Maçı · 1. Hafta", "Final"). Sağlayıcı tur vermediyse veya tur adı tanınmıyorsa
+    /// null; UI o zaman tür satırını GÖSTERMEZ (tahmin edilmez).
+    /// </summary>
+    public string? MatchTypeLabel { get; set; }
     public string? Referee { get; set; }
     public string? Venue { get; set; }
     public string? Weather { get; set; }
     public int WatchersCount { get; set; }
 
-    // ── Form history (last 10 matches each) ─────────────────────────────────────
+    // ── Form history (takımın KENDİ ulusal ligindeki son oynanmış maçlar) ───────
     public List<LastMatchDto> HomeTeamLastMatches { get; set; } = new();
     public List<LastMatchDto> AwayTeamLastMatches { get; set; } = new();
+
+    /// <summary>
+    /// Yukarıdaki form listesinin süzüldüğü ligin GERÇEK adı (ör. "Süper Lig").
+    /// null = takımın ligi çözülemedi → liste süzülmedi ve "ligde" denemez.
+    /// </summary>
+    public string? HomeTeamFormLeague { get; set; }
+    public string? AwayTeamFormLeague { get; set; }
 
     // ── Analysis ────────────────────────────────────────────────────────────────
     public ComparisonDto Comparison { get; set; } = new();
@@ -87,6 +102,31 @@ public class TeamComparisonDto
     public double HomeAwayAvgGoals { get; set; }
     public int FormScore { get; set; }
     public int LeagueRank { get; set; }
+
+    /// <summary>
+    /// Bu metriklerin hesaplandığı GERÇEK maç sayısı (0–10).
+    ///
+    /// Neden gerekli: veri yokluğu ile "gerçekten sıfır" aynı şey değildir. Kayıt yoksa tüm
+    /// oranlar 0 dönüyordu ve karşılaştırma bunu gerçek bir fark sanıyordu (ölçüldü:
+    /// Deportivo 0 maç → "Elche %90 ile üstün" gibi yanıltıcı cümle). Tüketiciler yeterli
+    /// örnek olup olmadığını bu alandan anlar.
+    /// </summary>
+    public int SampleCount { get; set; }
+
+    /// <summary>
+    /// Örneklemdeki EN YENİ maçın tarihi (UTC). Kaç maç olduğu kadar NE ZAMAN oynandığı da
+    /// gerekir: beş maç 2024'ten geliyorsa bu "güncel form" değildir ve "galibiyet hasreti"
+    /// gibi zamansal kesinlik içeren cümleler kurulamaz (ölçüldü: Lask Linz, 607 gün).
+    /// Kayıt yoksa null.
+    /// </summary>
+    public DateTime? NewestMatchUtc { get; set; }
+
+    /// <summary>
+    /// Örneklemin geldiği turnuvalar. Form yalnız kapsam içi liglerden hesaplanır; bir takımın
+    /// ulusal ligi kapsam dışıysa örneklem tümüyle Avrupa kupalarından oluşur ve "son beş maçı"
+    /// ifadesi aslında "kapsamımdaki son beş maç" demektir. Tüketici bunu bilmelidir.
+    /// </summary>
+    public List<string> Competitions { get; set; } = new();
 }
 
 // H2HDto ve H2HMatchDto → Formax.Application/DTOs/Matches/H2HDto.cs (Sprint 20B)

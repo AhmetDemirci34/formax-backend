@@ -1,4 +1,5 @@
 using Formax.Infrastructure.Providers.Sources;
+using Formax.Infrastructure.Providers.Sources.ApiFootball;
 using Formax.Infrastructure.Providers.Sources.OpenLigaDb;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -17,6 +18,12 @@ public static class ProviderBootstrapServiceCollectionExtensions
         // Onaylı provider'ları etkinleştir: OpenLigaDB + Core Free Provider Pack (hepsi ücretsiz/açık).
         services.AddOpenLigaDbProvider();
         services.AddCoreFreeProviders();
+
+        // api-football köprüsü (Paid, OPSİYONEL): mevcut ISportsDataProvider'ı sarmalar, yeni
+        // HTTP istemcisi/endpoint açmaz. GDP'nin canonical Match.ExternalMatchId ile birebir
+        // eşleşebilmesi için fixture id'yi ProviderMatchId olarak taşır.
+        // NOT: GDP hiçbir job'a bağlı değildir; bu sağlayıcı yalnız pipeline elle çalıştırıldığında devreye girer.
+        services.AddApiFootballGdpProvider();
 
         // Başlangıç kayıt katmanı (ayarlar burada; ileride yalnızca bu katman değişir).
         services.TryAddSingleton<ProviderBootstrap>();

@@ -24,11 +24,27 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+    <!-- FAZ 3.3 Model Selection: gerçek LightGBM (native). Determinizm: tek-thread + sabit seed. -->
+    <PackageReference Include="Microsoft.ML" Version="3.0.1" />
+    <PackageReference Include="Microsoft.ML.LightGbm" Version="3.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Formax.Application\Formax.Application.csproj" />
     <ProjectReference Include="..\Formax.Domain\Formax.Domain.csproj" />
+
+    <!--
+      Prediction Contract V1 — KİLİTLİ olasılık motoru.
+
+      Üretim, araştırmada doğrulanmış motorun KODUNU birebir kullanır; kopyalamaz. Sebebi §19:
+      "production shadow probability == model_validation_v2 reference, sapma 0". Kod kopyalansaydı
+      bu eşitlik bir dilek olurdu; tek kaynak olduğu için yapısal bir gerçek.
+
+      Zincir: FormaxPredictionContract -> FormaxPredictionGate -> FormaxModelValidation
+              -> FormaxDixonColes -> FormaxTeamStrength. Hepsi net8.0, NuGet bağımlılığı yok.
+      Bu projelerin parametreleri KİLİTLİDİR; buradan hiçbiri değiştirilmez.
+    -->
+    <ProjectReference Include="..\FORMAX_PROBABILITY_ENGINE\prediction_contract_v1\FormaxPredictionContract\FormaxPredictionContract.csproj" />
   </ItemGroup>
 
   

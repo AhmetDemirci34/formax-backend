@@ -13,10 +13,13 @@ public sealed class MatchOutlookDto
 
     public string GoalTrend { get; init; } = "";
     public string Tempo { get; init; } = "";
-    /// <summary>0 = ev sahibi baskın, 50 = dengeli, 100 = deplasman baskın.</summary>
-    public int Balance { get; init; }
-    /// <summary>home | away | balanced.</summary>
-    public string Momentum { get; init; } = "balanced";
+    /// <summary>
+    /// 0 = ev sahibi baskın, 50 = dengeli, 100 = deplasman baskın. İki tarafta da yeterli
+    /// maç yoksa null — hesaplanmamış dengeyi 50 ya da 0 diye sunmak ölçüm taklididir.
+    /// </summary>
+    public int? Balance { get; init; }
+    /// <summary>home | away | balanced | unknown (kanıt yetersiz).</summary>
+    public string Momentum { get; init; } = "unknown";
 
     public OutlookConfidenceDto ConfidenceSummary { get; init; } = new();
     /// <summary>Hero Outlook — AI'ın tek cümlelik genel görünümü.</summary>
@@ -34,8 +37,11 @@ public sealed class OutlookTeamDto
     public List<string> Form { get; init; } = new();
     /// <summary>Performans etiketi (ör. "İç sahada güçlü").</summary>
     public string Performance { get; init; } = "";
-    /// <summary>Performans göstergesi (0–100).</summary>
-    public int PerformanceScore { get; init; }
+    /// <summary>
+    /// Performans göstergesi (0–100). YETERLİ MAÇ YOKSA null — "0/100" bir performans
+    /// değil, veri yokluğudur (bkz. FormEvidencePolicy).
+    /// </summary>
+    public int? PerformanceScore { get; init; }
     public double GoalsFor { get; init; }
     public double GoalsAgainst { get; init; }
 }

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Research / validation harness. NOT added to Formax.slnx, no NuGet packages, no production wiring. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FormaxModelValidation</AssemblyName>
+    <RootNamespace>Formax.ModelValidation</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The engines under validation are reused as-is; neither project is modified. -->
+    <ProjectReference Include="..\..\team_strength\FormaxTeamStrength\FormaxTeamStrength.csproj" />
+    <ProjectReference Include="..\..\dixon_coles\FormaxDixonColes\FormaxDixonColes.csproj" />
+  </ItemGroup>
+
+</Project>

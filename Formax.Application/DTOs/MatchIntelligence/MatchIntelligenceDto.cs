@@ -226,7 +226,8 @@ public sealed class MiTeamOutlookDto
     public string Team { get; init; } = "";
     public List<string> Form { get; init; } = new(); // W | D | L
     public string Performance { get; init; } = "";
-    public int PerformanceScore { get; init; }
+    /// <summary>0–100. Yeterli maç yoksa null — "0/100" veri yokluğunu ölçüm gibi gösterirdi.</summary>
+    public int? PerformanceScore { get; init; }
     public double GoalsFor { get; init; }
     public double GoalsAgainst { get; init; }
 }
@@ -237,8 +238,10 @@ public sealed class MiMatchOutlookDto
     public MiTeamOutlookDto Away { get; init; } = new();
     public string GoalTrend { get; init; } = "";
     public string Tempo { get; init; } = "";
-    public int Balance { get; init; } // 0 ev ↔ 100 deplasman
-    public string Momentum { get; init; } = "balanced"; // home | away | balanced
+    /// <summary>0 ev ↔ 100 deplasman. Yeterli maç yoksa null (hesaplanmadı).</summary>
+    public int? Balance { get; init; }
+    /// <summary>home | away | balanced | unknown (kanıt yetersiz).</summary>
+    public string Momentum { get; init; } = "unknown";
     public MiConfidenceDto ConfidenceSummary { get; init; } = new();
     public string HeroOutlook { get; init; } = "";
     /// Match Outlook Engine AI değerlendirmesi (Görev #016).

@@ -112,12 +112,20 @@ public sealed class ExpectedLineupEngine : IExpectedLineupEngine
             $"Son {snapshots.Count} maçın başlayan 11'lerine dayalı tahmin.",
             $"Diziliş son maçlarda ağırlıklı {formation}.",
         };
+        // SAKATLIK BİR DURUMDUR, KADRO DIŞILIK BİR MAÇ KARARIDIR — ikisi eşitlenemez.
+        // Eskiden her iki statü de "kadro dışı" diye yazılıyordu; sakatlık verisi olan
+        // her oyuncu, kulüp/UEFA kadrosunda yer alsa bile "kadro dışı" ilan ediliyordu
+        // (ölçüldü: Mert Günok, Fenerbahçe–Lyon). Ceza için "kadro dışı" tanım gereği
+        // doğrudur (men cezası oynamayı engeller); sakatlık için YALNIZ durum bildirilir.
+        // Muhtemel 11 tahmininde sakat oyuncunun elenmesi korunur — o bir TAHMİN'dir,
+        // burada kullanıcıya gösterilen ise bir İDDİA'dır.
         foreach (var s in statuses.Where(s => s.Status is "Injured" or "Suspended").Take(3))
         {
-            var tr = s.Status == "Suspended" ? "cezalı" : "sakat";
-            reasons.Add(string.IsNullOrWhiteSpace(s.Reason)
-                ? $"{s.PlayerName} {tr} nedeniyle kadro dışı."
-                : $"{s.PlayerName} kadro dışı ({s.Reason}).");
+            var suffix = string.IsNullOrWhiteSpace(s.Reason) ? "" : $" ({s.Reason})";
+            reasons.Add(s.Status == "Suspended"
+                ? $"{s.PlayerName} cezası nedeniyle kadro dışı{suffix}."
+                : $"{s.PlayerName} sakatlık durumu nedeniyle muhtemel 11'e alınmadı{suffix}; " +
+                  "maç kadrosundaki yeri ayrıca doğrulanmalı.");
         }
         if (players.Count < 11)
             reasons.Add("Bazı mevkiler için yeterli aday verisi yok; tahmin kısmi.");

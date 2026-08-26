@@ -82,13 +82,46 @@ internal class Program
     private static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-        builder.WebHost.UseUrls("http://localhost:5063");
+
+        // ── SÜREKLİ ÇALIŞMA (shadow deployment) ────────────────────────────────────
+        // Bind adresi yapılandırılabilir; VARSAYILAN DEĞİŞMEDİ. Gölge modda çalışan bir
+        // sunucuda uygun değer yine "http://localhost:5063"tür: dışarıya hiçbir şey açılmaz,
+        // gölge iş kendi içinde koşar, sağlık ucu yalnız makinenin kendisinden okunur.
+        builder.WebHost.UseUrls(builder.Configuration["Hosting:Urls"] ?? "http://localhost:5063");
+
+        // Windows Service olarak kurulduğunda SCM ile konuşur (Start/Stop/Recovery).
+        // Konsoldan `dotnet run` ile çalıştırıldığında bu çağrı NO-OP'tur — geliştirme
+        // davranışı birebir aynı kalır.
+        builder.Host.UseWindowsService();
+
+        // Kalıcı log: konsol süreçle ölür, sunucuda konsol yoktur. Varsayılan KAPALI.
+        var fileLog = new Formax.Infrastructure.Logging.FileLoggerOptions
+        {
+            Enabled = builder.Configuration.GetValue<bool>("Logging:File:Enabled"),
+            Directory = builder.Configuration["Logging:File:Directory"] ?? "Logs",
+            FilePrefix = builder.Configuration["Logging:File:FilePrefix"] ?? "formax",
+            RetainedDays = builder.Configuration.GetValue<int?>("Logging:File:RetainedDays") ?? 30
+        };
+        if (fileLog.Enabled)
+        {
+            builder.Logging.AddProvider(
+                new Formax.Infrastructure.Logging.FileLoggerProvider(fileLog, builder.Environment.ContentRootPath));
+        }
 
         // 🔥 SADECE BUNU EKLEDİM
         builder.Services.AddControllers()
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+
+                // ZAMAN SÖZLEŞMESİ — tüm DateTime alanları "…Z" (UTC) yazılır.
+                // Depodan (EF/SQL Server) gelen DateTime'ın Kind'ı Unspecified olduğu için
+                // eki olmayan "2026-08-18T19:00:00" üretiliyordu; tarayıcı bunu YEREL saat
+                // sayıyor ve TR kullanıcısında kickoff 3 saat geriye kayıyordu (ölçüldü:
+                // Fenerbahçe–Lyon 19:00Z → UI 19:00 → 19:06'da "başlamış" görünüyordu).
+                // Değer değişmez; yalnız UTC olduğu bilgisi eklenir. Bkz. UtcDateTimeJsonConverter.
+                options.JsonSerializerOptions.Converters.Add(new Formax.API.Serialization.UtcDateTimeJsonConverter());
+                options.JsonSerializerOptions.Converters.Add(new Formax.API.Serialization.NullableUtcDateTimeJsonConverter());
             });
 
         builder.Services.AddScoped<IMatchOynanmaSnapshotWriter, MatchOynanmaSnapshotWriter>();
@@ -259,6 +292,11 @@ internal class Program
         builder.Services.AddScoped<Formax.Application.Services.MatchIntelligence.IMatchIntelligenceService,
                                    Formax.Application.Services.MatchIntelligence.MatchIntelligenceService>();
         builder.Services.AddScoped<Formax.Application.UseCases.GetMatchIntelligenceUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchSocialPostsUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchAiSignalsUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchDecisionUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchVoiceUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchNarrativeUseCase>();
 
         builder.Services.AddScoped<IOynanmaSinyalProvider, OynanmaSinyalProvider_Default>();
 
@@ -269,7 +307,8 @@ internal class Program
 
         builder.Services.AddScoped<IFaiOverviewService, FaiOverviewService>();
 
-        builder.Services.AddScoped<IAIAnalysisService, AIAnalysisService>();
+        // AIAnalysisService (sabit 0.5 stub) MVP audit'te kaldırıldı — frontend kullanmıyordu;
+        // gerçek analiz MarketProbabilityEngine → GET /api/matches/{id}/decision.
 
         builder.Services.AddScoped<WorldExpectationService>();
 
@@ -485,6 +524,11 @@ internal class Program
         builder.Services.AddScoped<SmartSignalService>();
         builder.Services.AddScoped<UserLearningService>();
 
+        // InterestDecayService DI'da kayıtlı DEĞİLDİ ve hiçbir yerden çağrılmıyordu → decay hiç
+        // çalışmıyordu. UserTrendService bunu read-time'da tükettiği için burada kaydedilir
+        // (yeni scheduler/HostedService KURULMADAN minimum entegrasyon).
+        builder.Services.AddScoped<Formax.Application.Services.Recommendation.InterestDecayService>();
+
         builder.Services.AddScoped<UserTrendService>();
 
         builder.Services.AddScoped<IAppDbContext, FormaxDbContext>();
@@ -511,6 +555,10 @@ internal class Program
 
         builder.Services.AddScoped<GetRecommendationFeedUseCase>();
 
+        // Discovery Engine — orkestrasyon katmanı (Recommendation üreticisini kullanır).
+        builder.Services.AddScoped<Formax.Application.Interfaces.Discovery.IDiscoveryEngine,
+            Formax.Application.Services.Discovery.DiscoveryEngine>();
+
         builder.Services.AddScoped<GetHomeRadarUseCase>();
 
         builder.Services.AddScoped<GetLiveMatchReadingUseCase>();
@@ -519,6 +567,24 @@ internal class Program
 
         builder.Services.AddScoped<GetLiveMatchReadingUseCase>();
         builder.Services.AddScoped<EmitMatchEventUseCase>();
+
+        // ── MatchLiveController DI zinciri — kayıtsızdı, /api/live/{id} 500 veriyordu ──
+        // YALNIZCA eksik + MEVCUT tipler register edilir (yeni servis/interface/impl/factory YOK).
+        builder.Services.AddScoped<GetLiveMatchTimelineUseCase>();
+        builder.Services.AddScoped<GetLiveMatchScreenUseCase>();
+        builder.Services.AddScoped<GetLiveMatchAiAnalysisUseCase>();
+        builder.Services.AddScoped<UserExperienceContextFactory>();
+        builder.Services.AddScoped<UserExperienceUpdater>();
+        builder.Services.AddScoped<AiSpeakDecisionInputBuilder>();
+        builder.Services.AddScoped<AiSpeakDecisionService>();
+        builder.Services.AddScoped<AiSpeakWindow>();
+        builder.Services.AddScoped<ContextInsufficientEvaluator>();
+        builder.Services.AddScoped<FatigueEvaluator>();
+        builder.Services.AddScoped<RepetitionEvaluator>();
+        builder.Services.AddScoped<StatePermissionEvaluator>();
+        builder.Services.AddScoped<IAiSpeakTelemetryRepository, AiSpeakTelemetryRepository>();
+        builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        builder.Services.AddScoped<IIntroAccessRepository, IntroAccessRepository>();
 
         builder.Services.AddScoped<MatchEventService>();
 
@@ -543,6 +609,15 @@ internal class Program
 
         builder.Services.AddScoped<GetTeamsUseCase>();
         builder.Services.AddScoped<GetMyTeamsUseCase>();
+        // POST /api/users/me/teams kayıtsızdı → 500. Takım takibi bildirimlerin de
+        // girdisi olduğu için bu, takım-takibi bildirim zincirini tamamen kapatıyordu.
+        builder.Services.AddScoped<SetMyTeamsUseCase>();
+
+        // ── Lig takibi (team follow mimarisi referans) + takip özeti + toplu okundu ──
+        builder.Services.AddScoped<Formax.Application.UseCases.Leagues.GetMyLeaguesUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.Leagues.FollowLeagueUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.Leagues.UnfollowLeagueUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.Follow.GetFollowSummaryUseCase>();
 
 
         builder.Services.AddScoped<RewardCalculator>();
@@ -580,9 +655,9 @@ internal class Program
         builder.Services.AddSingleton<Formax.Application.Services.Fixtures.LeagueIdentityResolver>();
         builder.Services.AddSingleton<Formax.Application.Services.Fixtures.FormaxMatchIdFactory>();
         builder.Services.AddSingleton<Formax.Application.Services.Fixtures.FixtureConfidenceEngine>();
+        // Tek kimlik otoritesine geçiş — bir defalık/idempotent re-key bakım servisi.
+        builder.Services.AddScoped<Formax.Infrastructure.Maintenance.CanonicalIdentityRekeyService>();
         builder.Services.AddScoped<Formax.Application.Services.Fixtures.FixtureDiscoveryService>();
-        builder.Services.AddHttpClient<Formax.Application.Services.Fixtures.IFixtureProvider,
-            Formax.Infrastructure.Fixtures.Providers.TheSportsDbFixtureProvider>();
         builder.Services.AddHttpClient<Formax.Application.Services.Fixtures.IFixtureProvider,
             Formax.Infrastructure.Fixtures.Providers.FootballDataOrgFixtureProvider>();
         // Fixtures kalıcılık + scheduler (başlangıç + her 6 saat, 30 gün keşif).
@@ -599,11 +674,43 @@ internal class Program
         builder.Services.AddScoped<Formax.Application.Services.News.Discovery.GlobalNewsDiscoveryService>();
         builder.Services.AddScoped<Formax.Application.Interfaces.IMatchNewsRepository,
             Formax.Infrastructure.Repositories.MatchNewsRepository>();
+
+        // ── SON DAKİKA: liste üretimi + dil çevirisi ──────────────────────────────
+        // Liste TEK yerde üretilir (/detail ve /news aynı servisi kullanır).
+        builder.Services.AddScoped<Formax.Application.Services.News.Feed.MatchNewsFeedService>();
+        // Çeviri kalıcı önbelleği — (ContentHash, Language) ile; aynı haber iki kez çevrilmez.
+        builder.Services.AddScoped<Formax.Application.Interfaces.IMatchNewsTranslationRepository,
+            Formax.Infrastructure.Repositories.MatchNewsTranslationRepository>();
+        // Çeviri MEVCUT ILLMClient zinciriyle yapılır — yeni çeviri servisi eklenmedi.
+        builder.Services.AddScoped<Formax.Application.Services.News.Translation.NewsTranslationService>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchNewsUseCase>();
+        // ── CANLI TAKİP + ÖNEMLİ ANLAR ────────────────────────────────────────────
+        // İkisi de AI Maç Analizi zincirinden BAĞIMSIZDIR; mevcut haber/sosyal/olay
+        // depolarını okur, yeni sağlayıcı veya toplama işi eklemez.
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchLiveFeedUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.GetMatchHighlightsUseCase>();
+
+        // ── AI ANLATI ISITMA (PREWARM) ────────────────────────────────────────────
+        // Yaklasan maclarin anlatisini ARKA PLANDA uretir; kullanicinin /detail istegi
+        // hazir snapshot'a duser. AI Mac Analizi'nin kendisi (uc/prompt/model/guard/UI)
+        // DEGISMEZ - yalniz uretim zamani one alinir. Kapatma: Narrative:PrewarmEnabled=false.
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.NarrativePrewarmJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.NarrativePrewarmJob>());
         builder.Services.AddHttpClient<Formax.Application.Services.News.Discovery.INewsProvider,
             Formax.Infrastructure.News.Providers.GoogleNewsRssProvider>();
         builder.Services.AddHttpClient<Formax.Application.Services.News.Discovery.INewsProvider,
             Formax.Infrastructure.News.Providers.BingNewsRssProvider>();
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.NewsDiscoveryJob>();
+
+        // ---------------- Phase 7 — SOCIAL DISCOVERY (resmi sosyal medya) ----------------
+        // Platform-genişletilebilir ISocialProvider koleksiyonu (yeni platform = yeni satır).
+        // YouTube RSS gerçek+key'siz; X/IG/FB kimlik-bilgisi olmadan IsEnabled=false (fake yok).
+        builder.Services.AddSingleton<Formax.Application.Services.Social.Discovery.ISocialProvider,
+            Formax.Infrastructure.Social.Providers.YouTubeRssSocialProvider>();
+        // Singleton + hosted → admin manuel tetik (AdminSocialController) için de çözülür.
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.SocialDiscoveryJob>();
+        builder.Services.AddHostedService(sp =>
+            sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.SocialDiscoveryJob>());
 
         // ---------------- LIVE DATA ENGINE — Global Live Discovery ----------------
         // News Discovery ile aynı desen: açık kaynaklardan (RSS + genişletilebilir
@@ -629,7 +736,9 @@ internal class Program
         // ---------------- PLAYER INTELLIGENCE ENGINE (oyuncu-düzeyi; Radar'dan bağımsız) ----
         // Mevcut api-football entegrasyonunu genişletir; graceful fallback + IMemoryCache.
         builder.Services.AddHttpClient<Formax.Application.Interfaces.IPlayerStatsProvider,
-            Formax.Infrastructure.Providers.ApiFootballPlayerStatsProvider>();
+            Formax.Infrastructure.Providers.ApiFootballPlayerStatsProvider>()
+            .ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballResilienceHandler>();
         builder.Services.AddScoped<Formax.Application.Interfaces.IPlayerIntelligenceEngine,
             Formax.Application.Services.Players.Intelligence.PlayerIntelligenceEngine>();
 
@@ -650,6 +759,11 @@ internal class Program
         // RADAR v2.2 — Dynamic Scenario Ranking (geniş market havuzu → en güçlü 3).
         builder.Services.AddScoped<Formax.Application.Services.Radar.Intelligence.Scenarios.MarketProbabilityEngine>();
         builder.Services.AddScoped<Formax.Application.Services.Radar.Intelligence.Scenarios.ScenarioRankingService>();
+        // FORMAX AI Evolution — GDP-türevli sinyalleri motora tek context olarak veren builder.
+        builder.Services.AddScoped<Formax.Application.AI.Context.IMatchAiContextBuilder, Formax.Application.AI.Context.MatchAiContextBuilder>();
+        // FAZ 1 — TeamComparison/H2H'ın TEK kaynağı (Detail use-case + AI context builder aynı sınıfı kullanır).
+        // Scoped: istek-içi memoizasyon (Discover tek istekte yüzlerce aday değerlendirir).
+        builder.Services.AddScoped<Formax.Application.Services.Matches.MatchComparisonFactory>();
 
         // ---------------- WORLD JOBS ----------------
 
@@ -663,30 +777,133 @@ internal class Program
         builder.Services.AddHostedService<SapmaSnapshotJob>();
 
         // ── Sprint 0: Fixture sync ─────────────────────────────────────────────
-        builder.Services.AddHostedService<FixtureSyncJob>();
+        // Singleton + hosted: admin geri-doldurma ucu (POST /admin/fixtures/backfill)
+        // AYNI örneği çözüp geçmiş pencere için sync tetikleyebilsin diye (Odds/Lineup deseni).
+        builder.Services.AddSingleton<FixtureSyncJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<FixtureSyncJob>());
 
         // Historical backfill (Sprint 19B) — singleton + hosted so an admin
         // endpoint can trigger RunCycleAsync manually for testing.
         builder.Services.AddSingleton<HistoricalSyncJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<HistoricalSyncJob>());
 
+        // Football Intelligence v1.0 — player/squad ingestion (12h; coverage varsa doldurur).
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.PlayerIntelligenceSyncJob>();
+
+        // ── Prediction Contract V1 — SHADOW MODE ──────────────────────────────────
+        // Kilitli motor (INDEPENDENT_POISSON_V2 / TEAM_STRENGTH_V2 / GATE_V1 / CalibrationVersion=NONE)
+        // yaklaşan gerçek maçlar için tahmin üretir ve YALNIZ DB'ye yazar. Kullanıcıya hiçbir şey
+        // gösterilmez; hiçbir uç bu tabloları okumaz. İstek yolunda yeri yoktur.
+        // Varsayılan KAPALI — Predictions:ShadowMode:Enabled=true ile açılır.
+        // EngineRoot BOŞ ise (Production profili böyle verir) ContentRoot'un bir üstü kullanılır.
+        // Boş dizgiyi "verilmiş" saymak, sunucuda motor dosyalarını yanlış yerde aratıp job'ı
+        // sessizce devre dışı bırakırdı; bu yüzden boşluk da "verilmemiş" sayılır.
+        var configuredEngineRoot = builder.Configuration["Predictions:EngineRoot"];
+        builder.Services.AddSingleton(new Formax.Infrastructure.Predictions.PredictionEngineOptions
+        {
+            EngineRoot = string.IsNullOrWhiteSpace(configuredEngineRoot)
+                         ? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, ".."))
+                         : configuredEngineRoot,
+            StartupDelaySeconds = builder.Configuration.GetValue<int?>("Predictions:StartupDelaySeconds") ?? 120,
+            LoopHours = builder.Configuration.GetValue<double?>("Predictions:LoopHours") ?? 6,
+            HorizonDays = builder.Configuration.GetValue<int?>("Predictions:HorizonDays") ?? 8
+        });
+        builder.Services.AddScoped<Formax.Infrastructure.Predictions.ShadowPredictionService>();
+        builder.Services.AddScoped<Formax.Infrastructure.Predictions.PredictionSettlementService>();
+
+        // Sağlık durumu HER ZAMAN kayıtlıdır (gölge kapalıyken de): /admin/shadow/health o
+        // durumda "NOT_STARTED" der. Ölçüm yüzeyinin varlığı gölgenin açık olmasına bağlı olmamalı.
+        builder.Services.AddSingleton<Formax.Infrastructure.Predictions.ShadowHealthState>();
+
+        if (builder.Configuration.GetValue<bool>("Predictions:ShadowMode:Enabled"))
+        {
+            builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.ShadowPredictionJob>();
+            builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.PredictionSettlementJob>();
+        }
+
+        // ── SHADOW B — NEWS_ADJUSTED deney hattı ──────────────────────────────────
+        // Shadow A'nın YANINDA çalışır, yerine değil. A'nın yazdığı satırları yalnız OKUR;
+        // kendi tablolarına (ShadowBPredictions / …Evidence / …Settlements) yazar. Model,
+        // λ formülleri, TeamStrength, Poisson, Gate ve Prediction Contract V1 DEĞİŞMEZ.
+        // Yüzdeyi backend matematiği belirler — bu yolda LLM yoktur.
+        // Varsayılan KAPALI — Predictions:ShadowB:Enabled=true ile açılır.
+        builder.Services.AddSingleton(new Formax.Infrastructure.Predictions.NewsAdjustOptions
+        {
+            K = builder.Configuration.GetValue<double?>("Predictions:ShadowB:K") ?? 0.35,
+            MaxTilt = builder.Configuration.GetValue<double?>("Predictions:ShadowB:MaxTilt") ?? 0.40,
+            MaxImpactPerSide = builder.Configuration.GetValue<double?>("Predictions:ShadowB:MaxImpactPerSide") ?? 1.0,
+            MinSourceQuality = builder.Configuration.GetValue<int?>("Predictions:ShadowB:MinSourceQuality") ?? 85,
+            MinConfidence = builder.Configuration.GetValue<int?>("Predictions:ShadowB:MinConfidence") ?? 60
+        });
+        builder.Services.AddSingleton(new Formax.Infrastructure.BackgroundJobs.ShadowBOptions
+        {
+            StartupDelaySeconds = builder.Configuration.GetValue<int?>("Predictions:ShadowB:StartupDelaySeconds") ?? 180,
+            LoopHours = builder.Configuration.GetValue<double?>("Predictions:ShadowB:LoopHours") ?? 3,
+            HorizonDays = builder.Configuration.GetValue<int?>("Predictions:ShadowB:HorizonDays") ?? 8
+        });
+        builder.Services.AddScoped<Formax.Infrastructure.Predictions.ShadowBPredictionService>();
+
+        if (builder.Configuration.GetValue<bool>("Predictions:ShadowB:Enabled"))
+        {
+            builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.ShadowBPredictionJob>();
+        }
+
+        // GDP scheduler — mevcut IGlobalDataPipeline'ı maç başına çağırır (yeni pipeline YOK).
+        // Singleton + hosted: HistoricalSyncJob/OddsIngestionJob ile aynı desen, böylece bir admin
+        // ucu aynı örneği enjekte edip RunOnceAsync tetikleyebilir. Varsayılan KAPALI (Gdp:Enabled=false).
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.GdpSyncJob>();
+        builder.Services.AddHostedService(sp =>
+            sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.GdpSyncJob>());
+
         // ── Memory Cache (IMemoryCache — used by ApiFootballSportsDataProvider) ──
         builder.Services.AddMemoryCache();
 
+        // ── MVP Release Hardening: api-football HTTP dayanıklılık handler'ı ──────
+        // Retry + exponential backoff + 429/5xx + per-attempt timeout + errors[]/boş
+        // response introspection. Yeni paket YOK (DelegatingHandler). Aşağıdaki 3
+        // ApiFootball HttpClient'ına eklenir; timeout Infinite → süreyi handler bounded tutar.
+        builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballResilienceHandler>();
+
+        // ── Timeline Operations — GERÇEK API istek ölçümü (metering) + senkron telemetrisi ──
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.ApiFootballMetrics>();
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.TimelineSyncTelemetry>();
+        builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballMeteringHandler>();
+        // Job attribution — pipeline'ın EN İÇİNE eklenir (resilience'tan SONRA), böylece her
+        // gerçek HTTP denemesi (retry dahil) job × endpoint olarak sayılır. Metering EN DIŞTA
+        // kalır → mevcut RequestsByEndpoint sayacının anlamı DEĞİŞMEZ.
+        builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballJobAttributionHandler>();
+
         // ── Sprint 20A+20B: API-Football H2H enrichment ──────────────────────
-        builder.Services.AddHttpClient("ApiFootball");
+        builder.Services.AddHttpClient("ApiFootball")
+            .ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballMeteringHandler>()
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballResilienceHandler>();
         builder.Services.AddSingleton<Formax.Infrastructure.Cache.H2HCache>();
         builder.Services.AddScoped<Formax.Application.Interfaces.IH2HProvider,
             Formax.Infrastructure.Providers.ApiFootballH2HProvider>();
 
         // ── Sprint 1: Lineup engine ──────────────────────────────────────────
-        // Active sports data provider. TheSportsDB free tier covers Türkiye Süper Lig
-        // (fixtures, scores, standings) without an api-football key. To switch back to
-        // api-football, swap the implementation type below (DTOs/jobs are unchanged).
-        builder.Services.AddHttpClient<ISportsDataProvider, TheSportsDbProvider>();
+        // Active sports data provider — api-football (v3) is FORMAX'ın TEK futbol veri
+        // sağlayıcısı. Fixtures/lineup/live stats/live events/momentum/standings/competition
+        // context tümü buradan gelir; DTO'lar ve job'lar değişmedi. Cache-aside korunur.
+        builder.Services.AddHttpClient<ISportsDataProvider, ApiFootballSportsDataProvider>()
+            .ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballMeteringHandler>()
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballResilienceHandler>()
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballJobAttributionHandler>();
         builder.Services.AddScoped<IMatchLineupRepository, MatchLineupRepository>();
         builder.Services.AddScoped<IMatchPlayerStatusRepository, MatchPlayerStatusRepository>();
-        builder.Services.AddHostedService<LineupIngestionJob>();
+        // Singleton + hosted: admin teşhis ucu (POST /admin/lineup/sync) AYNI örneği
+        // çözüp tek maç için ingestion tetikleyebilsin diye (Odds ile aynı desen).
+        builder.Services.AddSingleton<LineupIngestionJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LineupIngestionJob>());
+
+        // ── Real Market Odds: sağlayıcı → MatchMarketOdds → Decision/Feed ─────
+        // Job hem hosted service hem admin tetiklemesi (POST /admin/odds/sync) için kayıtlı.
+        builder.Services.AddScoped<Formax.Application.Interfaces.IMatchOddsRepository,
+            Formax.Infrastructure.Repositories.MatchOddsRepository>();
+        builder.Services.AddSingleton<OddsIngestionJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<OddsIngestionJob>());
 
         // ── Sprint 3: Live match intelligence ────────────────────────────────
         builder.Services.AddHostedService<LiveMatchIngestionJob>();
@@ -764,6 +981,11 @@ internal class Program
             Formax.Application.Services.Radar.Sources.Monitor.SourceMonitorService>();
 
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.RadarSourceScheduler>();
+
+        // ── MVP Freeze / Cold Start: News+Match Intelligence ve Commentary build'leri ──
+        // Eskiden app.Run() ÖNCESİNDE senkron çalışıyorlardı (13.6k maç → 5 dk+ açılış).
+        // Aynı çağrılar aynı sırayla buraya taşındı; artık arka planda çalışırlar.
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.RadarIntelligenceBuildJob>();
 
         // ── R.9.1: Radar Match Intelligence Core (consumes match data; no feed/AI) ─
         builder.Services.AddScoped<Formax.Application.Interfaces.IMatchIntelligenceRepository,
@@ -885,6 +1107,7 @@ internal class Program
 
 
         builder.Services.AddScoped<IUserTeamFollowRepository, UserTeamFollowRepository>();
+        builder.Services.AddScoped<IUserLeagueFollowRepository, UserLeagueFollowRepository>();
         builder.Services.AddScoped<ITeamRepository, TeamRepository>();
 
         builder.Services.AddScoped<IUserTasteProfileBuilder, UserTasteProfileBuilder>();
@@ -900,6 +1123,47 @@ internal class Program
 
 
 
+
+        // ── MVP FREEZE — EKSİK DI KAYITLARI (endpoint doğrulamasında 500 verenler) ────
+        // Aşağıdaki controller'lar çözülemeyen bağımlılık yüzünden 500 dönüyordu. YALNIZCA
+        // ZATEN VAR OLAN tipler kaydedilir — yeni servis/interface/implementasyon YOK.
+        //
+        //  /api/prediction-types              → PredictionTypeService kayıtsızdı
+        //  /api/admin/ai/metrics*             → controller SOMUT AiStateMetricsReadRepository
+        //                                        istiyor; yalnız interface kayıtlıydı
+        //  /api/admin/ai/state-transitions    → StateTransitionLogReadRepository kayıtsızdı
+        //  /api/admin/ai-metrics              → GetAiSpeakMetricsUseCase zinciri kayıtsızdı
+        //  /api/coupons/*                     → Coupons özelliğinin TAMAMI (repo+use case)
+        //                                        kayıtsızdı; controller hiç kurulamıyordu
+        builder.Services.AddScoped<PredictionTypeService>();
+
+        // /admin/users/{userId} + premium aç/kapa — kayıtsızdı (bağımlılıkları IUserRepository, kayıtlı).
+        builder.Services.AddScoped<GetAdminUserDetailUseCase>();
+        builder.Services.AddScoped<EnableUserPremiumUseCase>();
+        builder.Services.AddScoped<DisableUserPremiumUseCase>();
+
+        builder.Services.AddScoped<Formax.Infrastructure.Repositories.AiStateMetricsReadRepository>();
+        builder.Services.AddScoped<Formax.Infrastructure.Repositories.StateTransitionLogReadRepository>();
+
+        builder.Services.AddScoped<Formax.Application.Interfaces.IAiSpeakTelemetryReadRepository,
+            Formax.Infrastructure.Repositories.AiSpeakTelemetryReadRepository>();
+        builder.Services.AddScoped<Formax.Application.Services.AdminDashboard.AiSpeakMetricsCalculator>();
+        builder.Services.AddScoped<Formax.Application.UseCases.Admin.GetAiSpeakMetricsUseCase>();
+
+        builder.Services.AddScoped<Formax.Application.Interfaces.ICouponReadRepository,
+            Formax.Infrastructure.Repositories.CouponReadRepository>();
+        builder.Services.AddScoped<Formax.Application.Interfaces.ICouponWriteRepository,
+            Formax.Infrastructure.Repositories.CouponWriteRepository>();
+        builder.Services.AddScoped<Formax.Application.Interfaces.ICouponItemReadRepository,
+            Formax.Infrastructure.Repositories.CouponItemReadRepository>();
+        builder.Services.AddScoped<Formax.Application.Interfaces.ICouponItemWriteRepository,
+            Formax.Infrastructure.Repositories.CouponItemWriteRepository>();
+        builder.Services.AddScoped<AICouponCommentService>();
+        builder.Services.AddScoped<CreateCouponUseCase>();
+        builder.Services.AddScoped<AddCouponItemUseCase>();
+        builder.Services.AddScoped<EvaluateCouponUseCase>();
+        builder.Services.AddScoped<GetCouponsByResultUseCase>();
+        builder.Services.AddScoped<GetCouponDetailUseCase>();
 
         // ---------------- APP ----------------
 
@@ -931,274 +1195,35 @@ internal class Program
 
         // ---------------- DB MIGRATION ----------------
 
+        // ── MVP FREEZE — COLD START ──────────────────────────────────────────────
+        // app.Run() öncesinde YALNIZCA API'nin ayağa kalkması için zorunlu, sınırlı
+        // maliyetli işler kalır: migration, boş-DB tohumu ve kaynak kaydı senkronu.
+        //
+        // Buradan ÇIKARILANLAR:
+        //  • TestBehaviorSeed  → production'a test kullanıcısı/aksiyonu yazıyordu (test data).
+        //  • Odds test maçı 999001, learning test kullanıcıları 999001-999004 → test data.
+        //  • MatchContext / SyntheticOdds / FeedInsight / RadarFeedAdapt / RadarRanking
+        //    doğrulama probe'ları → yalnız log üretiyorlardı; RadarRanking probe'u ayrıca
+        //    her açılışta TAM öneri feed'ini kuruyordu.
+        //  • News + Match Intelligence + Commentary build'leri → gerçek veri üretirler,
+        //    bu yüzden SİLİNMEDİ; RadarIntelligenceBuildJob'a taşındılar (aynı sıra,
+        //    aynı 120 günlük pencere), artık app.Run() SONRASINDA arka planda çalışırlar.
+        //
+        // Sebep: bu blok 120 günlük pencerede ~13.6k maçı senkron işliyordu ve API
+        // 5 dakikadan uzun süre hiçbir isteği kabul etmiyordu.
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FormaxDbContext>();
 
             db.Database.Migrate();
 
+            // Boş veritabanı bootstrap'ı — dolu DB'de guard'lar sayesinde no-op.
             FormaxSeed.Seed(db);
 
-            // Phase 7 validation — multi-user behaviour simulation.
-            // Separate + idempotent; depends on FormaxSeed teams/matches.
-            TestBehaviorSeed.Seed(db);
-
-            // R.8.1 — sync Radar source registry from appsettings (idempotent).
+            // R.8.1 — sync Radar source registry from appsettings (idempotent, hafif).
             var radarRegistryBootstrapper = scope.ServiceProvider
                 .GetRequiredService<Formax.Infrastructure.Radar.Sources.RadarSourceRegistryBootstrapper>();
             radarRegistryBootstrapper.SyncAsync().GetAwaiter().GetResult();
-
-            // R.10.1/10.4 — build news intelligence FIRST so match enrichment can read it.
-            var newsIntelEarly = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Intelligence.News.INewsIntelligenceService>();
-            var newsMatchesEarly = newsIntelEarly.BuildAsync(DateTime.UtcNow.AddDays(-120)).GetAwaiter().GetResult();
-            app.Logger.LogInformation("[NEWS INTEL] built {Count} news match snapshot(s).", newsMatchesEarly);
-
-            // R.9.1 — build match intelligence snapshots (idempotent upsert).
-            // R.10.4 — now reads News Intelligence via the enricher.
-            var matchIntel = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Intelligence.Match.IMatchIntelligenceService>();
-            var intelCount = matchIntel
-                .BuildUpcomingAsync(DateTime.UtcNow.AddDays(-120))
-                .GetAwaiter().GetResult();
-            app.Logger.LogInformation("[MATCH INTEL] built {Count} match intelligence snapshot(s).", intelCount);
-
-            // R.9.2 — verification probe: build enriched context for match id 1.
-            var ctxBuilder = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Intelligence.Match.IMatchContextBuilder>();
-            var sampleCtx = ctxBuilder.BuildAsync(1).GetAwaiter().GetResult();
-            if (sampleCtx is not null)
-            {
-                // R.9.4 — exercise the staging bridge on the sample context.
-                var enricher = scope.ServiceProvider
-                    .GetRequiredService<Formax.Application.Services.Radar.Intelligence.Match.IMatchContextEnricher>();
-                var enrich = enricher.EnrichAsync(sampleCtx).GetAwaiter().GetResult();
-
-                app.Logger.LogInformation(
-                    "[MATCH CONTEXT] match 1: {Home} vs {Away} | homeForm={HForm}({HScore}) awayForm={AForm}({AScore}) | h2h={Meet} meetings avg={Avg} last='{Last}' | importance={Imp} | enrichment(total={Total} news={News} internal={Internal} meta={Meta})",
-                    sampleCtx.HomeTeamName, sampleCtx.AwayTeamName,
-                    sampleCtx.HomeForm.FormString, sampleCtx.HomeForm.FormScore,
-                    sampleCtx.AwayForm.FormString, sampleCtx.AwayForm.FormScore,
-                    sampleCtx.H2H.Meetings, sampleCtx.H2H.AvgGoals, sampleCtx.H2H.LastMeetingSummary,
-                    sampleCtx.Importance.ImportanceScore,
-                    enrich.TotalApplied, enrich.NewsCount, enrich.InternalSignalCount, enrich.MetadataCount);
-            }
-
-            // R.11.2 — verification probe: ingest 3 readings (08:00 2.10, 10:00 2.00,
-            // 12:00 1.90) for a synthetic test match → must produce 2 movements.
-            // Self-cleaning: removes its own test rows first so restarts stay idempotent.
-            const int oddsTestMatchId = 999001;
-            db.OddsMovementSnapshots.RemoveRange(db.OddsMovementSnapshots.Where(x => x.MatchId == oddsTestMatchId));
-            db.OddsSnapshots.RemoveRange(db.OddsSnapshots.Where(x => x.MatchId == oddsTestMatchId));
-            db.SaveChanges();
-
-            var oddsOrch = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Intelligence.Odds.IOddsMovementOrchestrator>();
-            var baseTime = DateTime.UtcNow.Date.AddHours(8);
-            oddsOrch.IngestAsync(new Formax.Domain.Entities.OddsSnapshot { MatchId = oddsTestMatchId, HomeOdds = 2.10, CapturedAtUtc = baseTime }).GetAwaiter().GetResult();
-            oddsOrch.IngestAsync(new Formax.Domain.Entities.OddsSnapshot { MatchId = oddsTestMatchId, HomeOdds = 2.00, CapturedAtUtc = baseTime.AddHours(2) }).GetAwaiter().GetResult();
-            oddsOrch.IngestAsync(new Formax.Domain.Entities.OddsSnapshot { MatchId = oddsTestMatchId, HomeOdds = 1.90, CapturedAtUtc = baseTime.AddHours(4) }).GetAwaiter().GetResult();
-
-            var oddsRepo = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Interfaces.IOddsSnapshotRepository>();
-            var movements = oddsRepo.GetMovementsByMatchAsync(oddsTestMatchId).GetAwaiter().GetResult();
-            app.Logger.LogInformation("[ODDS ORCH] test match {Id}: {Count} movement(s)", oddsTestMatchId, movements.Count);
-            foreach (var mv in movements)
-                app.Logger.LogInformation("[ODDS ORCH]   {Prev} → {Curr} = {Dir}/{Lvl}", mv.PreviousOdds, mv.CurrentOdds, mv.Direction, mv.Level);
-
-            // R.11.3 — synthetic odds signal from internal scores (no real odds).
-            var synthEngine = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Intelligence.Odds.ISyntheticOddsEngine>();
-            var synthHigh = synthEngine.Evaluate(1, interestScore: 80, newsImpactScore: 100, importanceScore: 100);
-            var synthLow = synthEngine.Evaluate(2, interestScore: 5, newsImpactScore: 0, importanceScore: 10);
-            app.Logger.LogInformation(
-                "[SYNTH ODDS] match {M1}: signal={S1} level={L1} dir={D1} | match {M2}: signal={S2} level={L2} dir={D2}",
-                synthHigh.MatchId, synthHigh.SignalScore, synthHigh.Level, synthHigh.Direction,
-                synthLow.MatchId, synthLow.SignalScore, synthLow.Level, synthLow.Direction);
-
-            // R.12.1 — build deterministic commentary from intelligence + news.
-            var commentary = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Intelligence.Commentary.ICommentaryService>();
-            var commentaryCount = commentary.BuildAsync(DateTime.UtcNow.AddDays(-120)).GetAwaiter().GetResult();
-            app.Logger.LogInformation("[COMMENTARY] built {Count} commentary snapshot(s).", commentaryCount);
-
-            // R.13.1 — assemble feed insights from Radar outputs (Hidden filtered out).
-            var feedBuilder = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Feed.IFeedInsightBuilder>();
-            var insights = feedBuilder.BuildAsync(DateTime.UtcNow.AddDays(-120)).GetAwaiter().GetResult();
-            var topInsight = insights.OrderByDescending(i => i.ImportanceScore).FirstOrDefault();
-            app.Logger.LogInformation(
-                "[FEED INSIGHT] {Count} insight(s); top: match={M} importance={Imp} signal={Sig} tone={Tone} vis={Vis} headline='{H}'",
-                insights.Count,
-                topInsight?.MatchId, topInsight?.ImportanceScore, topInsight?.PrimarySignal,
-                topInsight?.CommentaryTone, topInsight?.Visibility, topInsight?.Headline);
-
-            // R.13.3 — adapt the top Radar insight onto feed card shapes.
-            var feedQuery = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Feed.IFeedInsightQueryService>();
-            var adapter = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Feed.IRadarFeedAdapter>();
-            var feedDtos = feedQuery.GetFeedAsync(50).GetAwaiter().GetResult();
-            var topDto = feedDtos.FirstOrDefault();
-            if (topDto is not null)
-            {
-                var card = adapter.ToCard(topDto);
-                var rec = new Formax.Application.DTOs.Recommendations.RecommendationCardDto { MatchId = topDto.MatchId };
-                adapter.Apply(rec, topDto);
-                app.Logger.LogInformation(
-                    "[RADAR FEED ADAPT] FeedCardModel: match={M} importance={Imp} signal={Sig} headline='{H}' | RecommendationCard: storyHeadline='{SH}' insightLabel='{IL}' (Score unchanged={Sc})",
-                    card.MatchId, card.ImportanceScore, card.PrimarySignal, card.Headline,
-                    rec.StoryHeadline, rec.InsightLabel, rec.Score);
-            }
-
-            // R.13.4 — verify the real recommendation feed assembly overlays Radar content.
-            try
-            {
-                var recUseCase = scope.ServiceProvider.GetRequiredService<GetRecommendationFeedUseCase>();
-                // Blended order (what the feed returns).
-                var cards = recUseCase.Execute(1, 1, 100).GetAwaiter().GetResult();
-                // Pure-RecommendationScore order (what it would be WITHOUT Radar support).
-                var recOrder = cards
-                    .OrderByDescending(c => c.RecommendationScore).ThenBy(c => c.MatchId)
-                    .ToList();
-                var overlaid = cards.Where(c => !string.IsNullOrEmpty(c.InsightLabel)).ToList();
-
-                app.Logger.LogInformation(
-                    "[RADAR RANKING] {Count} card(s), {Overlaid} radar-overlaid. Position shift (radar cards):",
-                    cards.Count, overlaid.Count);
-
-                int moved = 0;
-                foreach (var c in overlaid)
-                {
-                    var blendedPos = cards.FindIndex(x => x.MatchId == c.MatchId) + 1;
-                    var recPos = recOrder.FindIndex(x => x.MatchId == c.MatchId) + 1;
-                    if (blendedPos < recPos) moved++;
-                    app.Logger.LogInformation(
-                        "[RADAR RANKING]   match={M} label='{IL}' recScore={RS:F4} | pure-rec pos=#{RP} → radar-blended pos=#{BP} ({Delta})",
-                        c.MatchId, c.InsightLabel, c.RecommendationScore, recPos, blendedPos,
-                        blendedPos < recPos ? $"+{recPos - blendedPos} up" : blendedPos > recPos ? $"-{blendedPos - recPos} down" : "same");
-                }
-                app.Logger.LogInformation(
-                    "[RADAR RANKING] {Moved}/{Total} radar cards moved UP; rest of feed order preserved.",
-                    moved, overlaid.Count);
-            }
-            catch (Exception ex)
-            {
-                app.Logger.LogWarning(ex, "[RADAR FEED ASSEMBLY] probe failed (non-fatal).");
-            }
-
-            // R.14.1 — verification probe: a user's Swipe → Detail → Follow journey.
-            // Self-cleaning test user so restarts stay idempotent.
-            const int learnTestUser = 999001;
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == learnTestUser));
-            db.SaveChanges();
-
-            var learning = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Learning.ILearningEventService>();
-            learning.RecordSwipeAsync(learnTestUser, 1).GetAwaiter().GetResult();
-            learning.RecordDetailOpenAsync(learnTestUser, 1).GetAwaiter().GetResult();
-            learning.RecordDetailReturnAsync(learnTestUser, 1, 8200).GetAwaiter().GetResult();
-            learning.RecordFollowAsync(learnTestUser, 1).GetAwaiter().GetResult();
-
-            var learnRepo = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Interfaces.ILearningEventRepository>();
-            var events = learnRepo.GetByUserAsync(learnTestUser).GetAwaiter().GetResult();
-            app.Logger.LogInformation("[LEARNING EVENT] test user {U}: {Count} event(s) recorded.", learnTestUser, events.Count);
-            foreach (var e in events.OrderBy(e => e.Id))
-                app.Logger.LogInformation("[LEARNING EVENT]   {T} match={M} value={V} source={S}", e.EventType, e.MatchId, e.Value, e.Source);
-
-            // R.14.2 — verification probe: seed a varied journey, compute interest profile.
-            const int interestTestUser = 999002;
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == interestTestUser));
-            db.SaveChanges();
-
-            // Strong engagement on match 1 (GS-FB, Derby+TitleRace), lighter on 5/7.
-            learning.RecordFollowAsync(interestTestUser, 1).GetAwaiter().GetResult();
-            learning.RecordDetailReturnAsync(interestTestUser, 1, 9000).GetAwaiter().GetResult();
-            learning.RecordDetailOpenAsync(interestTestUser, 5).GetAwaiter().GetResult();
-            learning.RecordViewAsync(interestTestUser, 7, 4000).GetAwaiter().GetResult();
-
-            var interestService = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Learning.IUserInterestProfileService>();
-            var profile = interestService.GetProfileAsync(interestTestUser).GetAwaiter().GetResult();
-            app.Logger.LogInformation(
-                "[USER INTEREST] user={U} teams={Teams} leagues={Leagues} signals={Signals}",
-                profile.UserId,
-                string.Join(", ", profile.Teams.Select(kv => $"{kv.Key}:{kv.Value}")),
-                string.Join(", ", profile.Leagues.Select(kv => $"{kv.Key}:{kv.Value}")),
-                string.Join(", ", profile.Signals.Select(kv => $"{kv.Key}:{kv.Value}")));
-
-            // R.14.3 — match affinity verification (reuses the seeded interest user).
-            // Re-seed (probe above cleaned), compute affinity for a high vs low match.
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == interestTestUser));
-            db.SaveChanges();
-            // Build a GS-FB / SuperLig / Derby interest from matches that have a populated league.
-            learning.RecordFollowAsync(interestTestUser, 6).GetAwaiter().GetResult();        // GS-FB SuperLig Derby
-            learning.RecordDetailReturnAsync(interestTestUser, 6, 9000).GetAwaiter().GetResult();
-            learning.RecordDetailOpenAsync(interestTestUser, 9).GetAwaiter().GetResult();    // FB-GS SuperLig
-            learning.RecordViewAsync(interestTestUser, 7, 4000).GetAwaiter().GetResult();    // GS-BJK SuperLig
-
-            var affinityService = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Learning.IMatchAffinityService>();
-
-            var aHigh = affinityService.GetAffinityAsync(interestTestUser, 6).GetAwaiter().GetResult();   // GS-FB derby (full league)
-            // Unrelated match: foreign league/teams the user's profile has no interest in.
-            var aLow = affinityService.GetAffinityAsync(interestTestUser, 75).GetAwaiter().GetResult();
-
-            app.Logger.LogInformation(
-                "[MATCH AFFINITY] HIGH match={M1} score={S1} level={L1} (team={T1} league={LG1} signal={SG1} imp={I1})",
-                aHigh.MatchId, aHigh.AffinityScore, aHigh.AffinityLevel,
-                aHigh.TeamComponent, aHigh.LeagueComponent, aHigh.SignalComponent, aHigh.ImportanceComponent);
-            app.Logger.LogInformation(
-                "[MATCH AFFINITY] LOW  match={M2} score={S2} level={L2} (team={T2} league={LG2} signal={SG2} imp={I2})",
-                aLow.MatchId, aLow.AffinityScore, aLow.AffinityLevel,
-                aLow.TeamComponent, aLow.LeagueComponent, aLow.SignalComponent, aLow.ImportanceComponent);
-
-            // Self-cleaning.
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == interestTestUser));
-            db.SaveChanges();
-
-            // R.14.4 — league affinity verification: multi-league journey.
-            const int leagueTestUser = 999003;
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == leagueTestUser));
-            db.SaveChanges();
-            learning.RecordFollowAsync(leagueTestUser, 6).GetAwaiter().GetResult();        // Süper Lig (heavy)
-            learning.RecordDetailReturnAsync(leagueTestUser, 6, 9000).GetAwaiter().GetResult();
-            learning.RecordDetailOpenAsync(leagueTestUser, 18).GetAwaiter().GetResult();   // Spanish La Liga 2 (medium)
-            learning.RecordViewAsync(leagueTestUser, 21, 3000).GetAwaiter().GetResult();   // Ukrainian First League (light)
-
-            var leagueAffinity = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Learning.ILeagueAffinityService>();
-            var leagues = leagueAffinity.GetAsync(leagueTestUser).GetAwaiter().GetResult();
-            app.Logger.LogInformation(
-                "[LEAGUE AFFINITY] user={U} → {Leagues}",
-                leagues.UserId,
-                string.Join(", ", leagues.Leagues.Select(l => $"{l.League}:{l.Score}")));
-
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == leagueTestUser));
-            db.SaveChanges();
-
-            // R.14.5 — radar (signal) affinity verification.
-            const int signalTestUser = 999004;
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == signalTestUser));
-            db.SaveChanges();
-            learning.RecordFollowAsync(signalTestUser, 6).GetAwaiter().GetResult();        // GS-FB Derby+TitleRace etc.
-            learning.RecordDetailReturnAsync(signalTestUser, 6, 9000).GetAwaiter().GetResult();
-            learning.RecordDetailOpenAsync(signalTestUser, 9).GetAwaiter().GetResult();
-            learning.RecordViewAsync(signalTestUser, 7, 4000).GetAwaiter().GetResult();
-
-            var radarAffinity = scope.ServiceProvider
-                .GetRequiredService<Formax.Application.Services.Radar.Learning.IRadarAffinityService>();
-            var ra = radarAffinity.GetAsync(signalTestUser).GetAwaiter().GetResult();
-            app.Logger.LogInformation(
-                "[RADAR AFFINITY] user={U} signals={Signals}",
-                ra.UserId, string.Join(", ", ra.Signals.Select(s => $"{s.Signal}:{s.Score}")));
-            app.Logger.LogInformation(
-                "[RADAR AFFINITY] user={U} groups={Groups}",
-                ra.UserId, string.Join(", ", ra.Groups.Select(g => $"{g.Key}:{g.Value}")));
-
-            db.LearningEvents.RemoveRange(db.LearningEvents.Where(x => x.UserId == signalTestUser));
-            db.SaveChanges();
         }
 
         app.Run();

@@ -38,6 +38,12 @@ public class RecommendationEngine : IRecommendationEngine
 
         var profile = await _userProfileEngine.Build(userId);
 
+        // PERF (MVP freeze): aşağıdaki döngü maç-başına GlobalTrendService'e gidiyordu →
+        // 100 aday için 100 ayrı UserActions sorgusu. Aynı satırlar tek sorguda önden
+        // yüklenir. SKORLAMA/AĞIRLIK/SIRALAMA MATEMATİĞİ DEĞİŞMEDİ — yalnız veri erişimi.
+        await _globalTrendService.PreloadForMatchesAsync(
+            radarMatches.Select(m => m.MatchId).Distinct().ToList());
+
         foreach (var match in radarMatches)
         {
             var teamA = match.Teams?.Home ?? "HOME";
@@ -57,16 +63,23 @@ public class RecommendationEngine : IRecommendationEngine
             var isHot = ext.IsHot;
 
             // 🔥 USER
-            var behavior = await _userTrendService.Calculate(
+            // League, UserTrendService'in ikincil davranışsal sinyali (lig ilgisi) için forward
+            // edilir. RecommendationEngine kendi matematiğini DEĞİŞTİRMEZ; yalnız mevcut çağrıya
+            // eldeki lig bilgisini iletir.
+            var rawBehavior = await _userTrendService.Calculate(
                 userId,
                 match.MatchId,
                 teamA,
                 teamB,
-                odds
+                odds,
+                match.LeagueName
             );
 
-            if (behavior <= 0.21)
-                behavior = 0.25;
+            // RANKING (finalScore) YALNIZ rawBehavior kullanır — floor/clamp YOK; böylece
+            // UserInterestScores etkisi ranking'de gerçek haliyle görünür. Eski floor
+            // (behavior<=0.21→0.25) yalnız GÖSTERİM için displayBehavior'a taşındı;
+            // cold-start UI davranışı korunur (DTO alanında).
+            var displayBehavior = rawBehavior <= 0.21 ? 0.25 : rawBehavior;
 
             var freshness = match.TimeProximityScore / 100.0;
 
@@ -82,7 +95,7 @@ public class RecommendationEngine : IRecommendationEngine
 
             // 🔥 FINAL SCORE
             var finalScore =
-                (behavior * 0.25) +
+                (rawBehavior * 0.25) +
                 (odds * 0.15) +
                 (globalScore * 0.30) +
                 (marketConfidence * 0.15) +
@@ -132,7 +145,8 @@ public class RecommendationEngine : IRecommendationEngine
                 Score = finalScore * 100,
 
                 MarketTrendScore = odds,
-                UserTrendScore = behavior,
+                UserTrendScore = displayBehavior,   // DISPLAY (floor'lu) — UI gösterimi
+                RawUserTrendScore = rawBehavior,     // RANKING (floor'suz) — Home Feed sıralaması okur
                 GlobalTrendScore = globalScore,
                 ExternalMomentum = odds,
 
@@ -148,13 +162,5 @@ public class RecommendationEngine : IRecommendationEngine
 
         var pipeline = new FeedRankingPipeline();
         return await pipeline.Rank(userId, list);
-    }
-
-    private string GetLabel(double score)
-    {
-        if (score > 0.8) return "HOT";
-        if (score > 0.6) return "GOOD";
-        if (score > 0.4) return "RISKY";
-        return "LOW";
     }
 }

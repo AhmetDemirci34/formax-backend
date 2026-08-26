@@ -50,10 +50,31 @@ namespace Formax.Application.DTOs.Standings
         public bool IsHighlighted { get; set; }   // true for home/away team rows
     }
 
+    /// <summary>
+    /// Tek bir ligin TAM puan durumu tablosu (sıralama backend'den gelir; tüketici yeniden
+    /// sıralamaz). Avrupa kupası / kupa maçlarında iki takım farklı liglerde olabildiği için
+    /// bir maça birden fazla tablo bağlanabilir — bkz. <see cref="StandingSectionDto.Tables"/>.
+    /// </summary>
+    public class StandingTableDto
+    {
+        public int LeagueId { get; set; }
+
+        /// <summary>Ligin gerçek adı (Matches.League) — üretilmez, depodan okunur. Yoksa boş.</summary>
+        public string LeagueName { get; set; } = string.Empty;
+
+        public int SeasonYear { get; set; }
+
+        /// <summary>Ligdeki TÜM takımlar, Position ARTAN. Kırpılmaz.</summary>
+        public List<TeamStandingDto> Rows { get; set; } = new();
+    }
+
     public class StandingSectionDto
     {
         public int LeagueId { get; set; }
         public int SeasonYear { get; set; }
+
+        /// <summary>Ligin gerçek adı (Matches.League). Yoksa boş.</summary>
+        public string LeagueName { get; set; } = string.Empty;
 
         /// <summary>Full standing entry for the home team — null if not found.</summary>
         public TeamStandingDto? HomeTeamPeek { get; set; }
@@ -62,10 +83,20 @@ namespace Formax.Application.DTOs.Standings
         public TeamStandingDto? AwayTeamPeek { get; set; }
 
         /// <summary>
-        /// Narrow slice of the table — positions relevant to this fixture
-        /// (top 3 + home/away positions ± 2, de-duped, max 10 rows).
+        /// Maçın ilgili olduğu TAM lig tablosu (birincil tablo = <see cref="Tables"/>[0]).
+        /// ESKİDEN kırpılmış "slice" idi (ilk 3 + takımların ±2 komşusu, en fazla 10 satır);
+        /// kullanıcı ligin tamamını göremiyordu. Alan adı geri-uyum için korundu, içerik
+        /// artık TAM tablodur.
         /// </summary>
         public List<TeamStandingDto> TableSlice { get; set; } = new();
+
+        /// <summary>
+        /// Gösterilecek tablolar. Ulusal lig maçında TEK tablo (maçın ligi, iki takım da
+        /// vurgulu). Avrupa kupası/kupa maçında maçın kendi ligi için puan durumu YOKTUR;
+        /// bu durumda takımların KENDİ ulusal lig tabloları döner (ör. Fenerbahçe → Süper Lig,
+        /// Lyon → Ligue 1). Hiç veri yoksa liste boştur.
+        /// </summary>
+        public List<StandingTableDto> Tables { get; set; } = new();
     }
 
     public class CompetitionContextSectionDto

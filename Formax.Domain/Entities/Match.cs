@@ -9,6 +9,14 @@ namespace Formax.Domain.Entities
 
         public DateTime MatchDate { get; set; }
 
+        /// <summary>
+        /// İlk yarı skoru — sağlayıcının `score.halftime` değeri. Nullable ZORUNLU:
+        /// null = sağlayıcı vermedi (ör. henüz oynanmadı / eski kayıt), 0 = GERÇEK sıfır.
+        /// MS skorundan türetilmez, tahmin edilmez.
+        /// </summary>
+        public int? HalfTimeHomeScore { get; set; }
+        public int? HalfTimeAwayScore { get; set; }
+
         public int HomeScore { get; set; }
         public int AwayScore { get; set; }
 
@@ -39,6 +47,14 @@ namespace Formax.Domain.Entities
 
         /// <summary>Venue / stadium name as provided by the sports data provider. Null until synced.</summary>
         public string? Venue { get; set; }
+
+        /// <summary>
+        /// Sağlayıcının verdiği GERÇEK tur/aşama adı ("Regular Season - 1",
+        /// "3rd Qualifying Round", "Play-offs", "Round of 16", "Final" …).
+        /// Maçın TÜRÜNÜ (lig maçı / eleme / final) bu alan belirler; tahmin edilmez.
+        /// Sağlayıcı vermediyse null kalır ve UI tür satırını göstermez.
+        /// </summary>
+        public string? Round { get; set; }
 
         // 🔥 GERİ EKLENDİ
         public Match CloneForComparison()

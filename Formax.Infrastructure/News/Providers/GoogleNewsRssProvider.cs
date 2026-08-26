@@ -18,7 +18,8 @@ namespace Formax.Infrastructure.News.Providers
     /// </summary>
     public sealed class GoogleNewsRssProvider : INewsProvider
     {
-        private const int MaxQueries = 5;     // maç başına çalıştırılacak sorgu sayısı
+        private const int DefaultQueries = 5;   // maç başına çalıştırılacak sorgu sayısı
+        private const int MaxQueriesHardCap = 8;
         private const int MaxPerQuery = 15;
         private const int FreshnessDays = 14;
 
@@ -42,10 +43,20 @@ namespace Formax.Infrastructure.News.Providers
             var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var cutoff = DateTime.UtcNow.AddDays(-FreshnessDays);
 
-            foreach (var q in query.Queries.Take(MaxQueries))
+            var budget = query.QueryBudget > 0
+                ? Math.Min(query.QueryBudget, MaxQueriesHardCap)
+                : DefaultQueries;
+
+            // Dil/bölge: Türk takımlarının gerçek kadro/sakatlık haberi Türkçe yayıncılarda
+            // çıkar; en-US ile aranınca bu kaynaklar hiç görünmüyordu.
+            var (hl, gl, ceid) = query.Locale == "tr"
+                ? ("tr", "TR", "TR:tr")
+                : ("en-US", "US", "US:en");
+
+            foreach (var q in query.Queries.Take(budget))
             {
                 ct.ThrowIfCancellationRequested();
-                var url = $"https://news.google.com/rss/search?q={WebUtility.UrlEncode(q)}&hl=en-US&gl=US&ceid=US:en";
+                var url = $"https://news.google.com/rss/search?q={WebUtility.UrlEncode(q)}&hl={hl}&gl={gl}&ceid={ceid}";
                 try
                 {
                     var xml = await _http.GetStringAsync(url, ct);
@@ -85,15 +96,20 @@ namespace Formax.Infrastructure.News.Providers
                 var pub = DateTime.TryParse(pubRaw, out var p) ? p.ToUniversalTime() : DateTime.UtcNow;
                 if (pub < cutoff) continue;
 
+                // Yayıncı adı <source> elementinde de bulunur; başlık ayrıştırması
+                // başarısızsa (başlıkta " - " yoksa) gerçek yayıncı buradan alınır.
+                if (string.IsNullOrWhiteSpace(publisher))
+                    publisher = item.Element("source")?.Value?.Trim() ?? "";
+
                 sink.Add(new NewsCandidate
                 {
                     Headline = headline,
-                    Summary = StripTags(item.Element("description")?.Value ?? ""),
+                    Summary = RealSummary(item.Element("description")?.Value, headline, publisher),
                     Url = link,
                     PublishedUtc = pub,
                     Provider = Name,
                     Publisher = publisher,
-                    Language = "en",
+                    Language = query.Locale == "tr" ? "tr" : "en",
                     League = query.League,
                     Country = query.Country,
                     FormaxMatchId = query.FormaxMatchId
@@ -109,7 +125,34 @@ namespace Formax.Infrastructure.News.Providers
             return idx > 10 ? (title[..idx].Trim(), title[(idx + 3)..].Trim()) : (title, "");
         }
 
-        private static string StripTags(string html) =>
-            System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ").Trim();
+        /// <summary>
+        /// GERÇEK ÖZET Mİ, BAŞLIĞIN YANKISI MI? Google News RSS'in &lt;description&gt;'ı çoğu
+        /// zaman gerçek bir snippet DEĞİLDİR: linklenmiş başlık + yayıncı adıdır
+        /// ("&lt;a…&gt;Başlık&lt;/a&gt;&amp;nbsp;&amp;nbsp;ESPN"). Böyle bir metni "haber içeriği" diye
+        /// taşımak, başlığı özet gibi göstermek olur — YAPILMAZ. Sahte özet üretilmez;
+        /// gerçek içerik yoksa alan BOŞ kalır ve haber yalnız başlık olarak değerlendirilir.
+        /// </summary>
+        private static string RealSummary(string? description, string headline, string publisher)
+        {
+            if (string.IsNullOrWhiteSpace(description)) return "";
+
+            var s = WebUtility.HtmlDecode(description);
+            s = System.Text.RegularExpressions.Regex.Replace(s, "<[^>]+>", " ");
+            s = s.Replace(' ', ' ');
+            s = System.Text.RegularExpressions.Regex.Replace(s, @"\s{2,}", " ").Trim();
+            if (s.Length == 0) return "";
+
+            // Başlık yankısını at.
+            var h = headline.Trim();
+            if (h.Length > 0 && s.StartsWith(h, StringComparison.OrdinalIgnoreCase))
+                s = s[h.Length..].Trim(' ', '-', '–', '|', '·', ',');
+
+            // Yayıncı adı kuyruğunu at.
+            if (!string.IsNullOrWhiteSpace(publisher) && s.EndsWith(publisher, StringComparison.OrdinalIgnoreCase))
+                s = s[..^publisher.Length].Trim(' ', '-', '–', '|', '·', ',');
+
+            // Geriye anlamlı bir metin kalmadıysa gerçek içerik yoktur.
+            return s.Length < 80 ? "" : s;
+        }
     }
 }

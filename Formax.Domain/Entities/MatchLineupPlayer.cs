@@ -21,6 +21,12 @@ namespace Formax.Domain.Entities
         /// <summary>Position abbreviation: G, D, M, F</summary>
         public string Position { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Sağlayıcının açıkladığı saha koordinatı "hat:sıra" (ör. "1:1", "2:4").
+        /// Yedeklerde ve sağlayıcı vermediğinde null olur — üretilmez.
+        /// </summary>
+        public string? Grid { get; set; }
+
         public bool IsCaptain { get; set; }
     }
 }

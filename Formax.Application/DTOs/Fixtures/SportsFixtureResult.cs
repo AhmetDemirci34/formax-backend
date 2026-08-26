@@ -31,6 +31,13 @@ public class SportsFixtureResult
     public int? HomeScore { get; set; }
     public int? AwayScore { get; set; }
 
+    /// <summary>
+    /// İlk yarı skoru (sağlayıcı `score.halftime`). null = sağlayıcı vermedi,
+    /// 0 = gerçek sıfır. Türetilmez, MS'ten hesaplanmaz.
+    /// </summary>
+    public int? HalfTimeHomeScore { get; set; }
+    public int? HalfTimeAwayScore { get; set; }
+
     // ── Home team ──────────────────────────────────────────────────────────────
 
     /// <summary>External team id — dedup key for Team upsert.</summary>

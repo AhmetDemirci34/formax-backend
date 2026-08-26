@@ -71,10 +71,16 @@ namespace Formax.Infrastructure.AI.LLM
             var endpoint = (_config["Llm:Endpoint"] ?? "http://localhost:11434").TrimEnd('/');
             var model = _config["Llm:Model"] ?? "llama3.2:3b";
 
+            // format="json": Ollama'nın yapılandırılmış çıktı kipi. Çağıran katman (Radar
+            // pipeline) KATI JSON bekliyor; bu kip olmadan küçük modeller şemayı yok sayıp
+            // düz metin döndürüyor → ExtractJson başarısız → her istek fallback'e düşüyor.
+            // Ölçüldü (llama3.2:3b, gerçek RadarPromptComposer prompt'u): kipsiz düz metin,
+            // kiple geçerli JSON. Sağlayıcı bu alanı bilmiyorsa yok sayar (geri-uyumlu).
             var body = new
             {
                 model,
                 stream = false,
+                format = "json",
                 options = new { temperature = 0.4 },
                 messages = new[]
                 {
@@ -87,6 +93,15 @@ namespace Formax.Infrastructure.AI.LLM
             {
                 Content = JsonContent(body)
             };
+
+            // Ollama Cloud (https://ollama.com/api/chat) "Authorization: Bearer <key>" ister;
+            // yerel sunucu (localhost:11434) anahtar istemez ve fazladan header'ı yok sayar.
+            // Bu yüzden başlık YALNIZ yapılandırmada anahtar varsa eklenir → tek istemci hem
+            // yerel hem bulut Ollama'ya gider, yeni bir sağlayıcı/abstraction gerekmez.
+            // Anahtar koda yazılmaz; Llm:ApiKey (ör. Llm__ApiKey ortam değişkeni) üzerinden gelir.
+            var apiKey = _config["Llm:ApiKey"];
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
 
             using var resp = await _http.SendAsync(req, ct);
             var json = await resp.Content.ReadAsStringAsync(ct);

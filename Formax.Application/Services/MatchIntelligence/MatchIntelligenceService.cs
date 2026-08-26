@@ -106,10 +106,8 @@ public sealed class MatchIntelligenceService : IMatchIntelligenceService
     private async Task<List<NabizFeedItemDto>> ResolveNewsItemsAsync(
         MatchDetailDto detail, string homeName, string awayName, CancellationToken ct)
     {
-        // MatchDate DB'de UTC saklanır (Fixture.KickoffUtc ile aynı an); factory'nin
-        // ToUniversalTime()'ı günü kaydırmasın diye Kind'i Utc olarak sabitliyoruz.
-        var kickoffUtc = DateTime.SpecifyKind(detail.MatchDate, DateTimeKind.Utc);
-        var formaxMatchId = _formaxMatchIdFactory.Create(detail.League, kickoffUtc, homeName, awayName);
+        // Kimlik lig-bağımsız + Kind-güvenlidir (tek kimlik otoritesi); MatchDate zaten UTC.
+        var formaxMatchId = _formaxMatchIdFactory.Create(detail.MatchDate, homeName, awayName);
 
         var articles = await _matchNews.GetArticlesAsync(formaxMatchId, 20, ct);
         if (articles.Count > 0)

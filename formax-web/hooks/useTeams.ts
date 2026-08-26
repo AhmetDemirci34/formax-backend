@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAllTeams, getMyTeams, setMyTeams } from "@/lib/api/teams";
+import { useAuth } from "@/context/AuthContext";
 
 export function useAllTeams() {
   return useQuery({
@@ -10,9 +11,11 @@ export function useAllTeams() {
 }
 
 export function useMyTeams() {
+  const { isLoggedIn } = useAuth();
   return useQuery({
     queryKey: ["teams", "mine"],
     queryFn: getMyTeams,
+    enabled: isLoggedIn,
     staleTime: 5 * 60 * 1000,
   });
 }

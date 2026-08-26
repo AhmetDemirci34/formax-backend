@@ -18,8 +18,10 @@ namespace Formax.Application.Interfaces
         /// <summary>
         /// Inserts only events that do not already exist for this match.
         /// Deduplication key: (MatchId, Minute, EventType, Team).
+        /// Returns the events that were actually newly inserted (empty if all duplicates),
+        /// so callers can react to genuinely new events (e.g. notification fan-out) exactly once.
         /// </summary>
-        Task AddNewEventsAsync(
+        Task<List<MatchLiveEvent>> AddNewEventsAsync(
             int matchId,
             IEnumerable<MatchLiveEvent> events,
             CancellationToken ct = default);

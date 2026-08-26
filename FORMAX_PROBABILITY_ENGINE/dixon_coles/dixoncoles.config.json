@@ -1,0 +1,31 @@
+{
+  "_comment": "Dixon-Coles baseline configuration. EVERY value here is UNVALIDATED: nothing has been fitted, tuned or selected on held-out data. Choosing them is the next phase.",
+
+  "configVersion": "DC_CONFIG_V1_UNVALIDATED",
+  "modelVersion": "DIXON_COLES_BASELINE_V1",
+  "teamStrengthVersion": "TEAM_STRENGTH_V1",
+
+  "rho": -0.05,
+  "_rho": "Dixon-Coles low-score dependence. Taken as a CONSTANT, not estimated from data in this phase. UNVALIDATED.",
+
+  "maxGoals": 10,
+  "_maxGoals": "Score grid bound per side. The grid is renormalised so 1X2 probabilities sum to exactly 1.",
+
+  "minLambda": 0.05,
+  "maxLambda": 6.0,
+  "_lambdaClamp": "Guard rails so a broken strength value cannot produce an absurd expectation.",
+
+  "seedBaselineHomeGoals": 1.5,
+  "seedBaselineAwayGoals": 1.2,
+  "minBaselineSamples": 50,
+  "_baselines": "Goals per match are LEARNED per CompetitionType with an expanding window; the seeds only apply until minBaselineSamples matches of that type have been played. Home advantage lives in the gap between the two baselines - there is no separate hand-set home advantage term.",
+
+  "seedHomeRate": 0.44,
+  "seedDrawRate": 0.25,
+  "seedAwayRate": 0.31,
+  "minFrequencySamples": 50,
+  "_frequencies": "Seeds for the naive frequency baseline until enough matches of that competition type have been observed.",
+
+  "probabilityFloor": 1e-06,
+  "_probabilityFloor": "Applied before the final renormalisation so log loss can never see a zero."
+}

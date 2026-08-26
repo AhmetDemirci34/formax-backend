@@ -1,0 +1,20 @@
+{
+  "_comment": "Chronological TRAIN / VALIDATION / TEST split. Fixed BEFORE any candidate was evaluated and never moved afterwards. The boundaries fall in the two real gaps of the FORMAX calendar (2022-05-29 -> 2022-06-21 and 2024-06-02 -> 2024-07-09), so no season is cut in half and no match can sit on the wrong side of a boundary. Five seasons train, two validate, two test.",
+
+  "splitVersion": "SPLIT_V2_SEASONAL_5_2_2",
+
+  "validationStart": "2022-06-01",
+  "_validationStart": "First VALIDATION day. Last TRAIN match is 2022-05-29, first VALIDATION match is 2022-06-21 (season 2022/23).",
+
+  "testStart": "2024-06-15",
+  "_testStart": "First TEST day. Last VALIDATION match is 2024-06-02, first TEST match is 2024-07-09 (season 2024/25). Nothing at or after this date may be read while any parameter is being chosen.",
+
+  "trainSeasons": [ "2017/18", "2018/19", "2019/20", "2020/21", "2021/22" ],
+  "validationSeasons": [ "2022/23", "2023/24" ],
+  "testSeasons": [ "2024/25", "2025/26" ],
+  "_seasons": "Informative only - segment membership is decided by DATE, never by the season label, because the 2019/20 and 2020/21 season labels overlap in time (COVID). The two boundaries above are chosen where labels and dates agree.",
+
+  "selectionMetric": "LogLoss",
+  "selectionModel": "INDEPENDENT_POISSON",
+  "_selection": "Every parameter is chosen by minimising VALIDATION log loss of the independent Poisson model - the one model that consumes the team strength lambdas directly and adds no free parameter of its own. The same validated strength config is then handed unchanged to all four candidate models."
+}

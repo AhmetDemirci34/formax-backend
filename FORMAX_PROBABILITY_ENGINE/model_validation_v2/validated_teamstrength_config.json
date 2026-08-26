@@ -1,0 +1,54 @@
+{
+  "_searchConvergence": "The search converged: a full round changed nothing.",
+  "_gridEdges": "WARNING - selected at the edge of the candidate range: halfLifeDays=100000 (no time decay) - a limiting case, nothing to search beyond it; shrinkageK=0 (no partial pooling) - a limiting case, nothing to search beyond it; indexClamp=[0.02,50] (effectively unclamped) - a limiting case, nothing to search beyond it. The optimum may lie outside the search space.",
+  "_comment": "Team strength configuration selected by walk-forward validation. Every value below was chosen by minimising LogLoss of the INDEPENDENT_POISSON model on the VALIDATION segment (2022-06-01 .. 2024-06-15) after replaying TRAIN. No value was chosen on, or scored against, the TEST segment - see validation_parameters.csv and leakage_audit.csv.",
+  "configVersion": "TS_CONFIG_V2_VALIDATED",
+  "splitVersion": "SPLIT_V2_SEASONAL_5_2_2",
+  "selectedOn": "VALIDATION",
+  "selectionCriterion": "LogLoss of INDEPENDENT_POISSON",
+  "candidatesEvaluated": 6645,
+
+  "halfLifeDays": 100000,
+  "_halfLifeDays": "VALIDATED. Exponential time weight of the rating.",
+
+  "learningRate": 0.08,
+  "_learningRate": "VALIDATED. Step size of the multiplicative update after each match.",
+
+  "shrinkageK": 0,
+  "_shrinkageK": "VALIDATED. Partial pooling constant: own evidence weight = n_eff / (n_eff + k). This is the prior weight of the cold-start policy.",
+
+  "venueShrinkageK": 4,
+  "_venueShrinkageK": "NOT VALIDATED - NOT IDENTIFIABLE. The home-only and away-only indices are not read by any of the four 1X2 models, so validation log loss cannot distinguish between values: measured spread over k in 1/4/16 was 0.0e+0. Left at its V1 value. Validating it needs a model that consumes venue indices.",
+
+  "ratioSmoothing": 1.5,
+  "_ratioSmoothing": "VALIDATED. Additive smoothing in the surprise ratio.",
+
+  "minIndex": 0.02,
+  "maxIndex": 50,
+  "_indexClamp": "VALIDATED as a pair.",
+
+  "limitedThreshold": 1,
+  "developingThreshold": 3,
+  "establishedThreshold": 5,
+  "richThreshold": 10,
+  "_thresholds": "NOT VALIDATED - REPORTING LABELS ONLY. These decide the ColdStartClass and Confidence strings; they never enter a probability. Proven by test: changing them leaves every probability bit-identical.",
+
+  "seedBaselineHomeGoals": 1.5,
+  "seedBaselineAwayGoals": 1.2,
+  "minBaselineSamples": 50,
+  "_baselines": "minBaselineSamples is VALIDATED. The two seeds are only used before that many matches of a competition type exist and were left at their V1 values.",
+
+  "useCompetitionTypePool": false,
+  "_useCompetitionTypePool": "VALIDATED. Whether a team with little history is shrunk towards the pool of its competition type.",
+
+  "requiredIdentityConfidence": "CONFIRMED",
+  "_requiredIdentityConfidence": "FROZEN - data hygiene, not a model parameter.",
+
+  "acceptedMatchStatuses": [ "FT", "AET", "PEN" ],
+  "_acceptedMatchStatuses": "FROZEN - data hygiene, not a model parameter.",
+
+  "_dependenceParameters": "These belong to the probability models, not to the rating, and are listed here so one file carries the whole validated set.",
+  "dixonColesRho": 0.06,
+  "bivariateMode": "Proportional",
+  "bivariateC": 0
+}

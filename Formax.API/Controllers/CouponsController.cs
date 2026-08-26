@@ -60,6 +60,13 @@ namespace Formax.API.Controllers
             [FromQuery] int userId,
             [FromQuery] string result)
         {
+            // Eksik parametre 500 yerine 400 dönmeli (endpoint doğrulaması bulgusu).
+            if (userId <= 0)
+                return BadRequest(new { message = "userId gerekli (pozitif tam sayı)." });
+
+            if (string.IsNullOrWhiteSpace(result))
+                return BadRequest(new { message = "result gerekli (örn. Win / Lose / Pending)." });
+
             var coupons = await _getCouponsByResultUseCase.ExecuteAsync(userId, result);
             return Ok(coupons);
         }

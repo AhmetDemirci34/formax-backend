@@ -74,6 +74,50 @@ export interface KeySignal {
   tone?: "purple" | "orange" | "green" | "default" | string;
 }
 
+// ── AI Discovery Engine DTO'ları (backend = Single Source Of Truth) ───────────
+export type MatchStatus =
+  | "Upcoming"
+  | "Live"
+  | "Finished"
+  | "FullTime"
+  | "AfterExtraTime"
+  | "AfterPenalties"
+  | "Cancelled"
+  | "Postponed"
+  | "Suspended"
+  | "Abandoned"
+  | "Walkover"
+  | "Awarded"
+  | string;
+
+export type OddsMovement = "Up" | "Down" | "None" | string;
+
+/** Backend'in maç başına hesapladığı tek en güçlü sonuç (FAZ 2). */
+export interface TopPredictionDto {
+  market: string;
+  probability: number;
+  /** GERÇEK market oranı (backend MatchMarketOdds). Karşılığı yoksa null. */
+  odd?: number | null;
+}
+
+/** Backend'in maç başına hesapladığı ilk 3 AI tahmini (FAZ 3). Oran/hareket backend'den. */
+export interface AiPredictionDto {
+  market: string;
+  probability: number;
+  confidence: string;
+  /** GERÇEK market oranı. Sağlayıcıda karşılığı olmayan markette null → gösterilmez. */
+  currentOdd?: number | null;
+  previousOdd?: number | null;
+  movement: OddsMovement;
+  updatedAt?: string;
+}
+
+export interface StadiumDto {
+  name?: string;
+  city?: string;
+  imageUrl?: string | null;
+}
+
 export interface RecommendationCardDto {
   matchId: number;
   homeTeam: TeamDto;
@@ -108,6 +152,15 @@ export interface RecommendationCardDto {
   highlight: string;
   aiComment: string;
   aiSummary: string;
+
+  /**
+   * Keşfet anlatısı (Match Intelligence / Gemma) — feed yanıtıyla gelir.
+   * Backend'de daha önce üretilmiş snapshot varsa dolu, yoksa boştur; Keşfet
+   * bu alanlar için maç detayı ucunu ÇAĞIRMAZ ve metin ÜRETMEZ.
+   */
+  radarSummary?: string;
+  radarHighlights?: string[];
+
   tags: string[];
   storyHeadline: string;
   storyBody: string;
@@ -127,6 +180,18 @@ export interface RecommendationCardDto {
   matchImportance?: string;
   leagueName?: string;
   kickoffTime?: string;
+
+  // ── AI Discovery Engine (FAZ 1) — backend ekledikçe dolar; yoksa component gizler ──
+  status?: MatchStatus;
+  isLive?: boolean;
+  liveMinute?: number | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  aiTrustScore?: number;
+  userInterestScore?: number;
+  topPrediction?: TopPredictionDto | null;
+  predictions?: AiPredictionDto[];
+  stadium?: StadiumDto | null;
 }
 
 // ── Match Detail: MatchDetailDto ──────────────────────────────────────────────
@@ -149,6 +214,9 @@ export interface LastMatchDto {
   date: string;
   competition: string;
   isHome: boolean;
+  /** İlk yarı skoru — MAÇIN yönünde (ev - deplasman). Yoksa null → UI "—" gösterir. */
+  halfTimeHomeScore?: number | null;
+  halfTimeAwayScore?: number | null;
 }
 
 export interface TeamComparisonDto {
@@ -172,6 +240,9 @@ export interface H2HMatchDto {
   awayTeamName: string;
   homeScore: number;
   awayScore: number;
+  /** İlk yarı skoru (ev - deplasman). Sağlayıcı vermediyse null → UI "—" gösterir. */
+  halfTimeHomeScore?: number | null;
+  halfTimeAwayScore?: number | null;
   competition: string;
 }
 
@@ -254,11 +325,19 @@ export interface LineupPlayerDto {
   shirtNumber: number;
   playerName: string;
   position: string;
+  /**
+   * Sağlayıcının açıkladığı saha koordinatı "hat:sıra" (ör. "1:1", "2:4").
+   * Diziliş BUNDAN çizilir. Yoksa null — frontend konum ÜRETMEZ.
+   */
+  grid?: string | null;
   isCaptain: boolean;
 }
 
 export interface LineupSectionDto {
   lineupsAnnounced: boolean;
+  /** Açıklanan diziliş ("4-4-2"). Takım başına AYRI; yoksa null (tahmin edilmez). */
+  homeFormation?: string | null;
+  awayFormation?: string | null;
   homeStartingXI: LineupPlayerDto[];
   homeBench: LineupPlayerDto[];
   awayStartingXI: LineupPlayerDto[];
@@ -293,12 +372,27 @@ export interface TeamStandingDto {
   isHighlighted: boolean;
 }
 
+/** Tek bir ligin TAM puan durumu tablosu (sıralama backend'den gelir). */
+export interface StandingTableDto {
+  leagueId: number;
+  leagueName: string;
+  seasonYear: number;
+  rows: TeamStandingDto[];
+}
+
 export interface StandingSectionDto {
   leagueId: number;
+  leagueName?: string;
   seasonYear: number;
   homeTeamPeek?: TeamStandingDto;
   awayTeamPeek?: TeamStandingDto;
+  /** Birincil tablonun TAM satır listesi (eski ad korundu; artık kırpılmaz). */
   tableSlice: TeamStandingDto[];
+  /**
+   * Gösterilecek tablolar. Ulusal lig maçında tek tablo; Avrupa kupası maçında
+   * takımların kendi ulusal lig tabloları (ör. Süper Lig + Ligue 1).
+   */
+  tables?: StandingTableDto[];
 }
 
 export interface CompetitionContextSectionDto {
@@ -359,20 +453,167 @@ export interface LiveSectionDto {
   momentum: MomentumSnapshotDto[];
 }
 
+// ── CANLI TAKİP (GET /api/matches/{id}/livefeed) ──────────────────────────────
+// Global kaynaklı canlı akış. AI Maç Analizi'nden BAĞIMSIZ ayrı uçtur.
+
+/** "Unknown" = maç saati geçti ama canlı olduğu global kaynaklardan doğrulanamadı. */
+export type MatchLiveState = "NotStarted" | "Live" | "Finished" | "Unknown";
+
+export interface MatchLiveScoreDto {
+  homeScore: number;
+  awayScore: number;
+  phase: string | null;
+  /** "record" = kayıtlı kesin sonuç, "global" = global kaynağın yazdığı canlı skor. */
+  origin: string;
+  updatedAt: string;
+}
+
+/** Kanonik canlı maç olayı. Canlı Takip VİDEO İÇERMEZ (o ayrı özellik). */
+export interface MatchLiveEventItemDto {
+  id: string;
+  /** GOAL, RED_CARD, HALF_TIME … */
+  eventType: string;
+  /** Türkçe ekran etiketi ("GOL", "KIRMIZI KART"). */
+  label: string;
+  /** YALNIZ kaynak metninde açıkça yazıyorsa dolu; hesaplanmaz. */
+  minute: number | null;
+  minuteLabel: string | null;
+  team: string | null;
+  player: string | null;
+  /** Kaynağın kendi metni — FORMAX cümle üretmez. */
+  description: string;
+  source: string;
+  sourceUrl: string;
+  publishedAt: string;
+  /** "news" | "social" */
+  origin: string;
+}
+
+export interface MatchLiveFeedDto {
+  matchId: number;
+  state: MatchLiveState;
+  stateMessage: string | null;
+  /** "CANLI" etiketi YALNIZ bu true iken gösterilir. */
+  liveConfirmed: boolean;
+  kickoffUtc: string;
+  homeTeam: string;
+  awayTeam: string;
+  score: MatchLiveScoreDto | null;
+  scoreIsFinal: boolean;
+  scoreUnavailableReason: string | null;
+  /** Kayıtlı skor maçın tamamını kapsamıyorsa (uzatma/penaltı) dürüst açıklama. */
+  scoreNote: string | null;
+  /** Penaltı seri sonucu — yalnız seri oynandıysa dolu. */
+  shootoutHome: number | null;
+  shootoutAway: number | null;
+  /** Ters kronolojik: en yeni en üstte. */
+  events: MatchLiveEventItemDto[];
+}
+
+// ── ÖNEMLİ ANLAR (GET /api/matches/{id}/highlights) ───────────────────────────
+
+export type MatchHighlightsStatus = "NotStartedYet" | "Ready" | "NoContent";
+
+export interface MatchHighlightMomentDto {
+  minute: number;
+  /** Gösterim etiketi; penaltı atışları için "PEN". */
+  minuteLabel: string;
+  type: string;
+  label: string;
+  /** Sağlayıcı alanlarından kurulu kısa açıklama; çıkarım içermez. */
+  description: string | null;
+  team: string | null;
+  player: string | null;
+  /** Bu ana bağlanmış doğrulanmış videonun id'si; yoksa null. */
+  videoId: string | null;
+}
+
+export interface MatchHighlightVideoDto {
+  id: string;
+  title: string;
+  minute: number | null;
+  platform: string;
+  source: string;
+  url: string;
+  /** Platformun izin verdiği embed adresi; embed edilemiyorsa null. */
+  embedUrl: string | null;
+  thumbnailUrl: string | null;
+  embeddable: boolean;
+  publishedUtc: string;
+}
+
+export interface MatchHighlightsDto {
+  matchId: number;
+  state: MatchLiveState;
+  status: MatchHighlightsStatus;
+  homeTeam: string;
+  awayTeam: string;
+  moments: MatchHighlightMomentDto[];
+  videos: MatchHighlightVideoDto[];
+}
+
 export interface NabizFeedItemDto {
+  /** Haberin kimliği (backend ContentHash). Detay seçimi bunu kullanır. */
+  id?: string;
   type: string;
   source: string;
   author: string;
   authorVerified: boolean;
+  /** Dil seçiliyse çevrilmiş başlık, değilse sağlayıcının orijinal başlığı. */
   headline: string;
   summary?: string;
   imageUrl?: string;
   sourceUrl?: string;
   publishedAt: string;
+  /** Haberin kendi dili (ISO-639-1). */
+  language?: string;
+  /** true ise headline/summary çevrilmiştir ve original* alanları doludur. */
+  isTranslated?: boolean;
+  originalHeadline?: string;
+  originalSummary?: string;
 }
 
 export interface NabizSectionDto {
   items: NabizFeedItemDto[];
+}
+
+// ── Match Intelligence anlatısı (Gemma) ───────────────────────────────────────
+// Mirrors Formax.Application.DTOs.Matches.RadarNarrativeDto
+//
+// TEK KAYNAK: GET /api/matches/{id}/detail → aiNarrative.
+// Backend'in Match Intelligence + IntelligencePack + Gemma zinciri bu metinleri
+// ÜRETİR; frontend yalnız gösterir. Burada hiçbir alan türetilmez, birleştirilmez,
+// yeniden yazılmaz. Boş alan = o blok hiç render edilmez.
+
+/** Senaryo gerekçesi — market adı backend'in canonical değeridir, DEĞİŞTİRİLMEZ. */
+export interface RadarScenarioReasonDto {
+  market: string;
+  reason: string;
+}
+
+export interface RadarNarrativeDto {
+  // Keşfet yüzeyi
+  radarSummary: string;
+  highlights: string[];
+
+  // Maç Detayı yüzeyi
+  matchReport: string;
+  whyThisMatch: string;
+  reasoningSummary: string;
+  newsSummary: string;
+  socialSummary: string;
+  statisticalSummary: string;
+  keyInsights: string[];
+  scenarios: RadarScenarioReasonDto[];
+  evidenceSummary: string;
+
+  // AI İncele yüzeyi
+  aiIncele: string;
+
+  /** Reasoning Layer'ın güven skoru (0–100) — backend üretir. */
+  reasoningConfidence: number;
+  /** true = Gemma üretti · false = deterministik fallback. */
+  isAiGenerated: boolean;
 }
 
 export interface MatchDetailDto {
@@ -382,13 +623,26 @@ export interface MatchDetailDto {
   matchDate: string;
   status: string;
   league: string;
+  /** Sağlayıcının HAM tur adı ("3rd Qualifying Round", "Regular Season - 1"). */
   round?: string;
+  /**
+   * MAÇ TÜRÜ — backend'in ham tur adından türettiği Türkçe etiket ("Eleme Turu",
+   * "Son 16 Turu", "Lig Maçı · 1. Hafta", "Final"). Backend üretemediyse null gelir ve
+   * UI tür satırını HİÇ göstermez — frontend maç türü TAHMİN ETMEZ.
+   */
+  matchTypeLabel?: string | null;
   referee?: string;
   venue?: string;
   weather?: string;
   watchersCount: number;
   homeTeamLastMatches: LastMatchDto[];
   awayTeamLastMatches: LastMatchDto[];
+  /**
+   * Form listesinin süzüldüğü ligin gerçek adı. null = takımın ligi çözülemedi →
+   * liste süzülmedi, başlıkta "ligde" DENMEZ.
+   */
+  homeTeamFormLeague?: string | null;
+  awayTeamFormLeague?: string | null;
   comparison: ComparisonDto;
   h2h: H2HDto;
   insight: InsightDto;
@@ -405,7 +659,15 @@ export interface MatchDetailDto {
   standing?: StandingSectionDto;
   competitionContext?: CompetitionContextSectionDto;
   live: LiveSectionDto;
-  nabizFeed: NabizSectionDto;
+  /** Backend her zaman gönderir; alan hiç gelmezse UI bunu "haber yok" diye MASKELEMEZ. */
+  nabizFeed?: NabizSectionDto;
+
+  /**
+   * Match Intelligence anlatısı — Keşfet, Maç Detayı ve AI İncele yüzeylerinin
+   * ORTAK kaynağı. Backend üretmediyse null gelir; UI o zaman anlatı bölümünü
+   * hiç göstermez (uydurma metin yok).
+   */
+  aiNarrative?: RadarNarrativeDto | null;
 }
 
 // ── Follow: MatchListItemDto ──────────────────────────────────────────────────

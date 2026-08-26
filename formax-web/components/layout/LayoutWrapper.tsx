@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { BottomNav } from "@/components/ui/BottomNav";
+import { AppChrome } from "@/components/layout/AppChrome";
 
 interface LayoutWrapperProps {
   children: React.ReactNode;
@@ -9,7 +9,7 @@ interface LayoutWrapperProps {
 
 export function LayoutWrapper({ children }: LayoutWrapperProps) {
   const pathname = usePathname();
-  
+
   // Routes that should be rendered in full screen without the mobile frame and bottom navigation
   const isWidePage = pathname === "/promo" || pathname === "/demo";
 
@@ -22,9 +22,9 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
       <div
         className="
           relative
+          h-[100dvh]
           w-full
           max-w-[430px]
-          min-h-screen
           overflow-hidden
           bg-[#070911]
           border-x
@@ -32,8 +32,8 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
           shadow-[0_0_80px_rgba(0,0,0,.45)]
         "
       >
-        {children}
-        <BottomNav />
+        {/* AppChrome: kaydırılabilir ekran + push efekti + Side Drawer + Language Sheet */}
+        <AppChrome>{children}</AppChrome>
       </div>
     </div>
   );

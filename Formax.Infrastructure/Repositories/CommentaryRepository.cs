@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Formax.Application.Interfaces;
@@ -22,6 +24,22 @@ namespace Formax.Infrastructure.Repositories
         public async Task<MatchCommentarySnapshot?> GetByMatchIdAsync(int matchId, CancellationToken ct = default)
             => await _context.MatchCommentarySnapshots
                 .FirstOrDefaultAsync(x => x.MatchId == matchId, ct);
+
+        public async Task<IReadOnlyDictionary<int, MatchCommentarySnapshot>> GetByMatchIdsAsync(
+            IReadOnlyCollection<int> matchIds, CancellationToken ct = default)
+        {
+            if (matchIds is null || matchIds.Count == 0)
+                return new Dictionary<int, MatchCommentarySnapshot>();
+
+            var rows = await _context.MatchCommentarySnapshots
+                .AsNoTracking()
+                .Where(x => matchIds.Contains(x.MatchId))
+                .ToListAsync(ct);
+
+            return rows
+                .GroupBy(x => x.MatchId)
+                .ToDictionary(g => g.Key, g => g.First());
+        }
 
         public async Task UpsertAsync(MatchCommentarySnapshot snapshot, CancellationToken ct = default)
         {
