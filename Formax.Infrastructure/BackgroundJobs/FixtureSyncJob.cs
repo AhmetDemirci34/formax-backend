@@ -1,3 +1,4 @@
+using Formax.Domain.Constants;
 using Formax.Application.Services.Standings;
 using Formax.Infrastructure.Providers;
 using Formax.Application.Interfaces;
@@ -284,11 +285,33 @@ public sealed class FixtureSyncJob : BackgroundService
         // kotadan DÜŞÜYOR ama hiçbir sonuç getirmiyordu. Aralarına boşluk koymak, aynı
         // kotayla daha çok sonuç almak demektir.
         var spacingMs = Math.Max(0, config.GetValue("ApiFootball:ResultReconciliation:FixtureLookupSpacingMs", 7000));
+
+        // ── RESTART-SAFE HIZ SINIRI ──────────────────────────────────────────
+        // Tur başına tavan TEK BAŞINA yetmiyordu: süreç her açıldığında 30 sn sonra yeni
+        // bir tur başlıyor ve aynı patlama tekrarlanıyordu (ölçüldü 01.09.2026: 5 açılış
+        // = 44 tekil istek). Artık her deneme HTTP'den ÖNCE kalıcı deftere rezerve edilir;
+        // soğuma ve günlük tavan restart'tan ETKİLENMEZ.
+        var dailyCap = Math.Max(0, config.GetValue(
+            "ApiFootball:ResultReconciliation:MaxSingleFixtureRequestsPerUtcDay", 10));
+        var cooldown = TimeSpan.FromHours(Math.Max(0, config.GetValue(
+            "ApiFootball:ResultReconciliation:PerFixtureRetryCooldownHours", 12)));
         var first = true;
 
         foreach (var target in targets)
         {
             ct.ThrowIfCancellationRequested();
+
+            // Rezervasyon başarısızsa bu fikstür için İSTEK YAPILMAZ (soğuma dolmamış,
+            // günlük tavan dolmuş veya başka bir süreç almış).
+            if (!repo.TryReserveFixtureAttempt(
+                    target.ExternalMatchId!, FixtureRefreshPurposes.Result,
+                    cooldown, dailyCap, DateTime.UtcNow))
+            {
+                _logger.LogDebug(
+                    "[FIXTURE SYNC] {ExtId} — sonuç denemesi atlandı (soğuma/günlük tavan/başka süreç).",
+                    target.ExternalMatchId);
+                continue;
+            }
 
             if (!first && spacingMs > 0) await Task.Delay(spacingMs, ct);
             first = false;
@@ -296,15 +319,139 @@ public sealed class FixtureSyncJob : BackgroundService
             var result = await provider.GetFixtureByIdAsync(target.ExternalMatchId!, ct);
             if (result == null)
             {
+                // BAŞARISIZ DENEME DE HARCANMIŞ BİR İSTEKTİR: rezervasyon geri alınmaz,
+                // yoksa bozuk tek bir fikstür kotayı sonsuza kadar döverdi.
+                repo.RecordFixtureAttemptOutcome(
+                    target.ExternalMatchId!, FixtureRefreshPurposes.Result, DateTime.UtcNow, "ProviderError");
                 _logger.LogWarning(
                     "[FIXTURE SYNC] {MatchId} (fixture {ExtId}) — sağlayıcı sonuç vermedi, HİÇBİR ŞEY yazılmadı.",
                     target.Id, target.ExternalMatchId);
                 continue;
             }
+            repo.RecordFixtureAttemptOutcome(
+                target.ExternalMatchId!, FixtureRefreshPurposes.Result, DateTime.UtcNow, "Applied");
             recovered.Add(result);
         }
 
+        await repo.SaveChangesAsync(ct);
         return recovered;
+    }
+
+    /// <summary>
+    /// GELECEK FİKSTÜR TAKVİM DOĞRULAMA — ayrı job DEĞİL, aynı turun bir aşaması.
+    ///
+    /// SORUN (ölçüldü 01.09.2026): sağlayıcı takvimi kesinleşmemiş turlar için NOMİNAL
+    /// tarih/saat veriyor ve FORMAX bunu bir daha hiç tazelemiyordu. Depoda 161 Süper Lig
+    /// maçı 12:00'da duruyordu; Başakşehir–Galatasaray gerçekte 4 Eylül 20:00'de (17:00 UTC)
+    /// oynanacakken depoda 6 Eylül 12:00 göründüğü için UI'ın 4 günlük penceresine hiç
+    /// girmiyordu. Gün-bazlı <c>fixtures?date=</c> Free plan'da ±1 günle sınırlı olduğu için
+    /// tazeleme ancak tekil <c>fixtures?id=</c> ile yapılabilir.
+    ///
+    /// BÜTÇE: sonuç uzlaştırmasıyla AYNI kalıcı defteri kullanır, AYRI havuzda. Günlük
+    /// tavan küçüktür (varsayılan 5) — 161 maçlık birikim bilerek günlere yayılır.
+    /// Sağlayıcı hata/boş dönerse mevcut kayıt BOZULMAZ.
+    /// </summary>
+    private async Task<List<Formax.Application.DTOs.Fixtures.SportsFixtureResult>> RefreshFutureSchedulesAsync(
+        ISportsDataProvider provider,
+        IFixtureSyncRepository repo,
+        IConfiguration config,
+        TimeZoneInfo tz,
+        CancellationToken ct)
+    {
+        var refreshed = new List<Formax.Application.DTOs.Fixtures.SportsFixtureResult>();
+
+        var dailyCap = Math.Max(0, config.GetValue(
+            "ApiFootball:FutureFixtureRefinement:MaxSingleFixtureRequestsPerUtcDay", 5));
+        if (dailyCap == 0) return refreshed;
+
+        var cooldown = TimeSpan.FromHours(Math.Max(0, config.GetValue(
+            "ApiFootball:FutureFixtureRefinement:PerFixtureRetryCooldownHours", 24)));
+        // GÜVENLİK PENCERESİ: geçici tarihin kendisi yanlış olabilir, bu yüzden aday arama
+        // UI penceresinden geniş tutulur (4 günlük ekran + sapma payı).
+        var safetyDays = Math.Max(4, config.GetValue(
+            "ApiFootball:FutureFixtureRefinement:CandidateHorizonDays", 8));
+
+        var nowUtc = DateTime.UtcNow;
+        List<Formax.Domain.Entities.Match> candidates;
+        try
+        {
+            candidates = repo.GetFutureScheduleRefreshCandidates(
+                nowUtc, nowUtc.AddDays(safetyDays), CoveragePolicy.LeagueAllowList(config));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[FIXTURE SYNC] Gelecek takvim adayları okunamadı.");
+            return refreshed;
+        }
+
+        if (candidates.Count == 0) return refreshed;
+
+        _logger.LogInformation(
+            "[FIXTURE SYNC] Gelecek takvim doğrulama — {Count} aday (günlük tavan {Cap}).",
+            candidates.Count, dailyCap);
+
+        var spacingMs = Math.Max(0, config.GetValue(
+            "ApiFootball:FutureFixtureRefinement:FixtureLookupSpacingMs", 7000));
+        var first = true;
+        var spent = 0;
+
+        foreach (var target in candidates)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (spent >= dailyCap) break;
+
+            if (!repo.TryReserveFixtureAttempt(
+                    target.ExternalMatchId!, FixtureRefreshPurposes.FutureSchedule,
+                    cooldown, dailyCap, nowUtc))
+                continue;
+
+            spent++;
+            if (!first && spacingMs > 0) await Task.Delay(spacingMs, ct);
+            first = false;
+
+            var result = await provider.GetFixtureByIdAsync(target.ExternalMatchId!, ct);
+            if (result == null)
+            {
+                repo.RecordFixtureAttemptOutcome(
+                    target.ExternalMatchId!, FixtureRefreshPurposes.FutureSchedule, nowUtc, "ProviderError");
+                _logger.LogWarning(
+                    "[FIXTURE SYNC] {ExtId} — takvim doğrulanamadı, MEVCUT KAYIT KORUNDU.",
+                    target.ExternalMatchId);
+                continue;
+            }
+
+            // KİMLİK DOĞRULAMASI: fikstür/lig/takımlar uyuşmuyorsa YAZILMAZ.
+            if (!IdentityMatches(target, result))
+            {
+                repo.RecordFixtureAttemptOutcome(
+                    target.ExternalMatchId!, FixtureRefreshPurposes.FutureSchedule, nowUtc, "IdentityMismatch");
+                _logger.LogWarning(
+                    "[FIXTURE SYNC] {ExtId} — sağlayıcı yanıtı kimlikle uyuşmadı (lig/takım), YAZILMADI.",
+                    target.ExternalMatchId);
+                continue;
+            }
+
+            repo.RecordFixtureAttemptOutcome(
+                target.ExternalMatchId!, FixtureRefreshPurposes.FutureSchedule, nowUtc, "Applied");
+            refreshed.Add(result);
+        }
+
+        await repo.SaveChangesAsync(ct);
+        return refreshed;
+    }
+
+    /// <summary>
+    /// Sağlayıcı yanıtı gerçekten BU maça mı ait? Lig ve iki takımın dış kimliği
+    /// tutmuyorsa kayıt güncellenmez — yanlış maçın saati yazılmaz.
+    /// </summary>
+    private static bool IdentityMatches(
+        Formax.Domain.Entities.Match stored,
+        Formax.Application.DTOs.Fixtures.SportsFixtureResult incoming)
+    {
+        if (incoming.LeagueExternalId != stored.LeagueId) return false;
+        if (string.IsNullOrWhiteSpace(incoming.HomeTeamExternalId) ||
+            string.IsNullOrWhiteSpace(incoming.AwayTeamExternalId)) return false;
+        return true;
     }
 
     /// <summary>
@@ -425,6 +572,18 @@ public sealed class FixtureSyncJob : BackgroundService
         // tavanı vardır — plan açık olsaydı hiç çalışmazdı.
         var recovered = await RecoverPlanBlockedResultsAsync(
             provider, repo, config, tz, batch, reconciliation, ct);
+
+        // ── 1b. GELECEK TAKVİM DOĞRULAMA ─────────────────────────────────────
+        // Aynı turun aşaması; ayrı job değil. Geçici kickoff'lu gelecek maçların gerçek
+        // tarih/saatini düşük bütçeyle tazeler ve AYNI upsert yoluna besler.
+        var scheduleRefreshed = await RefreshFutureSchedulesAsync(provider, repo, config, tz, ct);
+        if (scheduleRefreshed.Count > 0)
+        {
+            batch.Fixtures.AddRange(scheduleRefreshed);
+            _logger.LogInformation(
+                "[FIXTURE SYNC] Gelecek takvim — {Count} fikstür doğrulandı.", scheduleRefreshed.Count);
+        }
+
         var perFixtureSourceIds = new HashSet<string>(
             recovered.Select(r => r.ExternalMatchId ?? string.Empty), StringComparer.Ordinal);
         if (recovered.Count > 0)
@@ -590,6 +749,19 @@ public sealed class FixtureSyncJob : BackgroundService
             {
                 // Update mutable fields only.
                 existingMatch.MatchDate   = fixture.MatchDate;
+                // TAKVİM GÜVENİLİRLİĞİ: sağlayıcı "TBD" dediyse saat hâlâ geçicidir.
+                // Kesinleşmiş bir kickoff, geçici bir yanıt yüzünden GERİ ALINMAZ.
+                if (fixture.KickoffProvisional)
+                {
+                    if (existingMatch.KickoffPrecision != KickoffPrecisions.Confirmed)
+                        existingMatch.KickoffPrecision = KickoffPrecisions.Provisional;
+                }
+                else
+                {
+                    existingMatch.KickoffPrecision      = KickoffPrecisions.Confirmed;
+                    existingMatch.ScheduleVerifiedAtUtc = DateTime.UtcNow;
+                }
+                existingMatch.ScheduleRefreshAttemptedAtUtc = DateTime.UtcNow;
                 // KESİN SONUÇ GERİ ALINMAZ: sağlayıcı tanımadığımız bir status kodu
                 // döndürdüğünde eşleyici "NotStarted"a düşer; bu, bitmiş bir maçı yeniden
                 // "başlamamış" yapıp sonucu SİLERDİ. Finished'tan çıkış yalnız sağlayıcı
@@ -678,7 +850,12 @@ public sealed class FixtureSyncJob : BackgroundService
                     CreatedAt       = DateTime.UtcNow,
                     // Oynanmamış maçta sonuç damgası YOK (null) — 0-0 bir sonuç değildir.
                     ResultUpdatedAtUtc = isFinished ? DateTime.UtcNow : null,
-                    ResultSource       = isFinished ? ResultSourceTag(fixture, tz, perFixtureSourceIds) : null
+                    ResultSource       = isFinished ? ResultSourceTag(fixture, tz, perFixtureSourceIds) : null,
+                    // Yeni kayıt da doğru damgalanır: "TBD" gelen fikstürün saati geçicidir.
+                    KickoffPrecision   = fixture.KickoffProvisional
+                                         ? KickoffPrecisions.Provisional
+                                         : KickoffPrecisions.Confirmed,
+                    ScheduleVerifiedAtUtc = fixture.KickoffProvisional ? null : DateTime.UtcNow
                 };
                 repo.AddMatch(newMatch);
                 if (isFinished)

@@ -51,6 +51,40 @@ public interface IFixtureSyncRepository
     /// </summary>
     HashSet<int> GetLeaguesWithVerifiedSeason();
 
+    /// <summary>
+    /// TEKİL FİKSTÜR İSTEĞİNİ ATOMİK REZERVE ET — restart-safe hız sınırı.
+    ///
+    /// HTTP'den ÖNCE çağrılır. true dönerse istek yapılabilir ve deneme kalıcı deftere
+    /// YAZILMIŞTIR; false dönerse istek YAPILMAZ (soğuma dolmamış, günlük tavan dolmuş
+    /// ya da başka bir süreç aynı fikstürü almış).
+    ///
+    /// Rezervasyon tek bir koşullu SQL yazımıdır: iki süreç aynı fikstürü aynı anda
+    /// alamaz. Süreç yeniden başlaması defteri SIFIRLAMAZ — tam olarak düzeltilen hata
+    /// buydu (her açılışta aynı 10 isteklik patlama tekrarlanıyordu).
+    /// </summary>
+    /// <param name="purpose"><see cref="Formax.Domain.Constants.FixtureRefreshPurposes"/>.</param>
+    bool TryReserveFixtureAttempt(
+        string externalMatchId,
+        string purpose,
+        TimeSpan cooldown,
+        int maxPerUtcDay,
+        DateTime nowUtc);
+
+    /// <summary>Rezerve edilmiş denemenin sonucunu işaretler (teşhis; bütçeyi etkilemez).</summary>
+    void RecordFixtureAttemptOutcome(string externalMatchId, string purpose, DateTime nowUtc, string outcome);
+
+    /// <summary>
+    /// GELECEK FİKSTÜR TAKVİM DOĞRULAMA ADAYLARI — kickoff'u geçici olan, başlamamış,
+    /// kilitli kapsamdaki ve UI'ın yakın penceresine düşebilecek maçlar.
+    ///
+    /// Güvenlik penceresi: geçici tarih YANLIŞ olabileceği için aday arama UI penceresinden
+    /// birkaç gün GENİŞ tutulur — 4 Eylül'e taşınacak bir maç depoda 6 Eylül'de duruyordu.
+    /// </summary>
+    List<Match> GetFutureScheduleRefreshCandidates(
+        DateTime nowUtc,
+        DateTime horizonUtc,
+        IReadOnlyCollection<int> leagueIds);
+
     // ── Write (tracked entities — EF handles the rest) ─────────────────────────
 
     void AddTeam(Team team);

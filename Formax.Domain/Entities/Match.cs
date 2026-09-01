@@ -69,6 +69,25 @@ namespace Formax.Domain.Entities
         /// </summary>
         public string? ResultSource { get; set; }
 
+        // ── TAKVİM GÜVENİLİRLİĞİ (01.09.2026) ───────────────────────────────────
+
+        /// <summary>
+        /// Kickoff kesin mi, yoksa turun nominal tarihi mi —
+        /// <see cref="Constants.KickoffPrecisions"/>. Geçici saat kullanıcıya KESİN
+        /// saatmiş gibi gösterilemez ve o maç doğrulama adayıdır.
+        /// </summary>
+        public string KickoffPrecision { get; set; } = Constants.KickoffPrecisions.Confirmed;
+
+        /// <summary>Kickoff'un sağlayıcıdan KESİN olarak doğrulandığı an. null = hiç doğrulanmadı.</summary>
+        public DateTime? ScheduleVerifiedAtUtc { get; set; }
+
+        /// <summary>
+        /// Takvim tazeleme için sağlayıcıya EN SON ne zaman soruldu (başarısız denemeler
+        /// dâhil). Soğuma penceresi buradan değil kalıcı deneme defterinden hesaplanır;
+        /// bu alan teşhis/görünürlük içindir.
+        /// </summary>
+        public DateTime? ScheduleRefreshAttemptedAtUtc { get; set; }
+
         // 🔥 GERİ EKLENDİ
         public Match CloneForComparison()
         {

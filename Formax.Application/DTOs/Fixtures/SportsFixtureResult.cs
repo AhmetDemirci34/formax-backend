@@ -62,4 +62,14 @@ public class SportsFixtureResult
 
     /// <summary>Venue / stadium name — null when not provided by the provider.</summary>
     public string? Venue { get; set; }
+
+    /// <summary>
+    /// KICKOFF GEÇİCİ Mİ — sağlayıcının ham durum kodu "TBD" ("time to be defined") ise true.
+    ///
+    /// Bu sinyal daha önce KAYBOLUYORDU: <c>NormaliseFixtureStatus</c> hem "NS" hem "TBD"
+    /// kodunu "NotStarted"a indirgiyordu, dolayısıyla nominal tur tarihi ile kesin kickoff
+    /// depoda ayırt edilemiyordu. Geçici saatin TEK yetkili kaynağı budur; saat değerinden
+    /// (ör. "12:00 ise geçicidir") çıkarım YAPILMAZ — gerçek öğle maçları vardır.
+    /// </summary>
+    public bool KickoffProvisional { get; set; }
 }

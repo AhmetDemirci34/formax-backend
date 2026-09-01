@@ -71,6 +71,12 @@ public class FixtureResultWriteTests
         public List<Match> GetStaleResultCandidates(DateTime now, int margin, IReadOnlyCollection<int> leagues)
             => new();
         public HashSet<int> GetLeaguesWithVerifiedSeason() => new() { League };
+
+        // Bu testlerin konusu yazma sözleşmesi; hız sınırı ayrı testlerde ölçülür.
+        public bool TryReserveFixtureAttempt(string id, string purpose, TimeSpan cd, int cap, DateTime now) => true;
+        public void RecordFixtureAttemptOutcome(string id, string purpose, DateTime now, string outcome) { }
+        public List<Match> GetFutureScheduleRefreshCandidates(
+            DateTime nowUtc, DateTime horizonUtc, IReadOnlyCollection<int> leagueIds) => new();
         public void AddTeam(Team t) => Teams[t.ExternalTeamId!] = t;
         public void AddMatch(Match m) { Added.Add(m); Matches[m.ExternalMatchId!] = m; }
         public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;

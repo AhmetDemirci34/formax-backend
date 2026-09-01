@@ -409,6 +409,10 @@ namespace Formax.Infrastructure.Providers
                 ExternalMatchId    = fixtureId.Value.ToString(),
                 MatchDate          = matchDate.ToUniversalTime(),
                 Status             = NormaliseFixtureStatus(entry.Fixture?.Status?.Short),
+                // "TBD" = saat henüz belirlenmedi. Durum eşlemesi bunu NotStarted'a
+                // indirgediği için ayrı bir bayrakla taşınır (bkz. KickoffProvisional).
+                KickoffProvisional = string.Equals(
+                    entry.Fixture?.Status?.Short?.Trim(), "TBD", StringComparison.OrdinalIgnoreCase),
                 LeagueName         = entry.League?.Name ?? string.Empty,
                 LeagueExternalId   = entry.League?.Id ?? 0,
                 Round              = entry.League?.Round ?? string.Empty,

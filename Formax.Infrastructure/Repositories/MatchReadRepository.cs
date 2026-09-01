@@ -31,6 +31,26 @@ namespace Formax.Infrastructure.Repositories
             _allowedLeagues = CoveragePolicy.LeagueAllowList(config);
         }
 
+        /// <summary>
+        /// DÖRT TAKVİM GÜNÜNÜN SONU (UTC) — bugün + 3 gün, Europe/Istanbul takvimine göre.
+        ///
+        /// Kayan 72 saat yerine takvim günü kullanılır; aksi hâlde dördüncü günün geç
+        /// maçları saat farkı kadar pencerenin dışında kalır. Saat dilimi çözülemezse
+        /// UTC'ye düşülür (davranış bozulmaz, yalnız gün sınırı UTC olur).
+        /// </summary>
+        internal static DateTime FourCalendarDayWindowEndUtc(DateTime utcNow)
+        {
+            var tz = Formax.Infrastructure.Http.ApiFootballTimeZone.TryResolve("Europe/Istanbul");
+            if (tz == null) return utcNow.Date.AddDays(4);
+
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), tz);
+            // Dördüncü günün sonu = (bugün + 4) yerel gün başı; sınır DAHİL değil.
+            var localEndExclusive = localNow.Date.AddDays(4);
+            return TimeZoneInfo.ConvertTimeToUtc(
+                DateTime.SpecifyKind(localEndExclusive, DateTimeKind.Unspecified), tz);
+        }
+
         /// <summary>Kapsam süzgeci — tüm okuma yollarında aynı kural.</summary>
         private IQueryable<Match> InScope(IQueryable<Match> source)
             => _allowedLeagues.Count == 0
@@ -190,7 +210,14 @@ namespace Formax.Infrastructure.Repositories
             //   B) CANLI + YAKLAŞAN maçlar (listenin ağırlığı)
             const int finishedQuota = 40;
             var finishedFrom = utcNow.AddHours(-8);
-            var upcomingTo = utcNow.AddDays(3);
+            // ── DÖRT TAKVİM GÜNÜ (01.09.2026 düzeltmesi) ─────────────────────────
+            // Eskiden pencere "utcNow + 3 gün" = KAYAN 72 SAATTİ. Ürün davranışı ise
+            // "bugün dâhil dört TAKVİM günü"dür (Europe/Istanbul). Kayan pencere,
+            // dördüncü günün AKŞAM maçlarını saat farkı kadar dışarıda bırakıyordu:
+            // 01.09 20:21 UTC'de sınır 04.09 20:21 UTC olur ve 04.09 21:00 UTC'de
+            // (TR 00:00) başlayan bir maç düşerdi. Artık sınır, dördüncü Türkiye
+            // gününün SONUDUR.
+            var upcomingTo = FourCalendarDayWindowEndUtc(utcNow);
 
             IQueryable<MatchListItemDto> Project(IQueryable<Domain.Entities.Match> src) =>
                 from m in src

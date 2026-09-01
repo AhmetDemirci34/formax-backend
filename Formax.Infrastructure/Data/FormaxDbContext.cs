@@ -105,6 +105,9 @@ namespace Formax.Infrastructure.Data
         /// İlk fikstür tarihi resmî başlangıç DEĞİLDİR (yalnız teşhis).
         /// </summary>
         public DbSet<LeagueSeason> LeagueSeasons { get; set; } = null!;
+
+        /// <summary>Tekil fikstur istegi deneme defteri — restart-safe hiz siniri.</summary>
+        public DbSet<FixtureRefreshAttempt> FixtureRefreshAttempts { get; set; } = null!;
         public DbSet<CompetitionContext> CompetitionContexts { get; set; } = null!;
         public DbSet<LeagueExternalMapping> LeagueExternalMappings { get; set; } = null!;
 
@@ -766,6 +769,17 @@ namespace Formax.Infrastructure.Data
                 entity.HasKey(x => new { x.LeagueId, x.SeasonYear });
                 entity.Property(x => x.Source).HasMaxLength(64).IsRequired();
                 entity.Property(x => x.Notes).HasMaxLength(400);
+            });
+
+            // Kimlik: fikstur + amac + UTC gun. Gun anahtarda oldugu icin gunluk tavan TAM
+            // sayilir; sogutma ise gunlerden bagimsiz olarak son deneme anindan hesaplanir.
+            modelBuilder.Entity<FixtureRefreshAttempt>(entity =>
+            {
+                entity.HasKey(x => new { x.ExternalMatchId, x.Purpose, x.DayUtc });
+                entity.Property(x => x.ExternalMatchId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Purpose).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.LastOutcome).HasMaxLength(32);
+                entity.HasIndex(x => new { x.Purpose, x.DayUtc }).HasDatabaseName("IX_FixtureRefreshAttempts_Purpose_Day");
             });
 
             // LeagueStandingsSnapshot — İÇ KAYNAKLI projeksiyon; lig+sezon başına TEK satır.
