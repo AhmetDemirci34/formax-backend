@@ -114,6 +114,39 @@ namespace Formax.Application.DTOs.Standings
         public int? AbandonedFixtures { get; set; }
         /// <summary>Oynanması beklenip sonucu hâlâ gelmemiş maç sayısı.</summary>
         public int? StaleResultFixtures { get; set; }
+
+        // ── AŞAMA SUNUMU (01.09.2026) ───────────────────────────────────────────
+
+        /// <summary>
+        /// Bu MAÇIN aşaması: "DomesticLeague" | "Qualifying" | "QualifyingPlayoff" |
+        /// "LeaguePhase" | "KnockoutPlayoff" | "RoundOf16" | ... | "Unknown".
+        /// </summary>
+        public string? MatchPhase { get; set; }
+
+        /// <summary>
+        /// Tablo gösterilebilir mi ve nasıl:
+        ///  "Table"            → normal lig tablosu
+        ///  "LeaguePhaseTable" → UEFA lig aşaması tablosu (knockout maçında da bu kullanılır)
+        ///  "NotApplicable"    → eleme aşaması; puan durumu YOKTUR
+        ///  "NotAvailable"     → lig aşaması henüz başlamadı / tablo üretilemedi
+        ///  "Unresolved"       → aşama çözülemedi; tablo GÖSTERİLMEZ
+        /// </summary>
+        public string? StandingsAvailability { get; set; }
+
+        /// <summary>Kullanıcıya gösterilecek başlık ("Lig Aşaması Puan Durumu" gibi).</summary>
+        public string? StandingsTitle { get; set; }
+
+        /// <summary>
+        /// Tablo gösterilmiyorsa kullanıcıya gösterilecek NÖTR açıklama.
+        /// Teknik alan adı / hata yığını İÇERMEZ.
+        /// </summary>
+        public string? StandingsNotice { get; set; }
+
+        /// <summary>
+        /// Teşhis kodu (ör. STANDINGS_PHASE_UNRESOLVED). Kullanıcıya GÖSTERİLMEZ;
+        /// yalnız log/destek içindir.
+        /// </summary>
+        public string? Diagnostic { get; set; }
         /// <summary>Tamlık denetiminin yapıldığı an.</summary>
         public DateTime? CompletenessCheckedAtUtc { get; set; }
         /// <summary>Uygulanan sıralama kuralının kimliği.</summary>

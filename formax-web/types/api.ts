@@ -481,6 +481,21 @@ export interface StandingSectionDto {
   abandonedFixtures?: number;
   /** Oynanması beklenip sonucu hâlâ gelmemiş maç sayısı. */
   staleResultFixtures?: number;
+
+  // ── Aşama sunumu ────────────────────────────────────────────────────────
+  /** Maçın turnuva aşaması: "DomesticLeague" | "Qualifying" | "LeaguePhase" | ... */
+  matchPhase?: string;
+  /**
+   * Tablo gösterilebilir mi ve nasıl. Bu kararı BACKEND verir; ekran yeniden
+   * yorumlamaz — aksi hâlde ikisi farklı şey söyleyebilir.
+   */
+  standingsAvailability?: "Table" | "LeaguePhaseTable" | "NotApplicable" | "NotAvailable" | "Unresolved";
+  /** Başlık (ör. "Lig Aşaması Puan Durumu"). */
+  standingsTitle?: string;
+  /** Tablo yoksa kullanıcıya gösterilecek nötr açıklama. */
+  standingsNotice?: string;
+  /** Teşhis kodu — KULLANICIYA GÖSTERİLMEZ. */
+  diagnostic?: string;
   completenessCheckedAtUtc?: string;
   homeTeamPeek?: TeamStandingDto;
   awayTeamPeek?: TeamStandingDto;

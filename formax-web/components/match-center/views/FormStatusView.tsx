@@ -361,6 +361,25 @@ function StandingsPanel({ standing }: { standing: MatchDetailDto["standing"] }) 
   const [tab, setTab] = useState<StandingsTab>("table");
   if (!standing) return null;
 
+  // ── AŞAMA KARARI BACKEND'DEN GELİR ──────────────────────────────────────
+  // UEFA eleme maçında puan durumu KAVRAM OLARAK yoktur; lig aşaması başlamadıysa
+  // sahte/boş tablo çizilmez. Ekran bu kararı yeniden hesaplamaz, yalnız uygular.
+  const availability = standing.standingsAvailability;
+  if (
+    availability === "NotApplicable" ||
+    availability === "NotAvailable" ||
+    availability === "Unresolved"
+  ) {
+    if (!standing.standingsNotice) return null;
+    return (
+      <section className="rounded-xl border border-goalai-border/40 bg-white/[0.02]">
+        <p className="px-3 py-4 text-center text-[12px] text-white/50">
+          {standing.standingsNotice}
+        </p>
+      </section>
+    );
+  }
+
   // Yeni alan `tables`; eski yanıtlarla uyum için `tableSlice`e düşülür.
   const tables: StandingTableDto[] =
     standing.tables && standing.tables.length > 0
@@ -401,11 +420,17 @@ function StandingsPanel({ standing }: { standing: MatchDetailDto["standing"] }) 
         return (
           <div key={`${t.leagueId}-${t.seasonYear}`}>
             {/* Tek tabloda başlık gereksiz; iki lig varsa hangisi olduğu yazılmalı. */}
-            {multi && t.leagueName && (
+            {/* UEFA lig aşaması tablosu her zaman kendi başlığıyla çizilir: knockout
+                maçında gösterildiğinde bunun o turun kendi tablosu OLMADIĞI anlaşılsın. */}
+            {standing.standingsAvailability === "LeaguePhaseTable" ? (
+              <h4 className="border-b border-goalai-border/40 bg-white/[0.02] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+                {standing.standingsTitle ?? "Lig Aşaması Puan Durumu"}
+              </h4>
+            ) : multi && t.leagueName ? (
               <h4 className="border-b border-goalai-border/40 bg-white/[0.02] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
                 {t.leagueName}
               </h4>
-            )}
+            ) : null}
             {!hasPlayed ? (
               <p className="px-3 py-4 text-center text-[12px] text-white/50">
                 Bu lig bu sezon henüz başlamadı — puan durumu oluşmadı.

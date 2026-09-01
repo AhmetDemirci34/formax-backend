@@ -138,13 +138,42 @@ namespace Formax.Infrastructure.Standings
             }
 
             var scope = resolution.Scope!;
-            var settled = _matches.GetSettledLeagueMatchesInSeason(leagueId, scope.StartUtc, scope.EndUtc);
+            var settledAll = _matches.GetSettledLeagueMatchesInSeason(leagueId, scope.StartUtc, scope.EndUtc);
+
+            // ── AŞAMA SÜZGECİ (01.09.2026) ───────────────────────────────────────
+            // UCL/UEL/UECL NORMAL LİG DEĞİLDİR. Eleme turlarının çift maçlı sonuçlarını
+            // toplayıp puan tablosu üretmek YASAKTIR: ortaya gerçek olmayan bir sıralama
+            // çıkar. Tabloya YALNIZ lig aşaması maçları girer; aşaması çözülemeyen maç
+            // (Round boş/tanınmıyor) lig aşaması SAYILMAZ.
+            var isUefa = Formax.Domain.Constants.LockedCompetitions.IsUefa(leagueId);
+            var settled = settledAll;
+            var unresolvedPhase = 0;
+            var scopePhase = isUefa ? "LeaguePhase" : "DomesticLeague";
+
+            if (isUefa)
+            {
+                settled = settledAll
+                    .Where(m => CompetitionPhaseResolver.Resolve(leagueId, m.Round)
+                                == CompetitionPhase.LeaguePhase)
+                    .ToList();
+                unresolvedPhase = settledAll.Count(m =>
+                    CompetitionPhaseResolver.Resolve(leagueId, m.Round) == CompetitionPhase.Unknown);
+
+                if (settled.Count == 0) scopePhase = "None";
+
+                _log.LogInformation(
+                    "UEFA standings scope — league {LeagueId} season {Season}: {Kept}/{Total} maç lig aşaması " +
+                    "({Unresolved} maçın aşaması çözülemedi, tabloya ALINMADI).",
+                    leagueId, seasonYear, settled.Count, settledAll.Count, unresolvedPhase);
+            }
+
             var projection = StandingsProjector.Project(leagueId, settled);
 
             // VERİ TAMLIĞI: bu tarihe kadar oynanmış OLMASI GEREKEN maçların kaçı kesinleşti?
+            // UEFA'da bu soru yalnız LİG AŞAMASI için sorulur.
             var now = DateTime.UtcNow;
             var fixtures = _matches.GetSeasonLeagueFixturesBefore(leagueId, scope.StartUtc, scope.EndUtc, now);
-            var completeness = SeasonDataCompleteness.Evaluate(fixtures, now);
+            var completeness = SeasonDataCompleteness.EvaluateForStandings(leagueId, fixtures, now);
             if (!completeness.IsComplete)
             {
                 _log.LogWarning(
@@ -177,6 +206,16 @@ namespace Formax.Infrastructure.Standings
             entity.CancelledFixtures = completeness.Cancelled;
             entity.AbandonedFixtures = completeness.Abandoned;
             entity.StaleResultFixtures = completeness.StaleResult;
+            entity.ScopePhase = scopePhase;
+            entity.UnresolvedPhaseFixtures = unresolvedPhase;
+            // Ulusal ligde aşama sorusu yoktur. UEFA'da tabloya giren maç yoksa ama aşaması
+            // çözülemeyen maç VARSA, sessizce "tablo yok" demek yanıltıcı olur: çözülemeyen
+            // aşama tanı koduyla taşınır ve okuma yolu tablo göstermez.
+            entity.PhaseResolution = !isUefa
+                ? "Resolved"
+                : (settled.Count == 0 && unresolvedPhase > 0
+                    ? CompetitionPhaseResolver.PhaseUnresolvedCode
+                    : "Resolved");
 
             if (isNew) _db.LeagueStandingsSnapshots.Add(entity);
             await _db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -261,6 +300,9 @@ namespace Formax.Infrastructure.Standings
                 CancelledFixtures = e.CancelledFixtures,
                 AbandonedFixtures = e.AbandonedFixtures,
                 StaleResultFixtures = e.StaleResultFixtures,
+                ScopePhase = e.ScopePhase,
+                PhaseResolution = e.PhaseResolution,
+                UnresolvedPhaseFixtures = e.UnresolvedPhaseFixtures,
                 Rows = rows
             };
         }

@@ -57,6 +57,13 @@ namespace Formax.Application.DTOs.Standings
         public int AbandonedFixtures { get; set; }
         /// <summary>Oynanması beklenip sonucu hâlâ gelmemiş maç sayısı.</summary>
         public int StaleResultFixtures { get; set; }
+
+        /// <summary>"DomesticLeague" | "LeaguePhase" | "None" — tablonun üretildiği aşama.</summary>
+        public string ScopePhase { get; set; } = string.Empty;
+        /// <summary>"Resolved" | "STANDINGS_PHASE_UNRESOLVED".</summary>
+        public string PhaseResolution { get; set; } = string.Empty;
+        /// <summary>Aşaması çözülemediği için tablo dışında bırakılan maç sayısı.</summary>
+        public int UnresolvedPhaseFixtures { get; set; }
         /// <summary>Tamlık denetiminin yapıldığı an.</summary>
         public DateTime CompletenessCheckedAtUtc { get; set; }
 

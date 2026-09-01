@@ -95,6 +95,29 @@ namespace Formax.Domain.Entities
 
         /// <summary>Tamlık denetiminin yapıldığı an.</summary>
         public DateTime CompletenessCheckedAtUtc { get; set; }
+
+        // ── AŞAMA KAPSAMI (01.09.2026) ──────────────────────────────────────────
+        // Snapshot artık lig+sezon ile YETİNMEZ: hangi AŞAMADAN üretildiğini de taşır.
+        // UEFA turnuvalarında tablo YALNIZ lig aşamasından üretilir; eleme sonuçlarından
+        // üretilmiş eski snapshot'lar bu alan sayesinde ayırt edilip kullanıcıya sunulmaz.
+
+        /// <summary>
+        /// Tablonun üretildiği aşama: "DomesticLeague" | "LeaguePhase" | "None".
+        /// "None" = bu lig+sezon için tabloya girecek maç YOK (ör. lig aşaması başlamadı).
+        /// </summary>
+        public string ScopePhase { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Aşama çözümünün sonucu: "Resolved" | "STANDINGS_PHASE_UNRESOLVED".
+        /// Çözülemediyse tablo ÜRETİLMEZ ve kullanıcıya gösterilmez.
+        /// </summary>
+        public string PhaseResolution { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Aşama çözülemediği için tablo dışında bırakılan maç sayısı (teşhis).
+        /// UEFA'da Round alanı boş olan eski kayıtlar burada görünür.
+        /// </summary>
+        public int UnresolvedPhaseFixtures { get; set; }
     }
 
     /// <summary>Snapshot kaynağı sabitleri — metin tekrarı olmasın diye tek yerde.</summary>

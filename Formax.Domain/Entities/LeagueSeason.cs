@@ -39,5 +39,16 @@ namespace Formax.Domain.Entities
 
         /// <summary>Serbest not (ör. "kullanıcı tarafından doğrulandı 30.08.2026").</summary>
         public string? Notes { get; set; }
+
+        /// <summary>
+        /// DOĞRULAMA DURUMU — "Confirmed" | "PendingOfficialConfirmation".
+        ///
+        /// NEDEN VAR (01.09.2026): Championship 2026/27'nin resmî play-off final tarihi
+        /// yayımlanmamıştı. Böyle bir durumda tahminî bir <see cref="EndUtc"/> yazmak,
+        /// doğrulanmış bir tarihmiş gibi görünürdü. Artık EndUtc null bırakılır ve kaydın
+        /// neden eksik olduğu BU ALANDA taşınır; sezon çözümü EndUtc null iken bozulmaz
+        /// (kapsam bir sonraki sezon kovasının başına kadar uzanır).
+        /// </summary>
+        public string VerificationStatus { get; set; } = "Confirmed";
     }
 }

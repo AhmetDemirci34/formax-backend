@@ -56,6 +56,30 @@ namespace Formax.Application.Services.Standings
         }
 
         /// <summary>
+        /// AŞAMA-DUYARLI TAMLIK — UEFA turnuvalarında yalnız LİG AŞAMASI değerlendirilir.
+        ///
+        /// Eleme ve knockout maçlarının eksik sonucu puan durumu tamlığını BOZMAZ: o maçlar
+        /// tabloya hiç girmez, dolayısıyla tablonun "güncel" olup olmadığını da belirleyemez.
+        /// Ölçüldü (01.09.2026): aşama süzgeci yokken UCL 4/90, UEL 13/80, UECL 34/246 "eksik"
+        /// görünüyordu — oysa bu maçların hiçbiri tabloya girmiyordu.
+        /// </summary>
+        public static Result EvaluateForStandings(
+            int leagueId, IReadOnlyList<Match> fixtures, DateTime nowUtc)
+        {
+            if (fixtures == null || fixtures.Count == 0) return Result.Empty(nowUtc);
+
+            if (!Domain.Constants.LockedCompetitions.IsUefa(leagueId))
+                return Evaluate(fixtures, nowUtc);
+
+            var leaguePhaseOnly = fixtures
+                .Where(f => CompetitionPhaseResolver.Resolve(leagueId, f.Round)
+                            == CompetitionPhase.LeaguePhase)
+                .ToList();
+
+            return Evaluate(leaguePhaseOnly, nowUtc);
+        }
+
+        /// <summary>
         /// <paramref name="fixtures"/> = sezon içinde başlama saati geçmiş TÜM lig maçları
         /// (durumu ne olursa olsun). Kesinleşmiş sayılan tek durum: Status=Finished.
         /// </summary>

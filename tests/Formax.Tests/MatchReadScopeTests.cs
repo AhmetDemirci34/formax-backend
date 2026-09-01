@@ -155,5 +155,52 @@ public class MatchReadScopeTests : IDisposable
         Assert.Contains(fixtures, m => m.Status == MatchStatuses.Postponed);
     }
 
+    [Fact]
+    public void GelecekVeCanliMaclar_FormaKatilmaz()
+    {
+        var kickoff = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+        Seed(
+            TestData.Finished(1, 2, 0, new DateTime(2026, 8, 15, 18, 0, 0, DateTimeKind.Utc),
+                leagueId: League, homeTeamId: Team, awayTeamId: 20),
+            TestData.Fixture(2, MatchStatuses.Live, new DateTime(2026, 9, 1, 11, 0, 0, DateTimeKind.Utc),
+                leagueId: League, homeTeamId: Team, awayTeamId: 30),
+            TestData.Finished(3, 1, 0, new DateTime(2026, 9, 5, 18, 0, 0, DateTimeKind.Utc),
+                leagueId: League, homeTeamId: Team, awayTeamId: 40));   // hedef maçtan SONRA
+
+        var result = _repo.GetSeasonLeagueMatchesForTeam(Team, League, SeasonStart, kickoff);
+
+        Assert.Single(result);
+        Assert.Equal(1, result[0].Id);
+    }
+
+    [Fact]
+    public void UefaElemeMaci_UefaSezonFormunaGirer()
+    {
+        // UEFA'da mevcut sezon formu turnuvanın BÜTÜN aşamalarını kapsar: eleme de dahildir.
+        const int Ucl = Formax.Domain.Constants.LockedCompetitions.ChampionsLeague;
+        var uclSeasonStart = new DateTime(2026, 7, 7, 0, 0, 0, DateTimeKind.Utc);
+        var kickoff = new DateTime(2026, 9, 10, 18, 0, 0, DateTimeKind.Utc);
+
+        var qualifying = TestData.Finished(1, 2, 1, new DateTime(2026, 7, 29, 18, 0, 0, DateTimeKind.Utc),
+            leagueId: Ucl, homeTeamId: Team, awayTeamId: 20);
+        qualifying.Round = "2nd Qualifying Round";
+        var playoff = TestData.Finished(2, 1, 0, new DateTime(2026, 8, 20, 18, 0, 0, DateTimeKind.Utc),
+            leagueId: Ucl, homeTeamId: Team, awayTeamId: 30);
+        playoff.Round = "Play-offs";
+
+        // Kapsam allow-list'ine UCL'yi de alan ayrı bir depo örneği gerekir.
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Coverage:LeagueAllowList:0"] = Ucl.ToString()
+        }).Build();
+        var repo = new MatchReadRepository(_db, config);
+
+        Seed(qualifying, playoff);
+
+        var form = repo.GetSeasonLeagueMatchesForTeam(Team, Ucl, uclSeasonStart, kickoff);
+
+        Assert.Equal(2, form.Count);   // eleme + eleme play-off FORMA GİRER
+    }
+
     public void Dispose() => _db.Dispose();
 }

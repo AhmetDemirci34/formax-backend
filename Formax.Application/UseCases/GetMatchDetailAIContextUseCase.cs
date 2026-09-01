@@ -1101,12 +1101,48 @@ namespace Formax.Application.UseCases
         {
             var seasonYear = ResolveSeasonYear(match.MatchDate);
 
-            // 1) ÖNCELİK: kendi tamamlanmış maçlarımızdan üretilen saatlik projeksiyon.
-            //    (Sağlayıcıya istek gitmez; okuma hesap tetiklemez.)
+            // ── AŞAMA KARARI (01.09.2026) ────────────────────────────────────────
+            // UEFA maçlarında puan durumu her aşamada GÖSTERİLMEZ. Eleme maçında tablo
+            // kavram olarak yoktur; aşama çözülemediyse tablo üretilmez. Karar merkezî
+            // StandingsPresentation'da verilir, burada YENİDEN yorumlanmaz.
+            var phase = Formax.Application.Services.Standings.CompetitionPhaseResolver
+                .Resolve(match.LeagueId, match.Round);
+
             var internalSection = BuildStandingSectionFromSnapshot(match, seasonYear);
-            if (internalSection != null) return internalSection;
+            var hasTable = internalSection != null && internalSection.TableSlice.Count > 0;
+
+            var decision = Formax.Application.Services.Standings.StandingsPresentation
+                .Decide(match.LeagueId, phase, hasTable);
+
+            if (!decision.ShowTable)
+            {
+                // Tablo YOK ama kullanıcı sessiz bırakılmaz: nötr açıklama taşınır.
+                // Sahte/boş tablo ÜRETİLMEZ.
+                return new StandingSectionDto
+                {
+                    LeagueId              = match.LeagueId,
+                    SeasonYear            = seasonYear,
+                    MatchPhase            = Formax.Application.Services.Standings.StandingsPresentation.PhaseName(phase),
+                    StandingsAvailability = decision.Availability,
+                    StandingsTitle        = decision.Title,
+                    StandingsNotice       = decision.Notice,
+                    Diagnostic            = decision.Diagnostic
+                };
+            }
+
+            if (internalSection != null)
+            {
+                internalSection.MatchPhase            = Formax.Application.Services.Standings.StandingsPresentation.PhaseName(phase);
+                internalSection.StandingsAvailability = decision.Availability;
+                internalSection.StandingsTitle        = decision.Title;
+                internalSection.StandingsNotice       = decision.Notice;
+                internalSection.Diagnostic            = decision.Diagnostic;
+                return internalSection;
+            }
 
             // 2) GERİ-UYUM: snapshot henüz üretilmediyse sağlayıcı tablosu (LeagueStandings).
+            //    Bu yol YALNIZ ulusal ligler içindir: UEFA'da yukarıdaki karar zaten
+            //    tablo göstermeyi reddetmiş olurdu.
 
             static TeamStandingDto Map(LeagueStanding s, bool highlight) => new()
             {
