@@ -43,6 +43,34 @@ namespace Formax.Infrastructure.Telemetry
 
         public void RecordCacheHit() => Interlocked.Increment(ref _cacheHits);
 
+        private long _persistentCacheHits;
+        private long _budgetBlocks;
+        private readonly ConcurrentDictionary<string, long> _budgetBlockedByEndpoint = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>L2 (kalıcı depo) isabeti — restart sonrası tekrar HTTP'ye çıkılmadığının ölçüsü.</summary>
+        public void RecordPersistentCacheHit() => Interlocked.Increment(ref _persistentCacheHits);
+
+        /// <summary>Günlük bütçe dolduğu için YAPILMAYAN istek.</summary>
+        public void RecordBudgetBlock(string endpointFamily)
+        {
+            Interlocked.Increment(ref _budgetBlocks);
+            _budgetBlockedByEndpoint.AddOrUpdate(
+                string.IsNullOrWhiteSpace(endpointFamily) ? "unknown" : endpointFamily, 1, (_, v) => v + 1);
+        }
+
+        /// <summary>
+        /// GÖVDE HATASI: api-football HTTP 200 döndürdüğü hâlde gövdede "errors" dolu (kota/anahtar)
+        /// veya gövde ayrıştırılamıyor. Metering handler bunu durum koduna bakıp BAŞARILI saymıştı;
+        /// burada yalnız hata sayacı düzeltilir — istek zaten <see cref="RecordRequest"/> ile
+        /// toplama yazıldığı için _total ARTIRILMAZ (çift sayım olmaz).
+        /// </summary>
+        public void RecordBodyError(string endpointFamily)
+        {
+            var family = string.IsNullOrWhiteSpace(endpointFamily) ? "unknown" : endpointFamily;
+            Interlocked.Increment(ref _failed);
+            _failedByEndpoint.AddOrUpdate(family, 1, (_, v) => v + 1);
+        }
+
         /// <summary>
         /// Job-bazlı gerçek HTTP isteği kaydı. <paramref name="jobName"/>
         /// <see cref="ApiFootballCallScope"/>'tan gelir; ilan edilmemişse "unattributed".
@@ -84,6 +112,10 @@ namespace Formax.Infrastructure.Telemetry
                 ByJob                 = _byJob.OrderByDescending(kv => kv.Value)
                                                    .ToDictionary(kv => kv.Key, kv => kv.Value),
                 ByJobAndEndpoint      = _byJobEndpoint.OrderByDescending(kv => kv.Value)
+                                                   .ToDictionary(kv => kv.Key, kv => kv.Value),
+                PersistentCacheHits   = Interlocked.Read(ref _persistentCacheHits),
+                BudgetBlockedRequests = Interlocked.Read(ref _budgetBlocks),
+                BudgetBlockedByEndpoint = _budgetBlockedByEndpoint.OrderByDescending(kv => kv.Value)
                                                    .ToDictionary(kv => kv.Key, kv => kv.Value)
             };
         }
@@ -108,5 +140,10 @@ namespace Formax.Infrastructure.Telemetry
         public Dictionary<string, long> ByJob { get; init; } = new();
         /// <summary>Anahtar biçimi: "{job}|{endpointFamily}".</summary>
         public Dictionary<string, long> ByJobAndEndpoint { get; init; } = new();
+
+        // ── FORMAX veri katmanı (L2 kalıcı cache + günlük bütçe) ──
+        public long PersistentCacheHits { get; init; }
+        public long BudgetBlockedRequests { get; init; }
+        public Dictionary<string, long> BudgetBlockedByEndpoint { get; init; } = new();
     }
 }

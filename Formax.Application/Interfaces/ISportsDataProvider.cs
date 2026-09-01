@@ -28,6 +28,35 @@ namespace Formax.Application.Interfaces
             CancellationToken ct = default);
 
         /// <summary>
+        /// TOPLU GÜN ÇEKİMİ — verilen günlerin her biri için TEK <c>fixtures?date=</c> isteği.
+        /// Maç başına istek ÜRETİLMEZ; bir günün yanıtı o güne düşen bütün maçları günceller.
+        ///
+        /// <see cref="GetFixturesAsync"/>'ten farkı: günler bitişik bir pencere olmak zorunda
+        /// değildir (sonuç uzlaştırma geçmişteki dağınık günleri ister) ve TEK bir günün
+        /// başarısızlığı diğer günlerin verisini ÇÖPE ATMAZ — başarı/başarısızlık ayrı ayrı
+        /// döner. Erişilemeyen gün "o gün maç yok" DEĞİLDİR.
+        /// </summary>
+        Task<SportsFixtureDayBatch> GetFixturesForDatesAsync(
+            IReadOnlyList<DateTime> dates,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// TEK FİKSTÜRÜN KESİN SONUCU — <c>GET /fixtures?id={id}</c>.
+        ///
+        /// SON ÇARE yoludur, varsayılan yol DEĞİLDİR. Yalnız gün-bazlı toplu çekimin
+        /// ABONELİK PLANI tarafından kapatıldığı geçmiş günler için kullanılır (ölçüldü
+        /// 31.08.2026: Free plan <c>date=</c> için yalnız [bugün-1, bugün+1] veriyor,
+        /// <c>ids=</c> toplu parametresini hiç vermiyor, ama <c>id=</c> tekil sorguyu
+        /// kabul ediyor). Erişilebilir günlerde ASLA çağrılmaz — orada tek gün isteği
+        /// zaten o günün bütün maçlarını kapatır.
+        ///
+        /// Sağlayıcı gövde hatası verirse null döner; çağıran sahte sonuç YAZMAZ.
+        /// </summary>
+        Task<SportsFixtureResult?> GetFixtureByIdAsync(
+            string externalMatchId,
+            CancellationToken ct = default);
+
+        /// <summary>
         /// Fixture Expansion v2 — a team's most recent FINISHED matches, by external team id,
         /// via api-football GET /fixtures?team={id}&last={N} (all competitions: league / cup /
         /// europe / national / friendly — as the provider supplies them). Used by

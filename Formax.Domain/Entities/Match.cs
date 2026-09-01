@@ -56,6 +56,19 @@ namespace Formax.Domain.Entities
         /// </summary>
         public string? Round { get; set; }
 
+        /// <summary>
+        /// KESİN SONUCUN DB'YE YAZILDIĞI AN (UTC). null = bu maç için sağlayıcıdan
+        /// kesinleşmiş bir sonuç HİÇ alınmadı. Skorun 0-0 olması bir sonuç DEĞİLDİR;
+        /// "sonucu var mı" sorusunun tek dürüst cevabı bu alandır.
+        /// </summary>
+        public DateTime? ResultUpdatedAtUtc { get; set; }
+
+        /// <summary>
+        /// Sonucun geldiği sağlayıcı sorgusu ("api-football:fixtures?date=2026-08-30").
+        /// Tazelik denetimi ve teşhis için; uydurulmaz, yalnız gerçek çağrıdan yazılır.
+        /// </summary>
+        public string? ResultSource { get; set; }
+
         // 🔥 GERİ EKLENDİ
         public Match CloneForComparison()
         {

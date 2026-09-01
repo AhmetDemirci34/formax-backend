@@ -4,6 +4,7 @@ using Formax.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Formax.Infrastructure.Migrations
 {
     [DbContext(typeof(FormaxDbContext))]
-    partial class FormaxDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830193526_AddLeagueStandingsSnapshot")]
+    partial class AddLeagueStandingsSnapshot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1005,37 +1008,6 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("LeagueExternalMappings");
                 });
 
-            modelBuilder.Entity("Formax.Domain.Entities.LeagueSeason", b =>
-                {
-                    b.Property<int>("LeagueId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SeasonYear")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("EndUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<DateTime>("StartUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("VerifiedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("LeagueId", "SeasonYear");
-
-                    b.ToTable("LeagueSeasons");
-                });
-
             modelBuilder.Entity("Formax.Domain.Entities.LeagueStanding", b =>
                 {
                     b.Property<int>("LeagueId")
@@ -1099,26 +1071,8 @@ namespace Formax.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("AbandonedFixtures")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("CalculatedAtUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<int>("CancelledFixtures")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CompletenessCheckedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("ExpectedCompletedFixtures")
-                        .HasColumnType("int");
-
-                    b.Property<int>("IncludedCompletedFixtures")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsComplete")
-                        .HasColumnType("bit");
 
                     b.Property<bool>("IsProvisional")
                         .HasColumnType("bit");
@@ -1130,12 +1084,6 @@ namespace Formax.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("MatchesIncluded")
-                        .HasColumnType("int");
-
-                    b.Property<int>("MissingCompletedFixtures")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PostponedFixtures")
                         .HasColumnType("int");
 
                     b.Property<string>("RankingRuleId")
@@ -1157,9 +1105,6 @@ namespace Formax.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("StaleResultFixtures")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -1311,12 +1256,6 @@ namespace Formax.Infrastructure.Migrations
 
                     b.Property<string>("Referee")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ResultSource")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("ResultUpdatedAtUtc")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("Round")
                         .HasMaxLength(120)

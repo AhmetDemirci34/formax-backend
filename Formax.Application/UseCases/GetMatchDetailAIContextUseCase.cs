@@ -57,6 +57,10 @@ namespace Formax.Application.UseCases
         private readonly Formax.Application.Services.News.Feed.MatchNewsFeedService _newsFeedService;
         // FAZ 1 — TeamComparison/H2H artık ortak kaynaktan (formül birebir aynı; bkz. MatchComparisonFactory).
         private readonly Formax.Application.Services.Matches.MatchComparisonFactory _comparisonFactory;
+        // SEZON KAPSAMI — "bu sezon" ifadesinin tek çözücüsü (30.08.2026 kök neden düzeltmesi).
+        private readonly ILeagueSeasonResolver _seasonResolver;
+        // İç kaynaklı puan durumu (saatlik projeksiyon + cache). Okuma hesap tetiklemez.
+        private readonly ILeagueStandingsService _standingsService;
         private readonly Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> _logger;
 
         public GetMatchDetailAIContextUseCase(
@@ -87,8 +91,12 @@ namespace Formax.Application.UseCases
             Formax.Application.Interfaces.IMatchEvidenceRepository evidenceRepository,
             Formax.Application.Services.Matches.MatchComparisonFactory comparisonFactory,
             Formax.Application.Services.News.Feed.MatchNewsFeedService newsFeedService,
+            ILeagueSeasonResolver seasonResolver,
+            ILeagueStandingsService standingsService,
             Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> logger)
         {
+            _seasonResolver = seasonResolver;
+            _standingsService = standingsService;
             _newsFeedService = newsFeedService;
             _comparisonFactory = comparisonFactory;
             _matchReadRepository = matchReadRepository;
@@ -266,6 +274,12 @@ namespace Formax.Application.UseCases
             var awayFormLeagueId = ResolveTeamLeagueId(
                 match.AwayTeamId, ResolveTeamExternalId(match.AwayTeamId), seasonYear);
 
+            // ── SEZON KAPSAMLI FORM (kök neden düzeltmesi) ────────────────────────
+            // Liste ve özet AYNI maç kümesinden üretilir: aynı lig + bu sezon + kickoff
+            // öncesi + tamamlanmış. Anlatı da bu özetin cümlesini kullanır.
+            var homeSeasonForm = BuildSeasonForm(match, match.HomeTeamId, homeNm, homeFormLeagueId);
+            var awaySeasonForm = BuildSeasonForm(match, match.AwayTeamId, awayNm, awayFormLeagueId);
+
             // ── Assemble ─────────────────────────────────────────────────────────
             var aiSummary = aiUxState switch
             {
@@ -308,8 +322,13 @@ namespace Formax.Application.UseCases
                 // kupası maçında da kullanıcı takımın lig formunu görmek ister). Lig
                 // çözülemezse filtre uygulanmaz ve DTO'daki lig adı null kalır; UI o zaman
                 // başlığı "Son N Maç" yazar — "ligde" demez.
-                HomeTeamLastMatches = BuildLastMatches(match.HomeTeamId, match.Id, homeFormLeagueId),
-                AwayTeamLastMatches = BuildLastMatches(match.AwayTeamId, match.Id, awayFormLeagueId),
+                HomeTeamLastMatches = homeSeasonForm.LastMatches,
+                AwayTeamLastMatches = awaySeasonForm.LastMatches,
+
+                // MEVCUT SEZON FORM ÖZETİ — anlatının ve ekranın ortak dayanağı
+                // (kaç maç oynandı, G/B/M, iç saha/deplasman, kullanılan MatchId listesi).
+                HomeSeasonForm = homeSeasonForm.Summary,
+                AwaySeasonForm = awaySeasonForm.Summary,
                 HomeTeamFormLeague  = homeFormLeagueId.HasValue ? ResolveLeagueName(homeFormLeagueId.Value) : null,
                 AwayTeamFormLeague  = awayFormLeagueId.HasValue ? ResolveLeagueName(awayFormLeagueId.Value) : null,
 
@@ -475,28 +494,81 @@ namespace Formax.Application.UseCases
         private TeamComparisonDto BuildTeamComparison(int teamId, bool homeOnly = false, bool awayOnly = false)
             => _comparisonFactory.BuildTeamComparison(teamId, homeOnly, awayOnly);
 
-        private List<LastMatchDto> BuildLastMatches(int teamId, int? excludeMatchId = null, int? leagueId = null)
+        /// <summary>
+        /// SEZON KAPSAMLI FORM — hem ekrandaki maç listesi hem de anlatının dayandığı özet.
+        ///
+        /// KÖK NEDEN (ölçüldü 30.08.2026, Barcelona–Rayo Vallecano / La Liga):
+        /// eski <c>BuildLastMatches</c> lig + "oynanmış" süzüyor, SEZON süzmüyordu. Barcelona'nın
+        /// listesi 1 tane 2026/27 (23.08 Elche 0-5) + 4 tane 2025/26 (10–23 Mayıs) maçından
+        /// oluşuyor, ekranda "bu sezonun formu" gibi okunuyordu.
+        ///
+        /// Artık kapsam kesindir: aynı LeagueId + aynı sezon + sezon başlangıcından sonra +
+        /// bu maçın kickoff'undan önce + Status=Finished. Eksik maç ÖNCEKİ SEZONDAN,
+        /// hazırlık maçından, kupadan veya Avrupa maçından TAMAMLANMAZ.
+        ///
+        /// Sezon çözülemezse (ligde o pencerede hiç kayıt yok) liste BOŞ döner ve özet
+        /// "veri yok" olur — tarih veya sezon TAHMİN EDİLMEZ.
+        /// </summary>
+        private SeasonFormResult BuildSeasonForm(
+            Domain.Entities.Match match,
+            int teamId,
+            string teamName,
+            int? leagueId)
         {
-            // "Son maçlar" listesi YALNIZ oynanmış maçlardan kurulur: gelecekteki, iptal
-            // edilen veya hâlâ süren maç forma girmez. (Diğer çağıranlar parametresiz
-            // kaldığı için AI metrikleri ve kadro tahmini bu değişiklikten ETKİLENMEZ.)
-            //
-            // leagueId verildiyse liste YALNIZ o ligin maçlarından kurulur → "ligde son 5 maç"
-            // başlığı gerçeği söyler; kupa/Avrupa maçı karışmaz. Ligde 5'ten az maç varsa
-            // liste kısa kalır; eksik başka turnuvadan TAMAMLANMAZ.
-            var recent = _matchReadRepository.GetRecentMatchesForTeam(teamId, 10, finishedOnly: true, leagueId: leagueId);
-            var result = new List<LastMatchDto>(recent.Count);
+            // Kapsam ligi: önce takımın ULUSAL ligi (Avrupa kupası maçında da kullanıcı lig
+            // formunu görmek ister). Çözülemezse MAÇIN KENDİ ligine düşülür — bu bir tahmin
+            // değil, maçın gerçek turnuvasıdır ve cümlede adı geçer. Hiçbir durumda
+            // "lig" kapsamı olmadan (tüm turnuvalar karışık) form üretilmez.
+            var scopeLeagueId = leagueId ?? (match.LeagueId > 0 ? match.LeagueId : (int?)null);
+            var leagueName = scopeLeagueId.HasValue ? ResolveLeagueName(scopeLeagueId.Value) : string.Empty;
 
-            foreach (var m in recent)
+            if (!scopeLeagueId.HasValue)
             {
-                // Görüntülenen maç kendi form listesine giremez.
-                if (excludeMatchId != null && m.Id == excludeMatchId) continue;
+                return new SeasonFormResult(
+                    new List<LastMatchDto>(),
+                    TeamSeasonFormService.Empty(teamId, teamName, leagueName),
+                    $"LEAGUE_NOT_RESOLVED: TeamId={teamId} için lig kapsamı çözülemedi.");
+            }
 
+            var resolution = _seasonResolver.Resolve(scopeLeagueId.Value, match.MatchDate);
+            if (!resolution.Resolved)
+            {
+                _logger.LogWarning("Season scope missing for form — {Error}", resolution.Error);
+                return new SeasonFormResult(
+                    new List<LastMatchDto>(),
+                    TeamSeasonFormService.Empty(teamId, teamName, leagueName),
+                    resolution.Error);
+            }
+
+            var scope = resolution.Scope!;
+
+            // Kapsamın üst sınırı BU MAÇIN başlama anıdır: sonrasında oynanan bir maç
+            // (varsa) bu analizin girdisi olamaz.
+            var settled = _matchReadRepository.GetSeasonLeagueMatchesForTeam(
+                teamId, scopeLeagueId.Value, scope.StartUtc, match.MatchDate);
+
+            // VERİ TAMLIĞI — ligin bu sezonki sonuçlarının tamamı depoda kesinleşti mi?
+            // Eksikse anlatı genel form değerlendirmesi YAPMAZ (bkz. TeamSeasonFormService).
+            var nowUtc = DateTime.UtcNow;
+            var completeness = Formax.Application.Services.Standings.SeasonDataCompleteness.Evaluate(
+                _matchReadRepository.GetSeasonLeagueFixturesBefore(
+                    scopeLeagueId.Value, scope.StartUtc, scope.EndUtc, nowUtc),
+                nowUtc);
+
+            // Görüntülenen maç kendi form listesine giremez (aynı tarihli kayıt tekrarı).
+            settled = settled.Where(m => m.Id != match.Id).ToList();
+
+            var summary = TeamSeasonFormService.Build(
+                teamId, teamName, leagueName, scope, match.MatchDate, settled, completeness);
+
+            var lastMatches = new List<LastMatchDto>(settled.Count);
+            foreach (var m in settled)
+            {
                 var isHome = m.HomeTeamId == teamId;
                 var gf = isHome ? m.HomeScore : m.AwayScore;
                 var ga = isHome ? m.AwayScore : m.HomeScore;
 
-                result.Add(new LastMatchDto
+                lastMatches.Add(new LastMatchDto
                 {
                     MatchId     = m.Id,
                     Opponent    = isHome
@@ -514,8 +586,14 @@ namespace Formax.Application.UseCases
                 });
             }
 
-            return result;
+            return new SeasonFormResult(lastMatches, summary, null);
         }
+
+        /// <summary>Form listesi + sezon özeti + (varsa) kapsam hatası.</summary>
+        private sealed record SeasonFormResult(
+            List<LastMatchDto> LastMatches,
+            TeamSeasonFormDto Summary,
+            string? Error);
 
         // Hesap ORTAK kaynağa taşındı (MatchComparisonFactory) — formül birebir aynıdır.
         private H2HDto BuildH2H(int homeTeamId, int awayTeamId, int? excludeMatchId = null)
@@ -943,9 +1021,92 @@ namespace Formax.Application.UseCases
         /// O durumda takımların KENDİ ulusal lig tabloları döner; her tabloda yalnız ilgili
         /// takım vurgulanır. Veri yoksa null — uydurma tablo üretilmez.
         /// </summary>
+        /// <summary>
+        /// İÇ KAYNAKLI PUAN DURUMU (öncelikli yol) — saatlik projeksiyonun snapshot'ı.
+        ///
+        /// Sağlayıcı tablosundan iki farkı vardır:
+        ///  • Kimlik CANONICAL takım id'sidir → external/canonical karışması (Eyüpspor 3588 =
+        ///    Fenerbahçe canonical) burada YAŞANMAZ; vurgulama doğrudan eşleşir.
+        ///  • Kaynak kendi tamamlanmış maçlarımızdır; tazelik (CalculatedAtUtc) taşınır.
+        ///
+        /// Snapshot yoksa null döner ve çağıran sağlayıcı tablosuna düşer (geri-uyum).
+        /// Bu metot HESAP TETİKLEMEZ: yalnız cache/DB okur.
+        /// </summary>
+        private StandingSectionDto? BuildStandingSectionFromSnapshot(Domain.Entities.Match match, int seasonYear)
+        {
+            var snapshot = _standingsService.GetCached(match.LeagueId, seasonYear);
+            if (snapshot == null || snapshot.Rows.Count == 0) return null;
+
+            TeamStandingDto Map(Formax.Application.DTOs.Standings.LeagueStandingsRowDto r) => new()
+            {
+                Position       = r.Position,
+                TeamName       = r.TeamName,
+                Played         = r.Played,
+                Won            = r.Won,
+                Drawn          = r.Drawn,
+                Lost           = r.Lost,
+                GoalsFor       = r.GoalsFor,
+                GoalsAgainst   = r.GoalsAgainst,
+                GoalDifference = r.GoalDifference,
+                Points         = r.Points,
+                Form           = r.Form,
+                IsHighlighted  = r.TeamId == match.HomeTeamId || r.TeamId == match.AwayTeamId
+            };
+
+            var rows = snapshot.Rows.OrderBy(r => r.Position).Select(Map).ToList();
+
+            var table = new StandingTableDto
+            {
+                LeagueId   = snapshot.LeagueId,
+                LeagueName = string.IsNullOrWhiteSpace(snapshot.LeagueName)
+                    ? ResolveLeagueName(match.LeagueId)
+                    : snapshot.LeagueName,
+                SeasonYear = snapshot.SeasonId,
+                Rows       = rows
+            };
+
+            var homeRow = snapshot.Rows.FirstOrDefault(r => r.TeamId == match.HomeTeamId);
+            var awayRow = snapshot.Rows.FirstOrDefault(r => r.TeamId == match.AwayTeamId);
+
+            return new StandingSectionDto
+            {
+                LeagueId             = table.LeagueId,
+                LeagueName           = table.LeagueName,
+                SeasonYear           = snapshot.SeasonId,
+                SeasonStartDate      = snapshot.SeasonStartDate,
+                CalculatedAtUtc      = snapshot.CalculatedAtUtc,
+                LastIncludedMatchUtc = snapshot.LastIncludedMatchUtc,
+                Source               = snapshot.Source,
+                IsFresh              = snapshot.IsFresh,
+                IsProvisional        = snapshot.IsProvisional,
+                ExpectedCompletedFixtures = snapshot.ExpectedCompletedFixtures,
+                IncludedCompletedFixtures = snapshot.IncludedCompletedFixtures,
+                MissingCompletedFixtures  = snapshot.MissingCompletedFixtures,
+                IsComplete                = snapshot.IsComplete,
+                CompletenessCheckedAtUtc  = snapshot.CompletenessCheckedAtUtc,
+                PostponedFixtures         = snapshot.PostponedFixtures,
+                CancelledFixtures         = snapshot.CancelledFixtures,
+                AbandonedFixtures         = snapshot.AbandonedFixtures,
+                StaleResultFixtures       = snapshot.StaleResultFixtures,
+                RankingRuleId        = snapshot.RankingRuleId,
+                MatchesIncluded      = snapshot.MatchesIncluded,
+                HomeTeamPeek         = homeRow != null ? Map(homeRow) : null,
+                AwayTeamPeek         = awayRow != null ? Map(awayRow) : null,
+                TableSlice           = rows,
+                Tables               = new List<StandingTableDto> { table }
+            };
+        }
+
         private StandingSectionDto? BuildStandingSection(Domain.Entities.Match match)
         {
             var seasonYear = ResolveSeasonYear(match.MatchDate);
+
+            // 1) ÖNCELİK: kendi tamamlanmış maçlarımızdan üretilen saatlik projeksiyon.
+            //    (Sağlayıcıya istek gitmez; okuma hesap tetiklemez.)
+            var internalSection = BuildStandingSectionFromSnapshot(match, seasonYear);
+            if (internalSection != null) return internalSection;
+
+            // 2) GERİ-UYUM: snapshot henüz üretilmediyse sağlayıcı tablosu (LeagueStandings).
 
             static TeamStandingDto Map(LeagueStanding s, bool highlight) => new()
             {

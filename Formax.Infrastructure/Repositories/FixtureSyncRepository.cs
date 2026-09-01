@@ -1,6 +1,7 @@
 using Formax.Application.Interfaces;
 using Formax.Domain.Entities;
 using Formax.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Formax.Infrastructure.Repositories;
 
@@ -47,6 +48,35 @@ public class FixtureSyncRepository : IFixtureSyncRepository
             .DistinctBy(m => m.ExternalMatchId!)
             .ToDictionary(m => m.ExternalMatchId!, m => m);
     }
+
+    /// <inheritdoc />
+    public List<Match> GetStaleResultCandidates(
+        DateTime nowUtc,
+        int settleMarginMinutes,
+        IReadOnlyCollection<int> leagueIds)
+    {
+        var cutoff = nowUtc.AddMinutes(-settleMarginMinutes);
+
+        var q = _context.Matches.AsNoTracking()
+            .Where(m => m.MatchDate <= cutoff
+                     && (m.Status == "NotStarted" || m.Status == "Live"));
+
+        if (leagueIds is { Count: > 0 })
+        {
+            var ids = leagueIds.ToList();
+            q = q.Where(m => ids.Contains(m.LeagueId));
+        }
+
+        // En eski önce: en uzun süredir eksik kalan sonuç ilk sırada kapatılır.
+        return q.OrderBy(m => m.MatchDate).ToList();
+    }
+
+    /// <inheritdoc />
+    public HashSet<int> GetLeaguesWithVerifiedSeason()
+        => _context.LeagueSeasons.AsNoTracking()
+               .Select(s => s.LeagueId)
+               .Distinct()
+               .ToHashSet();
 
     /// <inheritdoc />
     public void AddTeam(Team team)

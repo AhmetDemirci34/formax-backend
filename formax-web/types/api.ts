@@ -380,10 +380,108 @@ export interface StandingTableDto {
   rows: TeamStandingDto[];
 }
 
+export interface TeamSeasonSplitDto {
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+}
+
+/** Mirrors Formax.Application.DTOs.Matches.TeamSeasonFormDto */
+export interface TeamSeasonFormDto {
+  teamId: number;
+  teamName: string;
+  leagueId: number;
+  leagueName: string;
+  seasonYear: number;
+  /** "2026/27" */
+  seasonLabel: string;
+  seasonStartUtc: string;
+  windowEndUtc: string;
+  firstMatchUtc?: string | null;
+  lastMatchUtc?: string | null;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+  home: TeamSeasonSplitDto;
+  away: TeamSeasonSplitDto;
+  /** Hesaba giren GERÇEK maç id leri (en yeniden eskiye). */
+  matchIds: number[];
+  usedMatchCount: number;
+  /** 3ten az tamamlanmış maç → ekran bunu açıkça söyler. */
+  isLimitedSample: boolean;
+  hasNoData: boolean;
+  /** "Son 5 maç" ifadesi yalnız true iken kullanılabilir. */
+  allowsLastFivePhrase: boolean;
+  /** Ligin bu sezondaki beklenen tamamlanmış maç sayısı. */
+  seasonExpectedFixtures: number;
+  /** Sonucu hâlâ gelmemiş lig maçı sayısı. */
+  seasonMissingFixtures: number;
+  /** false → sezon verisi eksik; genel form değerlendirmesi YAPILMAZ. */
+  isSeasonDataComplete: boolean;
+  /** Genel form yorumu izni (veri tam + örneklem yeterli). */
+  allowsGeneralization: boolean;
+  /** Backend in yazdığı deterministik form cümlesi. */
+  sentence: string;
+  /** G/B/M dizisi (en yeni önce). */
+  resultSequence: string;
+}
+
 export interface StandingSectionDto {
   leagueId: number;
   leagueName?: string;
   seasonYear: number;
+
+  // ── İç kaynaklı projeksiyon üst verisi (backend LeagueStandingsSnapshot) ──
+  // Tablo artık FORMAX in KENDİ tamamlanmış maçlarından saatlik üretilir. Sağlayıcı
+  // tablosuna düşüldüğünde bu alanlar GELMEZ (undefined) — sahte tazelik gösterilmez.
+  /** Sezonun gerçek başlangıcı (ligin bu sezondaki ilk maçı). */
+  seasonStartDate?: string;
+  /** Projeksiyonun üretildiği an — "Son güncelleme" bunu gösterir. */
+  calculatedAtUtc?: string;
+  /** Tabloya giren en son tamamlanmış maçın tarihi. */
+  lastIncludedMatchUtc?: string;
+  /** "InternalResultsProjection". */
+  source?: string;
+  /** 2 saatten yeni mi. false → "Puan durumu güncelleniyor". */
+  isFresh?: boolean;
+  /** Sıra resmî değil (ligin eşitlik kuralı uygulanamadı). */
+  isProvisional?: boolean;
+  /** Uygulanan sıralama kuralının kimliği. */
+  rankingRuleId?: string;
+  /** Tabloya giren tamamlanmış maç sayısı. */
+  matchesIncluded?: number;
+
+  // ── Veri tamlığı ────────────────────────────────────────────────────────
+  /** Bu ana kadar oynanmış OLMASI GEREKEN lig maçı sayısı. */
+  expectedCompletedFixtures?: number;
+  /** Sonucu kesinleşmiş ve tabloya giren maç sayısı. */
+  includedCompletedFixtures?: number;
+  /** Sonucu hâlâ gelmemiş maç sayısı. */
+  missingCompletedFixtures?: number;
+  /**
+   * false → tablo EKSİK. isFresh true olsa bile "güncel/resmî" diye GÖSTERİLMEZ;
+   * ekran "Puan durumu verileri tamamlanıyor" der.
+   */
+  isComplete?: boolean;
+  /**
+   * Ertelenmiş maç sayısı. Tabloyu EKSİK YAPMAZ: ertelenen maç oynanmamıştır,
+   * sonucu beklenmez ve takımların oynadığı maç sayısının farklı olması normaldir.
+   * Yalnız bilgi olarak gösterilir; uyarı DEĞİLDİR.
+   */
+  postponedFixtures?: number;
+  cancelledFixtures?: number;
+  abandonedFixtures?: number;
+  /** Oynanması beklenip sonucu hâlâ gelmemiş maç sayısı. */
+  staleResultFixtures?: number;
+  completenessCheckedAtUtc?: string;
   homeTeamPeek?: TeamStandingDto;
   awayTeamPeek?: TeamStandingDto;
   /** Birincil tablonun TAM satır listesi (eski ad korundu; artık kırpılmaz). */
@@ -642,6 +740,15 @@ export interface MatchDetailDto {
    * liste süzülmedi, başlıkta "ligde" DENMEZ.
    */
   homeTeamFormLeague?: string | null;
+
+  /**
+   * MEVCUT SEZON LİG FORMU (backend TeamSeasonFormDto). Kapsam: aynı lig + bu sezon +
+   * maç saatinden önce + tamamlanmış maçlar. Önceki sezon, hazırlık, kupa ve Avrupa
+   * maçları BU ÖZETE GİRMEZ. `sentence` backend in yazdığı deterministik cümledir;
+   * frontend cümle KURMAZ, sayı HESAPLAMAZ.
+   */
+  homeSeasonForm?: TeamSeasonFormDto | null;
+  awaySeasonForm?: TeamSeasonFormDto | null;
   awayTeamFormLeague?: string | null;
   comparison: ComparisonDto;
   h2h: H2HDto;
@@ -677,6 +784,8 @@ export interface FollowedMatchDto {
   matchId: number;
   homeTeam: string;
   awayTeam: string;
+  homeTeamLogoUrl?: string | null;
+  awayTeamLogoUrl?: string | null;
   league: string;
   startTime: string; // ISO date string
   score?: { home: number; away: number };

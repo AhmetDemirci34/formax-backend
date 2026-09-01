@@ -121,55 +121,203 @@ namespace Formax.Infrastructure.Providers
             DateTime toDate,
             CancellationToken ct = default)
         {
+            var days = new List<DateTime>();
+            for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
+                days.Add(day);
+
+            var batch = await GetFixturesForDatesAsync(days, ct);
+
+            // HİÇBİR gün alınamadıysa davranış eskisi gibidir: bu "maç yok" değildir, hatadır.
+            if (batch.IsTotalFailure)
+                throw new ApiFootballUnavailableException(
+                    $"fixtures {fromDate:yyyy-MM-dd}→{toDate:yyyy-MM-dd} — hiçbir gün alınamadı: " +
+                    string.Join("; ", batch.FailedDates.Select(f => $"{f.Date:yyyy-MM-dd}: {f.Reason}")));
+
+            return batch.Fixtures;
+        }
+
+        /// <summary>
+        /// Gün gün <c>GET /fixtures?date=YYYY-MM-DD</c>. Her gün BAĞIMSIZ değerlendirilir:
+        /// biri hata verdiğinde diğerlerinin verisi korunur (eski "hep ya da hiç" döngüsü
+        /// ölçülmüş veri kaybına yol açıyordu — bkz. <see cref="SportsFixtureDayBatch"/>).
+        /// Tekrarlanan gün elenir; sıralama korunur. Gövde hatası veren gün cache'LENMEZ
+        /// (bu kural taşıma katmanındadır), dolayısıyla sonraki tur aynı günü yeniden dener.
+        /// </summary>
+        public async Task<SportsFixtureDayBatch> GetFixturesForDatesAsync(
+            IReadOnlyList<DateTime> dates,
+            CancellationToken ct = default)
+        {
+            var batch = new SportsFixtureDayBatch();
+            if (dates == null || dates.Count == 0) return batch;
+
+            var unique = dates.Select(d => d.Date).Distinct().OrderBy(d => d).ToList();
+            batch.RequestedDayCount = unique.Count;
+
             if (string.IsNullOrWhiteSpace(_apiKey))
             {
                 _logger.LogWarning("[SPORTS] API key not configured — skipping fixture sync");
-                return new List<SportsFixtureResult>();
+                foreach (var d in unique) batch.FailedDates.Add((d, "api key yok"));
+                return batch;
             }
 
-            var from = fromDate.ToString("yyyy-MM-dd");
-            var to   = toDate.ToString("yyyy-MM-dd");
-            var cacheKey = $"fx:{from}:{to}";
-
-            if (_cache.TryGetValue(cacheKey, out List<SportsFixtureResult>? cached) && cached != null)
-                return cached;
-
-            try
+            foreach (var day in unique)
             {
-                var results = new List<SportsFixtureResult>();
+                ct.ThrowIfCancellationRequested();
 
-                // api-football: /fixtures?from&to yalnız league+season ile geçerlidir
-                // (aksi halde "The From field need another parameter" → 0 sonuç). Tüm ligler
-                // için doğru sorgu gün-bazlı /fixtures?date=YYYY-MM-DD'dir; pencereyi gün gün
-                // çekip birleştiriyoruz (Pro plan: 7500 istek/gün, ~9 istek/döngü).
-                for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
+                // ÖĞRENİLMİŞ PLAN PENCERESİ — sağlayıcı hangi aralığı verdiğini hata
+                // mesajında söylüyor. Aralık dışındaki gün için İSTEK ÜRETİLMEZ: reddedilecek
+                // bir günü her turda yeniden satın almak kotanın sessiz kaçağıdır.
+                if (IsPlanBlocked(day))
+                {
+                    batch.PlanBlockedDates.Add(day);
+                    batch.FailedDates.Add((day, "abonelik planı bu tarihi kapsamıyor (öğrenilmiş pencere)"));
+                    continue;
+                }
+
+                var dayKey = $"fxd:{day:yyyy-MM-dd}";
+                if (_cache.TryGetValue(dayKey, out List<SportsFixtureResult>? cachedDay) && cachedDay != null)
+                {
+                    batch.Fixtures.AddRange(cachedDay);
+                    batch.SucceededDates.Add(day);
+                    continue;
+                }
+
+                try
                 {
                     var response = await _http.GetFromJsonAsync<ApiFootballFixtureSyncResponse>(
                         $"fixtures?date={day:yyyy-MM-dd}{_tzQuery}", ct);
 
-                    if (response?.Response == null)
-                        continue;
+                    // SAĞLAYICI PROBLEMİ ≠ "O GÜN MAÇ YOK". Kota bittiğinde/anahtar geçersizken
+                    // api-football HTTP 200 + dolu "errors" + boş "response" döndürür.
+                    if (response == null || response.Response == null || HasProviderError(response.Errors))
+                    {
+                        // 200 döndüğü için metering handler bunu BAŞARILI saymıştı; gövde hatası
+                        // burada telemetriye işlenir (quota dashboard'unda failedRequests olur).
+                        _metrics.RecordBodyError("fixtures");
+                        var detail = DescribeProviderError(response?.Errors);
 
+                        // Plan reddi GEÇİCİ DEĞİLDİR: aralığı öğren, bu günü plan-kapalı say.
+                        if (LearnPlanWindow(detail))
+                        {
+                            batch.PlanBlockedDates.Add(day);
+                            batch.FailedDates.Add((day, detail));
+                            continue;
+                        }
+
+                        batch.FailedDates.Add((day, detail.Length > 0
+                            ? detail
+                            : "sağlayıcı kullanılabilir gövde döndürmedi (kota/hata)"));
+
+                        // DAKİKA LİMİTİ: sonraki günleri aynı saniyede sormak yalnız daha çok
+                        // 429 üretir. Tur burada kesilir; kalan günler sonraki turda alınır.
+                        if (detail.Contains("Too many requests", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogWarning(
+                                "[SPORTS] Dakika limiti — kalan günler bu turda sorulmadı (sonraki turda alınacak).");
+                            foreach (var rest in unique.Where(d => d > day))
+                                batch.FailedDates.Add((rest, "dakika limiti nedeniyle bu turda sorulmadı"));
+                            break;
+                        }
+                        continue;
+                    }
+
+                    var dayResults = new List<SportsFixtureResult>();
                     foreach (var entry in response.Response)
                     {
                         var mapped = MapSyncEntry(entry);
-                        if (mapped != null) results.Add(mapped);
+                        if (mapped != null) dayResults.Add(mapped);
                     }
+
+                    _cache.Set(dayKey, dayResults, TtlFixtures);
+                    batch.Fixtures.AddRange(dayResults);
+                    batch.SucceededDates.Add(day);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    // Taşıma/ayrıştırma hatası da "o gün maç yok" DEĞİLDİR.
+                    _logger.LogError(ex, "[SPORTS] Fixture fetch failed for {Day}", day.ToString("yyyy-MM-dd"));
+                    _metrics.RecordBodyError("fixtures");
+                    batch.FailedDates.Add((day, ex.Message));
+                }
+            }
+
+            _logger.LogInformation(
+                "[SPORTS] GetFixturesForDates: {Count} fixture(s); {Ok}/{Total} gün alındı, " +
+                "{Fail} gün erişilemedi ({Plan} tanesi abonelik planı nedeniyle).",
+                batch.Fixtures.Count, batch.SucceededDates.Count, batch.RequestedDayCount,
+                batch.FailedDates.Count, batch.PlanBlockedDates.Count);
+
+            return batch;
+        }
+
+        // ── ÖĞRENİLMİŞ PLAN PENCERESİ ─────────────────────────────────────────
+        // api-football abonelik planı, tarih sorgularını bir aralığa hapsediyor ve aralığı
+        // hata mesajında AÇIKÇA söylüyor:
+        //   {"plan":"Free plans do not have access to this date, try from 2026-08-30 to 2026-09-01."}
+        // Bu aralık öğrenilip saklanmazsa her tur aynı reddedilecek günler için istek üretilir.
+        private const string PlanWindowCacheKey = "af:planwindow:fixtures-date";
+
+        private static readonly System.Text.RegularExpressions.Regex PlanRangeRegex =
+            new(@"from\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        /// <summary>Sağlayıcının plan reddiyse aralığı öğrenir ve true döner.</summary>
+        private bool LearnPlanWindow(string detail)
+        {
+            if (string.IsNullOrWhiteSpace(detail)) return false;
+            if (detail.IndexOf("do not have access to this date", StringComparison.OrdinalIgnoreCase) < 0)
+                return false;
+
+            var m = PlanRangeRegex.Match(detail);
+            if (m.Success &&
+                DateTime.TryParse(m.Groups[1].Value, out var from) &&
+                DateTime.TryParse(m.Groups[2].Value, out var to))
+            {
+                // Pencere her gün ileri kayar; gün sonuna kadar geçerli sayılır.
+                _cache.Set(PlanWindowCacheKey, (from.Date, to.Date), TimeSpan.FromHours(6));
+                _logger.LogWarning(
+                    "[SPORTS] Abonelik planı tarih penceresi öğrenildi: {From} → {To}. " +
+                    "Bu aralığın dışındaki günler için istek ÜRETİLMEYECEK.",
+                    from.ToString("yyyy-MM-dd"), to.ToString("yyyy-MM-dd"));
+            }
+            return true;
+        }
+
+        private bool IsPlanBlocked(DateTime day)
+            => _cache.TryGetValue(PlanWindowCacheKey, out (DateTime From, DateTime To) w)
+               && (day.Date < w.From || day.Date > w.To);
+
+        /// <inheritdoc />
+        public async Task<SportsFixtureResult?> GetFixtureByIdAsync(
+            string externalMatchId,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(externalMatchId))
+                return null;
+
+            try
+            {
+                var response = await _http.GetFromJsonAsync<ApiFootballFixtureSyncResponse>(
+                    $"fixtures?id={Uri.EscapeDataString(externalMatchId)}{_tzQuery}", ct);
+
+                if (response == null || response.Response == null || HasProviderError(response.Errors))
+                {
+                    _metrics.RecordBodyError("fixtures");
+                    _logger.LogWarning("[SPORTS] fixtures?id={Id} — {Detail}",
+                        externalMatchId, DescribeProviderError(response?.Errors));
+                    return null;   // SAHTE SONUÇ YOK: çağıran hiçbir şey yazmaz.
                 }
 
-                _logger.LogInformation(
-                    "[SPORTS] GetFixturesAsync: {Count} fixture(s) from {From} to {To}",
-                    results.Count, from, to);
-
-                _cache.Set(cacheKey, results, TtlFixtures);
-                return results;
+                var entry = response.Response.FirstOrDefault();
+                return entry == null ? null : MapSyncEntry(entry);
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "[SPORTS] Fixture sync fetch failed for window {From}→{To}",
-                    fromDate.ToString("yyyy-MM-dd"), toDate.ToString("yyyy-MM-dd"));
-                return new List<SportsFixtureResult>();
+                _logger.LogError(ex, "[SPORTS] fixtures?id={Id} isteği başarısız.", externalMatchId);
+                _metrics.RecordBodyError("fixtures");
+                return null;
             }
         }
 
@@ -305,6 +453,12 @@ namespace Formax.Infrastructure.Providers
                 "PST"  => "Postponed",
                 "CANC" => "Cancelled",
                 "ABD"  => "Cancelled",
+                // HÜKMEN/SAHAYA ÇIKMAMA: maç OYNANMADI, dolayısıyla "Finished" DEĞİLDİR;
+                // ama "NotStarted" da değildir — sonuç KESİNLEŞMİŞTİR ve bir daha oynanmaz.
+                // Eskiden aşağıdaki genel varsayılana düşüyordu: kickoff'u geçmiş bu maçlar
+                // sonsuza dek "başlamamış" görünüp her turda yeniden sonuç aranıyordu.
+                "WO"   => "Cancelled",
+                "AWD"  => "Cancelled",
                 _      => "NotStarted"
             };
         }
@@ -1197,6 +1351,47 @@ namespace Formax.Infrastructure.Providers
 
         private const int MaxPlayerPages = 3; // kota koruması (~60 oyuncu yeterli)
 
+        /// <summary>
+        /// SAĞLAYICI PROBLEMİ ≠ GERÇEK BOŞ VERİ. api-football kota bittiğinde / anahtar geçersizken
+        /// HTTP 200 + <c>"errors": {...}</c> + <c>"response": []</c> döndürür; bu, "bu takımın oyuncu
+        /// verisi yok" ile AYNI ŞEKİLDE görünür. Ayrım kaybolursa çağıran taraf sahte bir "veri yok"
+        /// sonucunu kalıcı kaydeder. Bu istisna, yalnız Football Intelligence yolunda (players/injuries)
+        /// atılır ve çağıranın YAZMADAN atlamasını sağlar.
+        /// </summary>
+        public sealed class ApiFootballUnavailableException : Exception
+        {
+            public ApiFootballUnavailableException(string message, Exception? inner = null)
+                : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// Teşhis metni: api-football gövdesindeki YALNIZ "errors" alanı, güvenli hâle getirilmiş
+        /// biçimde. Ham gövde ASLA taşınmaz; uzunluk sınırlanır ve anahtar benzeri uzun alfanümerik
+        /// diziler maskelenir. (api-football anahtarı HEADER'da gider, gövdede yer almaz — bu maske
+        /// yine de sağlayıcının mesajında bir token yankılanırsa diye ikinci bir emniyet kemeridir.)
+        /// Hata yoksa boş string döner; çağıran o zaman genel mesajı kullanır.
+        /// </summary>
+        private static string DescribeProviderError(System.Text.Json.JsonElement? errors)
+        {
+            if (!HasProviderError(errors)) return string.Empty;
+            var text = errors!.Value.GetRawText();
+            if (text.Length > 300) text = text.Substring(0, 300) + "…";
+            return System.Text.RegularExpressions.Regex.Replace(text, "[A-Za-z0-9]{24,}", "***");
+        }
+
+        /// <summary>api-football gövdesindeki "errors" alanı dolu mu? (boş dizi = hata yok)</summary>
+        private static bool HasProviderError(System.Text.Json.JsonElement? errors)
+        {
+            if (errors is not System.Text.Json.JsonElement e) return false;
+            return e.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Object => e.EnumerateObject().MoveNext(),
+                System.Text.Json.JsonValueKind.Array  => e.GetArrayLength() > 0,
+                System.Text.Json.JsonValueKind.String => !string.IsNullOrWhiteSpace(e.GetString()),
+                _ => false
+            };
+        }
+
         public async Task<List<SportsPlayerSeasonStat>> GetTeamPlayersAsync(
             string teamExternalId, int season, CancellationToken ct = default)
         {
@@ -1218,7 +1413,13 @@ namespace Formax.Infrastructure.Providers
                 {
                     var resp = await _http.GetFromJsonAsync<ApiFootballPlayersResponse>(
                         $"players?team={teamId}&season={season}&page={page}", ct);
-                    totalPages = resp?.Paging?.Total ?? 1;
+
+                    // Sağlayıcı problemi (kota/anahtar/gövdesiz yanıt) SAHTE BOŞ olarak yazılamaz.
+                    if (resp == null || HasProviderError(resp.Errors))
+                        throw new ApiFootballUnavailableException(
+                            $"players?team={teamId}&season={season} — sağlayıcı kullanılabilir veri döndürmedi (kota/hata).");
+
+                    totalPages = resp.Paging?.Total ?? 1;
 
                     foreach (var item in resp?.Response ?? new())
                     {
@@ -1259,10 +1460,13 @@ namespace Formax.Infrastructure.Providers
                 _cache.Set(cacheKey, result, TimeSpan.FromHours(12));
                 return result;
             }
+            catch (ApiFootballUnavailableException) { throw; }
             catch (Exception ex)
             {
+                // Taşıma/ayrıştırma hatası da "veri yok" DEĞİLDİR — boş liste döndürülmez, cache'lenmez.
                 _logger.LogWarning(ex, "[SPORTS] team players fetch failed for team {TeamId}", teamId);
-                return new List<SportsPlayerSeasonStat>();
+                throw new ApiFootballUnavailableException(
+                    $"players?team={teamId}&season={season} — istek başarısız.", ex);
             }
         }
 
@@ -1284,9 +1488,14 @@ namespace Formax.Infrastructure.Providers
                 var resp = await _http.GetFromJsonAsync<ApiFootballInjuriesTeamResponse>(
                     $"injuries?team={teamId}&season={season}", ct);
 
+                // Sağlayıcı problemi (kota/anahtar/gövdesiz yanıt) SAHTE BOŞ olarak yazılamaz.
+                if (resp == null || HasProviderError(resp.Errors))
+                    throw new ApiFootballUnavailableException(
+                        $"injuries?team={teamId}&season={season} — sağlayıcı kullanılabilir veri döndürmedi (kota/hata).");
+
                 // En güncel kayıt kazanır (fixture tarihi). Oyuncu bazında dedup.
                 var latest = new Dictionary<int, (DateTime date, SportsTeamInjury inj)>();
-                foreach (var e in resp?.Response ?? new())
+                foreach (var e in resp.Response ?? new())
                 {
                     var pid = e.Player?.Id ?? 0;
                     if (pid == 0 || string.IsNullOrWhiteSpace(e.Player?.Name)) continue;
@@ -1304,10 +1513,13 @@ namespace Formax.Infrastructure.Providers
                 _cache.Set(cacheKey, result, TimeSpan.FromHours(6));
                 return result;
             }
+            catch (ApiFootballUnavailableException) { throw; }
             catch (Exception ex)
             {
+                // Taşıma/ayrıştırma hatası da "veri yok" DEĞİLDİR — boş liste döndürülmez, cache'lenmez.
                 _logger.LogWarning(ex, "[SPORTS] team injuries fetch failed for team {TeamId}", teamId);
-                return new List<SportsTeamInjury>();
+                throw new ApiFootballUnavailableException(
+                    $"injuries?team={teamId}&season={season} — istek başarısız.", ex);
             }
         }
 
@@ -1581,6 +1793,8 @@ namespace Formax.Infrastructure.Providers
         {
             [JsonPropertyName("paging")] public ApiFootballPaging? Paging { get; set; }
             [JsonPropertyName("response")] public List<ApiFootballPlayerItem> Response { get; set; } = new();
+            // Kota/anahtar hatasında api-football 200 + dolu "errors" döndürür (boş dizi = hata yok).
+            [JsonPropertyName("errors")] public System.Text.Json.JsonElement? Errors { get; set; }
         }
         private class ApiFootballPaging
         {
@@ -1692,6 +1906,8 @@ namespace Formax.Infrastructure.Providers
         private class ApiFootballInjuriesTeamResponse
         {
             [JsonPropertyName("response")] public List<ApiFootballInjuryTeamItem> Response { get; set; } = new();
+            // Kota/anahtar hatasında api-football 200 + dolu "errors" döndürür (boş dizi = hata yok).
+            [JsonPropertyName("errors")] public System.Text.Json.JsonElement? Errors { get; set; }
         }
         private class ApiFootballInjuryTeamItem
         {
@@ -2235,6 +2451,9 @@ namespace Formax.Infrastructure.Providers
         {
             [JsonPropertyName("response")]
             public List<ApiFootballFixtureSyncEntry> Response { get; set; } = new();
+
+            // Kota/anahtar hatasında api-football 200 + dolu "errors" döndürür (boş dizi = hata yok).
+            [JsonPropertyName("errors")] public System.Text.Json.JsonElement? Errors { get; set; }
         }
 
         private class ApiFootballFixtureSyncEntry

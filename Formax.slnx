@@ -4,4 +4,5 @@
   <Project Path="Formax.Domain/Formax.Domain.csproj" Id="bc16e888-0dc9-4596-87c1-1b3d7c8c31c3" />
   <Project Path="Formax.Engine/Formax.Engine.csproj" Id="d0550cdf-a2e2-4fdb-842a-8ae32589db0f" />
   <Project Path="Formax.Infrastructure/Formax.Infrastructure.csproj" Id="db5717df-7246-4302-8dc8-92b3ba20ac8e" />
+  <Project Path="tests/Formax.Tests/Formax.Tests.csproj" />
 </Solution>

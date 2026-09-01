@@ -53,4 +53,12 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
+  <!--
+    Otomatik testler taşıma katmanının internal tiplerini (ör. ApiFootballCacheHandler.
+    CachedResponse) kurabilsin diye. Üretim tipleri test uğruna public YAPILMADI.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Formax.Tests" />
+  </ItemGroup>
+
 </Project>

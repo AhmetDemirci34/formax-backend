@@ -55,5 +55,46 @@ namespace Formax.Application.Interfaces
             bool finishedOnly = false,
             int? excludeMatchId = null
         );
+
+        /// <summary>
+        /// SEZON KAPSAMLI LİG MAÇLARI — "bu sezon ligde" ifadesinin TEK veri kaynağı.
+        ///
+        /// Kök neden (ölçüldü 30.08.2026, Barcelona–Rayo Vallecano): <see cref="GetRecentMatchesForTeam"/>
+        /// yalnız lig + tamamlanmışlık süzüyordu, SEZON süzmüyordu. Barcelona'nın "son 5 maçı"
+        /// 1 tanesi 2026/27 (23.08), 4 tanesi 2025/26 (10–23 Mayıs) maçıydı; ekranda geçen
+        /// sezonun formu bu sezonmuş gibi anlatılıyordu.
+        ///
+        /// Bu sorgu kesin kapsamı uygular: aynı lig + sezon penceresi + maç saatinden önce +
+        /// yalnız Finished. Eksik maç BAŞKA sezondan/turnuvadan TAMAMLANMAZ.
+        /// </summary>
+        /// <param name="beforeUtc">İncelenen maçın kickoff'u — o andan sonrası forma giremez.</param>
+        List<Match> GetSeasonLeagueMatchesForTeam(
+            int teamId,
+            int leagueId,
+            DateTime seasonStartUtc,
+            DateTime beforeUtc,
+            int max = 20);
+
+        /// <summary>
+        /// Bir ligin BİR SEZONDAKİ tamamlanmış maçlarının tamamı — puan durumu projeksiyonunun
+        /// girdisi. Başlamamış, canlı, ertelenmiş, iptal ve önceki sezon maçları GELMEZ.
+        /// </summary>
+        List<Match> GetSettledLeagueMatchesInSeason(int leagueId, DateTime seasonStartUtc, DateTime seasonEndUtc);
+
+        /// <summary>
+        /// VERİ TAMLIĞI DENETİMİNİN GİRDİSİ — sezon içinde başlama saati GEÇMİŞ bütün lig
+        /// maçları (durumu ne olursa olsun).
+        ///
+        /// Neden gerekir: "17 maçtan hesaplandı" cümlesi tek başına bir şey söylemez. O tarihe
+        /// kadar oynanmış OLMASI GEREKEN kaç maç var ve kaçının sonucu depoda kesinleşmiş?
+        /// Ölçüldü (La Liga 2026/27): başlama saati geçtiği hâlde Status=NotStarted kalmış
+        /// kayıtlar var (79139, 106142) — bunlar tabloda EKSİKTİR ve tablo "resmî" sayılamaz.
+        /// </summary>
+        /// <param name="kickoffBeforeUtc">Bu andan önce başlamış olması gereken maçlar.</param>
+        List<Match> GetSeasonLeagueFixturesBefore(
+            int leagueId,
+            DateTime seasonStartUtc,
+            DateTime seasonEndUtc,
+            DateTime kickoffBeforeUtc);
     }
 }

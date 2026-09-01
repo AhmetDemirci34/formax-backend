@@ -4,6 +4,7 @@ import { useState } from "react";
 import type {
   MatchDetailDto,
   LastMatchDto,
+  TeamSeasonFormDto,
   StandingTableDto,
   TeamStandingDto,
 } from "@/types/api";
@@ -56,11 +57,13 @@ export function FormStatusView({ match, onClose }: { match: MatchDetailDto; onCl
           teamName={match.homeTeam.name}
           matches={home}
           leagueName={match.homeTeamFormLeague}
+          season={match.homeSeasonForm}
         />
         <TeamLeagueForm
           teamName={match.awayTeam.name}
           matches={away}
           leagueName={match.awayTeamFormLeague}
+          season={match.awaySeasonForm}
         />
 
         <StandingsPanel standing={match.standing} />
@@ -75,11 +78,14 @@ function Section({
   title,
   subtitle,
   empty,
+  intro,
   children,
 }: {
   title: string;
   subtitle?: string;
   empty?: string;
+  /** Başlık ile satırlar arasına giren blok (ör. sezon form özeti). */
+  intro?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -94,6 +100,8 @@ function Section({
           </span>
         )}
       </header>
+
+      {intro}
 
       {empty ? (
         <p className="px-3 py-4 text-center text-[12px] text-white/50">{empty}</p>
@@ -207,27 +215,37 @@ function orientRow(teamName: string, m: LastMatchDto) {
 }
 
 /**
- * Takımın LİG formu. Backend listeyi takımın kendi ulusal ligiyle SÜZER; burada
- * filtreleme yapılmaz. Ligde 5'ten az oynanmış maç varsa başlık gerçek sayıyı söyler
- * ("Ligde Son 3 Maç") — eksik başka turnuvadan TAMAMLANMAZ.
+ * Takımın MEVCUT SEZON lig formu.
  *
- * `leagueName` null ise backend takımın ligini çözememiştir; o zaman liste süzülmemiştir
- * ve başlıkta "ligde" DENMEZ.
+ * KAPSAM (backend kararı, 30.08.2026): aynı lig + BU SEZON + maç saatinden önce +
+ * tamamlanmış maçlar. Önceki sezon, hazırlık maçı, kupa ve Avrupa maçları listeye
+ * GİRMEZ ve eksik maç başka kaynaktan TAMAMLANMAZ. Bu ekran süzme/hesap YAPMAZ;
+ * yalnız backend'in `homeSeasonForm`/`awaySeasonForm` özetini ve maç listesini gösterir.
+ *
+ * Başlık "Son 5 Maç" ifadesini yalnız backend izin verdiğinde (aynı sezonda 5
+ * tamamlanmış lig maçı) kullanır; aksi hâlde gerçek maç sayısını söyler.
  */
 function TeamLeagueForm({
   teamName,
   matches,
   leagueName,
+  season,
 }: {
   teamName: string;
   matches: LastMatchDto[];
   leagueName?: string | null;
+  season?: TeamSeasonFormDto | null;
 }) {
-  const shown = matches.slice(0, 5);
+  const shown = season?.allowsLastFivePhrase ? matches.slice(0, 5) : matches;
   const league = leagueName?.trim();
 
-  const subtitle =
-    shown.length === 0
+  const subtitle = season
+    ? season.played === 0
+      ? `${season.seasonLabel} · maç yok`
+      : season.allowsLastFivePhrase
+        ? `${season.seasonLabel} · Son 5 Maç`
+        : `${season.seasonLabel} · ${season.played} Maç`
+    : shown.length === 0
       ? undefined
       : league
         ? `Ligde Son ${shown.length} Maç`
@@ -237,11 +255,16 @@ function TeamLeagueForm({
     <Section
       title={teamName}
       subtitle={subtitle}
+      intro={<SeasonFormSummary season={season} />}
       empty={
         shown.length === 0
-          ? league
-            ? `${league} kapsamında tamamlanmış maç verisi bulunmuyor.`
-            : "Bu takım için tamamlanmış maç verisi bulunmuyor."
+          ? season
+            // Cümlenin kendisi zaten yukarıdaki özet bloğunda (intro) duruyor;
+            // burada tekrar edilmez, yalnız liste boşluğu açıklanır.
+            ? "Bu sezon tamamlanmış lig maçı yok."
+            : league
+              ? `${league} kapsamında tamamlanmış maç verisi bulunmuyor.`
+              : "Bu takım için tamamlanmış maç verisi bulunmuyor."
           : undefined
       }
     >
@@ -261,6 +284,56 @@ function TeamLeagueForm({
         );
       })}
     </Section>
+  );
+}
+
+/**
+ * SEZON FORM ÖZETİ — backend'in yazdığı cümle + sayılar.
+ *
+ * Cümle burada KURULMAZ: `season.sentence` backend'in deterministik çıktısıdır
+ * ("Barcelona bu sezon La Liga'da tamamlanan 1 maçta 1 galibiyet aldı."). Örneklem
+ * 3 maçtan azsa sınırlılık AÇIKÇA yazılır; üstünlük/başarı iddiası kurulmaz.
+ */
+function SeasonFormSummary({ season }: { season?: TeamSeasonFormDto | null }) {
+  if (!season) return null;
+
+  return (
+    <div className="border-b border-goalai-border/40 px-3 py-2">
+      <p className="text-[12px] leading-[1.55] text-white/80">{season.sentence}</p>
+
+      {season.played > 0 && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] tabular-nums text-white/45">
+          <span>O {season.played}</span>
+          <span>G {season.won}</span>
+          <span>B {season.drawn}</span>
+          <span>M {season.lost}</span>
+          <span>AG {season.goalsFor}</span>
+          <span>YG {season.goalsAgainst}</span>
+          <span>AV {season.goalDifference > 0 ? `+${season.goalDifference}` : season.goalDifference}</span>
+          <span className="text-white/35">
+            İç saha {season.home.won}-{season.home.drawn}-{season.home.lost} · Deplasman{" "}
+            {season.away.won}-{season.away.drawn}-{season.away.lost}
+          </span>
+        </div>
+      )}
+
+      {/* Veri eksikse GENELLEME YOK: cümle zaten bunu söylüyor, burada yalnız
+          neden değerlendirme yapılmadığı hatırlatılır. Örneklem sınırlılığı ise
+          ayrı bir durumdur (veri tam ama maç az). */}
+      {season.isSeasonDataComplete === false ? (
+        <p className="mt-1.5 text-[10.5px] leading-snug text-formax-amber/80">
+          Sezon verileri tamamlanıyor
+          {season.seasonMissingFixtures > 0
+            ? ` — ${season.seasonMissingFixtures} lig maçının sonucu bekleniyor`
+            : ""}
+          . Genel form değerlendirmesi yapılmıyor.
+        </p>
+      ) : season.isLimitedSample ? (
+        <p className="mt-1.5 text-[10.5px] leading-snug text-formax-amber/80">
+          Sezonun ilk haftaları olduğu için form verisi henüz sınırlı.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -349,10 +422,59 @@ function StandingsPanel({ standing }: { standing: MatchDetailDto["standing"] }) 
           </div>
         );
       })}
+
+      <StandingsFreshness standing={standing} />
     </section>
   );
 }
 
+
+/**
+ * PUAN DURUMU TAZELİĞİ — snapshot ne zaman hesaplandı.
+ *
+ * Kaynak backend'in iç projeksiyonudur (saatlik job + sonuç tetiklemeli yenileme).
+ * `isFresh` false ise (snapshot 2 saatten eski) tablo GÜNCELMİŞ GİBİ sunulmaz.
+ * Alanlar gelmezse (eski/sağlayıcı tablosu) satır hiç çizilmez — sahte zaman yazılmaz.
+ */
+function StandingsFreshness({ standing }: { standing: NonNullable<MatchDetailDto["standing"]> }) {
+  if (!standing.calculatedAtUtc) return null;
+
+  const at = new Date(standing.calculatedAtUtc);
+  if (Number.isNaN(at.getTime())) return null;
+
+  const time = at.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  const stale = standing.isFresh === false;
+
+  // VERİ TAMLIĞI ÖNCELİKLİDİR: eksik tablo, taze olsa bile "güncel" gösterilmez.
+  const incomplete = standing.isComplete === false;
+  const missing = standing.missingCompletedFixtures ?? 0;
+
+  // ERTELENMİŞ MAÇ UYARI DEĞİLDİR: tablo günceldir, yalnız takımların oynadığı maç
+  // sayısı farklı olabilir. Bu yüzden "tamamlanıyor" metniyle KARIŞTIRILMAZ.
+  const postponed = standing.postponedFixtures ?? 0;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-goalai-border/40 px-3 py-1.5">
+      <span className={`text-[10px] ${incomplete ? "text-formax-amber/80" : "text-white/35"}`}>
+        {incomplete
+          ? `Puan durumu verileri tamamlanıyor${missing > 0 ? ` (${missing} maç bekliyor)` : ""}`
+          : stale
+            ? "Puan durumu güncelleniyor"
+            : `Son güncelleme: ${time}`}
+      </span>
+      {!incomplete && postponed > 0 && (
+        <span className="text-[10px] text-white/35">
+          {postponed} ertelenmiş maç bulunuyor
+        </span>
+      )}
+      {standing.isProvisional && (
+        <span className="text-[10px] text-formax-amber/70">
+          Eşit puanlı takımlarda sıra geçici
+        </span>
+      )}
+    </div>
+  );
+}
 function TabButton({
   active,
   onClick,
@@ -379,17 +501,19 @@ function TabButton({
 function StandingsTable({ rows }: { rows: TeamStandingDto[] }) {
   return (
     <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <table className="w-full min-w-[330px] border-collapse">
+      <table className="w-full min-w-[336px] border-collapse">
         <thead>
           <tr className="text-[9.5px] uppercase tracking-wide text-white/35">
             <th className="w-7 px-2 py-1.5 text-left font-semibold">#</th>
             <th className="px-1 py-1.5 text-left font-semibold">Takım</th>
-            <th className="w-7 py-1.5 text-center font-semibold">O</th>
-            <th className="w-7 py-1.5 text-center font-semibold">G</th>
-            <th className="w-7 py-1.5 text-center font-semibold">B</th>
-            <th className="w-7 py-1.5 text-center font-semibold">M</th>
-            <th className="w-9 py-1.5 text-center font-semibold">AV</th>
-            <th className="w-8 px-2 py-1.5 text-center font-semibold">P</th>
+            <th className="w-6 py-1.5 text-center font-semibold">O</th>
+            <th className="w-6 py-1.5 text-center font-semibold">G</th>
+            <th className="w-6 py-1.5 text-center font-semibold">B</th>
+            <th className="w-6 py-1.5 text-center font-semibold">M</th>
+            <th className="w-7 py-1.5 text-center font-semibold">AG</th>
+            <th className="w-7 py-1.5 text-center font-semibold">YG</th>
+            <th className="w-8 py-1.5 text-center font-semibold">AV</th>
+            <th className="w-7 pl-1 pr-2 py-1.5 text-center font-semibold">P</th>
           </tr>
         </thead>
         <tbody>
@@ -412,10 +536,12 @@ function StandingsTable({ rows }: { rows: TeamStandingDto[] }) {
               <td className="py-1.5 text-center tabular-nums text-white/55">{r.won}</td>
               <td className="py-1.5 text-center tabular-nums text-white/55">{r.drawn}</td>
               <td className="py-1.5 text-center tabular-nums text-white/55">{r.lost}</td>
+              <td className="py-1.5 text-center tabular-nums text-white/45">{r.goalsFor}</td>
+              <td className="py-1.5 text-center tabular-nums text-white/45">{r.goalsAgainst}</td>
               <td className="py-1.5 text-center tabular-nums text-white/55">
                 {r.goalDifference > 0 ? `+${r.goalDifference}` : r.goalDifference}
               </td>
-              <td className="px-2 py-1.5 text-center font-bold tabular-nums text-white">
+              <td className="pl-1 pr-2 py-1.5 text-center font-bold tabular-nums text-white">
                 {r.points}
               </td>
             </tr>

@@ -99,6 +99,8 @@ namespace Formax.Infrastructure.Repositories
                     MatchId = m.Id,
                     HomeTeam = home != null ? home.Name : "Team A",
                     AwayTeam = away != null ? away.Name : "Team B",
+                    HomeTeamLogoUrl = home != null ? home.LogoUrl : null,
+                    AwayTeamLogoUrl = away != null ? away.LogoUrl : null,
                     League = string.IsNullOrWhiteSpace(m.League)
                         ? "superlig"
                         : m.League.ToLower(),
@@ -163,6 +165,8 @@ namespace Formax.Infrastructure.Repositories
                         MatchId = item.MatchId,
                         HomeTeam = item.HomeTeam,
                         AwayTeam = item.AwayTeam,
+                        HomeTeamLogoUrl = item.HomeTeamLogoUrl,
+                        AwayTeamLogoUrl = item.AwayTeamLogoUrl,
                         League = item.League,
                         StartTime = item.StartTime,
                         Status = item.Status,
@@ -199,6 +203,8 @@ namespace Formax.Infrastructure.Repositories
                     MatchId = m.Id,
                     HomeTeam = home != null ? home.Name : "Team A",
                     AwayTeam = away != null ? away.Name : "Team B",
+                    HomeTeamLogoUrl = home != null ? home.LogoUrl : null,
+                    AwayTeamLogoUrl = away != null ? away.LogoUrl : null,
                     League = string.IsNullOrWhiteSpace(m.League) ? "" : m.League,
                     StartTime = m.MatchDate,
                     Status = m.MatchDate > utcNow
@@ -268,6 +274,8 @@ namespace Formax.Infrastructure.Repositories
                     MatchId = m.Id,
                     HomeTeam = home != null ? home.Name : "Team A",
                     AwayTeam = away != null ? away.Name : "Team B",
+                    HomeTeamLogoUrl = home != null ? home.LogoUrl : null,
+                    AwayTeamLogoUrl = away != null ? away.LogoUrl : null,
                     League = string.IsNullOrWhiteSpace(m.League)
                         ? "superlig"
                         : m.League.ToLower(),
@@ -358,6 +366,68 @@ namespace Formax.Infrastructure.Repositories
                 .Where(m => excludeMatchId == null || m.Id != excludeMatchId)
                 .OrderByDescending(m => m.MatchDate)
                 .Take(count)
+                .ToList();
+        }
+
+        // ── SEZON KAPSAMI (30.08.2026 kök neden düzeltmesi) ─────────────────────
+        //
+        // ÖNCEKİ HATA: form listesi lig + tamamlanmışlık süzüyor, SEZON süzmüyordu.
+        // Ölçüldü (Barcelona, LeagueId=140): en yeni 5 tamamlanmış lig maçının 4'ü
+        // 2025/26 sezonundandı (10–23 Mayıs 2026) ve ekranda "bu sezonun formu" gibi
+        // anlatılıyordu. Sezon penceresi artık sorgunun kendisindedir.
+
+        public List<Match> GetSeasonLeagueMatchesForTeam(
+            int teamId,
+            int leagueId,
+            DateTime seasonStartUtc,
+            DateTime beforeUtc,
+            int max = 20)
+        {
+            return InScope(_context.Matches
+                    .Include(x => x.HomeTeam)
+                    .Include(x => x.AwayTeam)
+                    .AsNoTracking())
+                .Where(m =>
+                    (m.HomeTeamId == teamId || m.AwayTeamId == teamId) &&
+                    m.LeagueId == leagueId &&
+                    m.MatchDate >= seasonStartUtc &&
+                    m.MatchDate < beforeUtc &&
+                    m.Status == MatchStatuses.Finished)
+                .OrderByDescending(m => m.MatchDate)
+                .Take(max)
+                .ToList();
+        }
+
+        public List<Match> GetSeasonLeagueFixturesBefore(
+            int leagueId,
+            DateTime seasonStartUtc,
+            DateTime seasonEndUtc,
+            DateTime kickoffBeforeUtc)
+        {
+            // Durum SÜZÜLMEZ: beklenen ile kesinleşeni karşılaştırmak için hepsi gerekir.
+            return InScope(_context.Matches.AsNoTracking())
+                .Where(m =>
+                    m.LeagueId == leagueId &&
+                    m.MatchDate >= seasonStartUtc &&
+                    m.MatchDate < seasonEndUtc &&
+                    m.MatchDate < kickoffBeforeUtc)
+                .OrderBy(m => m.MatchDate)
+                .ToList();
+        }
+
+        public List<Match> GetSettledLeagueMatchesInSeason(int leagueId, DateTime seasonStartUtc, DateTime seasonEndUtc)
+        {
+            // Puan durumu projeksiyonunun girdisi. Takım adları tablo satırları için gerekir.
+            return InScope(_context.Matches
+                    .Include(x => x.HomeTeam)
+                    .Include(x => x.AwayTeam)
+                    .AsNoTracking())
+                .Where(m =>
+                    m.LeagueId == leagueId &&
+                    m.MatchDate >= seasonStartUtc &&
+                    m.MatchDate < seasonEndUtc &&
+                    m.Status == MatchStatuses.Finished)
+                .OrderBy(m => m.MatchDate)
                 .ToList();
         }
     }

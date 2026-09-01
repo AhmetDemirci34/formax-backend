@@ -73,6 +73,54 @@ namespace Formax.Application.DTOs.Standings
         public int LeagueId { get; set; }
         public int SeasonYear { get; set; }
 
+        // ── İÇ KAYNAKLI PROJEKSİYON ÜST VERİSİ (30.08.2026) ─────────────────────
+        // Tablo artık öncelikle KENDİ tamamlanmış maçlarımızdan üretilir. Bu alanlar
+        // sağlayıcı tablosuna düşüldüğünde null kalır (uydurma tazelik gösterilmez).
+        /// <summary>Sezonun gerçek başlangıcı (ligin bu sezondaki ilk maçı).</summary>
+        public DateTime? SeasonStartDate { get; set; }
+        /// <summary>Projeksiyonun üretildiği an — UI "Son güncelleme" bunu gösterir.</summary>
+        public DateTime? CalculatedAtUtc { get; set; }
+        /// <summary>Tabloya giren EN SON tamamlanmış maçın tarihi.</summary>
+        public DateTime? LastIncludedMatchUtc { get; set; }
+        /// <summary>"InternalResultsProjection" — sağlayıcı tablosunda null.</summary>
+        public string? Source { get; set; }
+        /// <summary>2 saatten yeni mi. false → UI "Puan durumu güncelleniyor" der.</summary>
+        public bool? IsFresh { get; set; }
+        /// <summary>Sıra resmî değil (eşitlik kuralı uygulanamadı).</summary>
+        public bool IsProvisional { get; set; }
+
+        // ── VERİ TAMLIĞI ────────────────────────────────────────────────────────
+        /// <summary>Bu ana kadar oynanmış OLMASI GEREKEN lig maçı sayısı.</summary>
+        public int? ExpectedCompletedFixtures { get; set; }
+        /// <summary>Sonucu kesinleşmiş ve tabloya giren maç sayısı.</summary>
+        public int? IncludedCompletedFixtures { get; set; }
+        /// <summary>Sonucu hâlâ gelmemiş maç sayısı.</summary>
+        public int? MissingCompletedFixtures { get; set; }
+        /// <summary>
+        /// false → tablo EKSİK; IsFresh true olsa bile "güncel/resmî" diye sunulamaz.
+        /// UI "Puan durumu verileri tamamlanıyor" der.
+        ///
+        /// ERTELENMİŞ MAÇ BUNU false YAPMAZ. Ertelenmiş maç varken tablo GÜNCEL gösterilir;
+        /// UI isterse yalnız "N ertelenmiş maç bulunuyor" bilgisini ekler — "tamamlanıyor"
+        /// uyarısı GÖSTERİLMEZ.
+        /// </summary>
+        public bool? IsComplete { get; set; }
+
+        /// <summary>Ertelenmiş maç sayısı — tabloyu eksik YAPMAZ, yalnız bilgidir.</summary>
+        public int? PostponedFixtures { get; set; }
+        /// <summary>İptal edilmiş maç sayısı.</summary>
+        public int? CancelledFixtures { get; set; }
+        /// <summary>Yarıda kalmış maç sayısı.</summary>
+        public int? AbandonedFixtures { get; set; }
+        /// <summary>Oynanması beklenip sonucu hâlâ gelmemiş maç sayısı.</summary>
+        public int? StaleResultFixtures { get; set; }
+        /// <summary>Tamlık denetiminin yapıldığı an.</summary>
+        public DateTime? CompletenessCheckedAtUtc { get; set; }
+        /// <summary>Uygulanan sıralama kuralının kimliği.</summary>
+        public string? RankingRuleId { get; set; }
+        /// <summary>Tabloya giren tamamlanmış maç sayısı.</summary>
+        public int MatchesIncluded { get; set; }
+
         /// <summary>Ligin gerçek adı (Matches.League). Yoksa boş.</summary>
         public string LeagueName { get; set; } = string.Empty;
 

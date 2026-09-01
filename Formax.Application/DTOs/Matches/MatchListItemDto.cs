@@ -12,6 +12,15 @@ namespace Formax.Application.DTOs.Matches
         public int MatchId { get; init; }
         public string HomeTeam { get; init; } = string.Empty;
         public string AwayTeam { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Takım armaları — GERÇEK depo verisi (Teams.LogoUrl; fikstür senkronunda sağlayıcıdan
+        /// gelir). Ada göre statik eşleme veya internetten arama YOKTUR; logosu olmayan takımda
+        /// alan null kalır ve istemci kısaltma (monogram) gösterir.
+        /// </summary>
+        public string? HomeTeamLogoUrl { get; init; }
+        public string? AwayTeamLogoUrl { get; init; }
+
         public string League { get; init; } = string.Empty;
         public DateTime StartTime { get; init; }
 

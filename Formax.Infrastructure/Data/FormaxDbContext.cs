@@ -92,6 +92,19 @@ namespace Formax.Infrastructure.Data
 
         // ── Sprint 2: Standings & competition context ─────────────────────────
         public DbSet<LeagueStanding> LeagueStandings { get; set; } = null!;
+
+        /// <summary>
+        /// İç kaynaklı puan durumu projeksiyonu (lig+sezon başına TEK satır).
+        /// Sağlayıcıdan gelen <see cref="LeagueStandings"/> tablosundan AYRIDIR ve onu
+        /// değiştirmez; kimliği canonical takım id'sidir.
+        /// </summary>
+        public DbSet<LeagueStandingsSnapshot> LeagueStandingsSnapshots { get; set; } = null!;
+
+        /// <summary>
+        /// Lig sezonu metadata kayıtları — sezon başlangıcının TEK resmî kaynağı.
+        /// İlk fikstür tarihi resmî başlangıç DEĞİLDİR (yalnız teşhis).
+        /// </summary>
+        public DbSet<LeagueSeason> LeagueSeasons { get; set; } = null!;
         public DbSet<CompetitionContext> CompetitionContexts { get; set; } = null!;
         public DbSet<LeagueExternalMapping> LeagueExternalMappings { get; set; } = null!;
 
@@ -745,6 +758,24 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Form).HasMaxLength(20);
                 entity.Ignore(x => x.GoalDifference);   // computed property — not stored
                 entity.HasIndex(x => new { x.LeagueId, x.SeasonYear });
+            });
+
+            // LeagueSeason — sezon metadata (PK: LeagueId + SeasonYear).
+            modelBuilder.Entity<LeagueSeason>(entity =>
+            {
+                entity.HasKey(x => new { x.LeagueId, x.SeasonYear });
+                entity.Property(x => x.Source).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Notes).HasMaxLength(400);
+            });
+
+            // LeagueStandingsSnapshot — İÇ KAYNAKLI projeksiyon; lig+sezon başına TEK satır.
+            modelBuilder.Entity<LeagueStandingsSnapshot>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Source).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.RankingRuleId).HasMaxLength(64);
+                entity.Property(x => x.RowsJson).IsRequired();
+                entity.HasIndex(x => new { x.LeagueId, x.SeasonYear }).IsUnique();
             });
 
             // TeamSeasonStatistic — composite PK (LeagueId, SeasonYear, TeamId=external)

@@ -45,6 +45,15 @@ public class MatchDetailDto
     public string? HomeTeamFormLeague { get; set; }
     public string? AwayTeamFormLeague { get; set; }
 
+    /// <summary>
+    /// MEVCUT SEZON LİG FORMU — yukarıdaki listenin ÖZETİ ve anlatının dayanağı.
+    /// Kapsam: aynı lig + bu sezon + maç saatinden önce + tamamlanmış maçlar.
+    /// Önceki sezon, hazırlık, kupa ve Avrupa maçları BU ÖZETE GİRMEZ; eksik maç
+    /// başka kaynaktan tamamlanmaz. Sezon çözülemezse Played=0 ve HasNoData=true.
+    /// </summary>
+    public TeamSeasonFormDto? HomeSeasonForm { get; set; }
+    public TeamSeasonFormDto? AwaySeasonForm { get; set; }
+
     // ── Analysis ────────────────────────────────────────────────────────────────
     public ComparisonDto Comparison { get; set; } = new();
     [JsonPropertyName("h2h")]
