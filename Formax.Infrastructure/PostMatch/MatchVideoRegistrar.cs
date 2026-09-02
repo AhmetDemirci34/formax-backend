@@ -94,6 +94,18 @@ namespace Formax.Infrastructure.PostMatch
             if (existing != null)
                 return new MatchVideoRegistration(false, "Duplicate", "bu video zaten kayıtlı", existing.Id);
 
+            // ── AYNI VİDEO İKİ FARKLI MAÇA BAĞLANAMAZ ────────────────────────────
+            // ÖLÇÜLDÜ (03.09.2026): tek bir TRT SPOR stüdyo programı (29GROlpBfYo) hem
+            // 82549 hem 103619 maçına özet diye bağlanmıştı. Bir maç görüntüsü tanımı
+            // gereği TEK maça aittir; aynı kimliğin ikinci bir maça bağlanması, kaydın
+            // maç özeti OLMADIĞININ güçlü işaretidir.
+            var boundElsewhere = await _db.MatchVideos.AsNoTracking()
+                .AnyAsync(v => v.ExternalVideoId == candidate.ExternalVideoId && v.MatchId != matchId, ct)
+                .ConfigureAwait(false);
+            if (boundElsewhere)
+                return new MatchVideoRegistration(false, MatchVideoVerificationStatuses.Rejected,
+                    "aynı video başka bir maça bağlı; tek maça ait olmayan içerik kabul edilmez");
+
             // ── EMBED İZNİ ───────────────────────────────────────────────────────
             var embed = await _embedVerifier.VerifyAsync(candidate, verdict.Source, ct).ConfigureAwait(false);
             var canPlay = embed.Embeddable && !string.IsNullOrWhiteSpace(embed.EmbedUrl);
@@ -135,6 +147,9 @@ namespace Formax.Infrastructure.PostMatch
                 VerificationStatus = canPlay
                     ? MatchVideoVerificationStatuses.Verified
                     : MatchVideoVerificationStatuses.EmbedBlocked,
+                // Kabul edilen kayıtta gerekçe BOŞTUR: dolu bir gerekçe her zaman
+                // "gösterme" demektir ve okuma yolu buna bakar.
+                RejectionReason    = null,
                 VerificationNote   = Trim($"{verdict.Reason} | embed: {embed.Reason}", 400),
                 VerifiedAtUtc      = DateTime.UtcNow
             };

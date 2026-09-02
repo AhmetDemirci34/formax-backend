@@ -59,5 +59,12 @@ namespace Formax.Application.Services.PostMatch
         bool Accepted,
         string? VideoType,
         OfficialVideoSource? Source,
-        string Reason);
+        string Reason,
+        /// <summary>
+        /// Ret hâlinde MAKİNE OKUNUR gerekçe
+        /// (<see cref="Formax.Domain.Constants.MatchVideoRejectionReasons"/>).
+        /// Geriye dönük tarama, kapanan kayıtları bu kodla gruplayabilsin diye vardır;
+        /// null ise gerekçe sınıflandırılmamış demektir (kabul edilenlerde her zaman null).
+        /// </summary>
+        string? RejectionCode = null);
 }

@@ -268,6 +268,7 @@ public static class DependencyInjection
         services.AddScoped<IMatchVideoReader, Formax.Infrastructure.PostMatch.MatchVideoReader>();
         services.AddScoped<IVideoEmbedVerifier, Formax.Infrastructure.PostMatch.YouTubeEmbedVerifier>();
         services.AddScoped<IMatchVideoRegistrar, Formax.Infrastructure.PostMatch.MatchVideoRegistrar>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoAuditService>();
         services.AddScoped<IOfficialMatchVideoProvider>(sp =>
             sp.GetRequiredService<IConfiguration>().GetValue("PostMatch:Video:Provider", "YouTubeOfficialChannels")
                 is "Disabled"

@@ -29,6 +29,8 @@ public class MatchesResultsScreenContractTests
     private static string Api() => Read("formax-web/lib/api/matchResults.ts");
     private static string Hooks() => Read("formax-web/hooks/useMatchResults.ts");
     private static string DaySelection() => Read("formax-web/hooks/useResultDaySelection.ts");
+    private static string LeagueGroup() => Read("formax-web/components/maclar/ResultLeagueGroup.tsx");
+    private static string Grouping() => Read("formax-web/lib/matches/resultGrouping.ts");
 
     /// <summary>
     /// YORUMSUZ KAYNAK — "bu ekran api-football'a çıkmaz" diye YAZAN bir yorum, o
@@ -101,13 +103,55 @@ public class MatchesResultsScreenContractTests
     {
         var card = Card();
 
-        Assert.Contains("r.leagueName", card, StringComparison.Ordinal);       // lig
         Assert.Contains("r.matchTypeLabel", card, StringComparison.Ordinal);   // aşama/tur
         Assert.Contains("istanbulTime(r.matchDateUtc)", card, StringComparison.Ordinal); // TR saati
         Assert.Contains("Maç Bitti", card, StringComparison.Ordinal);
         Assert.Contains("r.homeTeam.name", card, StringComparison.Ordinal);
         Assert.Contains("r.awayTeam.name", card, StringComparison.Ordinal);
+        Assert.Contains("r.homeScore", card, StringComparison.Ordinal);
+        Assert.Contains("r.awayScore", card, StringComparison.Ordinal);
         Assert.Contains("İY {r.halfTimeHomeScore}-{r.halfTimeAwayScore}", card, StringComparison.Ordinal);
+
+        // Lig adı SATIRDA DEĞİL, panel başlığındadır: satır yalnız o maça ait bilgiyi
+        // taşır, lig adı her satırda tekrarlanmaz.
+        Assert.DoesNotContain("r.leagueName", card, StringComparison.Ordinal);
+        Assert.Contains("group.league", LeagueGroup(), StringComparison.Ordinal);
+    }
+
+    // ── 5-6. SONUÇLAR LİG BAZINDA GRUPLANIR ──────────────────────────────────
+
+    [Fact]
+    public void Sonuclar_LigBazindaGruplanir_YaklasanIleAyniDil()
+    {
+        var view = View();
+        var panel = LeagueGroup();
+
+        Assert.Contains("buildResultLeagueGroups(results)", view, StringComparison.Ordinal);
+        Assert.Contains("<ResultLeagueGroupPanel", view, StringComparison.Ordinal);
+
+        // Panel başlığı YAKLAŞAN'daki LeagueGroupPanel ile aynı bilgiyi taşır:
+        // bayrak, ülke, lig adı ve o ligdeki maç sayısı.
+        Assert.Contains("group.flag", panel, StringComparison.Ordinal);
+        Assert.Contains("group.country", panel, StringComparison.Ordinal);
+        Assert.Contains("group.league", panel, StringComparison.Ordinal);
+        Assert.Contains("group.results.length", panel, StringComparison.Ordinal);
+
+        // Ülke/bayrak tablosu KOPYALANMAZ; ortak leagueMeta kullanılır.
+        Assert.Contains("import { leagueMeta } from \"./leagueGrouping\"", Grouping(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LigVeMacSiralamasi_Deterministiktir()
+    {
+        var grouping = Grouping();
+
+        // Lig sırası: kilitli kapsam sırası (rank), eşitlikte Türkçe alfabetik.
+        Assert.Contains("a.rank - b.rank || a.league.localeCompare(b.league, \"tr\")",
+            grouping, StringComparison.Ordinal);
+        // Lig içi: kickoff, eşitlikte MatchId.
+        Assert.Contains("a.matchId - b.matchId", grouping, StringComparison.Ordinal);
+        Assert.Contains("new Date(a.matchDateUtc).getTime() - new Date(b.matchDateUtc).getTime()",
+            grouping, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -124,16 +168,66 @@ public class MatchesResultsScreenContractTests
 
     // ── Tarih kuralları ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ÜRÜN KARARI (03.09.2026): pencere 30 gündür. 7 gün, bitmiş maç arşivi için
+    /// yetmiyordu — iki hafta önceki bir maça normal UI akışıyla ulaşılamıyordu.
+    /// </summary>
     [Fact]
-    public void TarihAraligi_BugunVeOnceki7Gun()
+    public void TarihAraligi_BugunVeOnceki30Gun()
     {
         var rules = DayRules();
 
-        Assert.Contains("RESULT_DAY_SPAN = 8", rules, StringComparison.Ordinal);
+        Assert.Contains("RESULT_DAY_SPAN = 30", rules, StringComparison.Ordinal);
         Assert.Contains("day <= today && day >= oldestSelectableDay(today)", rules, StringComparison.Ordinal);
         // Gün hesabı Europe/Istanbul takvimine göre; tarayıcının yerel saati kullanılmaz.
         Assert.Contains("timeZone: TR_TZ", rules, StringComparison.Ordinal);
         Assert.Contains("\"Europe/Istanbul\"", rules, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Gezinme penceresinin TS kaynağındaki gün sayısı — kural tek yerde yaşıyor,
+    /// test onu oradan okuyor. Sayıyı teste ikinci kez yazmak, ikisinin ayrışması
+    /// demektir.
+    /// </summary>
+    private static int ResultDaySpan()
+    {
+        var m = Regex.Match(DayRules(), @"RESULT_DAY_SPAN\s*=\s*(\d+)");
+        Assert.True(m.Success, "RESULT_DAY_SPAN okunamadı");
+        return int.Parse(m.Groups[1].Value);
+    }
+
+    /// <summary>Pencerenin ilk günü: bugün dâhil span gün geriye.</summary>
+    private static DateOnly OldestSelectable(DateOnly today) => today.AddDays(-(ResultDaySpan() - 1));
+
+    [Theory]
+    [InlineData("2026-08-18")]   // 71513 · Fenerbahçe–Lyon 1. ayak
+    [InlineData("2026-08-26")]   // 104237 · Lyon–Fenerbahçe 2. ayak
+    public void KabulMaclarininGunleri_GezinmeAraligindadir(string date)
+    {
+        // Kararın alındığı gün SABİTLENMİŞTİR: test takvimle birlikte kaymaz ve
+        // "o gün bu maçlara ulaşılabiliyor muydu?" sorusunu kalıcı olarak yanıtlar.
+        var referenceToday = new DateOnly(2026, 9, 3);
+        var day = DateOnly.ParseExact(date, "yyyy-MM-dd");
+
+        Assert.True(day <= referenceToday, "gelecek bir gün olamaz");
+        Assert.True(day >= OldestSelectable(referenceToday),
+            $"{date} {ResultDaySpan()} günlük pencerenin dışında kaldı");
+    }
+
+    [Fact]
+    public void PencerdenEskiGun_NormalGezinmedeAcilmaz()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var oldest = OldestSelectable(today);
+
+        // Sınırın kendisi seçilebilir, bir gün öncesi seçilemez.
+        Assert.True(oldest >= today.AddDays(-(ResultDaySpan() - 1)));
+        var tooOld = oldest.AddDays(-1);
+        Assert.True(tooOld < oldest, "pencereden eski gün gezinmeye kapalı olmalı");
+
+        // Kuralın kendisi tek merkezde ve sınırlar İKİ TARAFLI.
+        Assert.Contains("day <= today && day >= oldestSelectableDay(today)",
+            DayRules(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -174,7 +268,10 @@ public class MatchesResultsScreenContractTests
         var view = View();
 
         Assert.Contains("Bu tarihte tamamlanmış maç bulunmuyor.", view, StringComparison.Ordinal);
-        Assert.Contains("Son 7 gün içinde tamamlanmış maç bulunmuyor.", view, StringComparison.Ordinal);
+        // Pencere metni SABİT DEĞİL: gün sayısı RESULT_DAY_SPAN'dan gelir, böylece
+        // pencere değiştiğinde cümle ile kural ayrışamaz.
+        Assert.Contains("`Son ${RESULT_DAY_SPAN} gün içinde tamamlanmış maç bulunmuyor.`",
+            view, StringComparison.Ordinal);
         // Boş durum ErrorState DEĞİLDİR; hata yalnız gerçek istek hatasında gösterilir.
         Assert.Contains("resultsQuery.isError ? (", view, StringComparison.Ordinal);
     }

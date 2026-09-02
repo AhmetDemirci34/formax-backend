@@ -307,6 +307,8 @@ public class MatchResultsTests
                 MatchId = Leg1Id, ExternalFixtureId = "1622621", ExternalVideoId = "v1",
                 Title = "Özet", OfficialPublisher = "TRT SPOR",
                 SourcePageUrl = "https://www.youtube.com/watch?v=v1",
+                // Gömme adresi ZORUNLU: adresi olmayan kayıt oynatılabilir sayılmaz.
+                EmbedUrl = "https://www.youtube-nocookie.com/embed/v1",
                 VideoType = MatchVideoTypes.MatchHighlights,
                 IsOfficial = true, IsEmbeddable = true, CanPlayInApp = true,
                 VerificationStatus = MatchVideoVerificationStatuses.Verified

@@ -119,9 +119,50 @@ namespace Formax.Domain.Entities
         /// <summary><see cref="Formax.Domain.Constants.MatchVideoVerificationStatuses"/>.</summary>
         public string VerificationStatus { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Kayıt neden gösterilmiyor? <see cref="Formax.Domain.Constants.MatchVideoRejectionReasons"/>.
+        /// Gösterilebilir kayıtta BOŞTUR — dolu bir gerekçe her zaman "gösterme" demektir.
+        /// </summary>
+        public string? RejectionReason { get; set; }
+
         /// <summary>Doğrulamanın İNSAN OKUYABİLİR gerekçesi (teşhis; UI göstermez).</summary>
         public string VerificationNote { get; set; } = string.Empty;
 
         public DateTime VerifiedAtUtc { get; set; }
+    }
+
+    /// <summary>
+    /// BİR VİDEONUN GÖSTERİLEBİLİRLİĞİNİN TEK KURALI.
+    ///
+    /// NEDEN TEK YERDE: bu soruyu iki yüzey soruyor — maç özeti ekranı ("player açayım
+    /// mı?") ve sonuç kartı ("'Video var' yazayım mı?"). İki yerde iki ayrı koşul
+    /// listesi yazılırsa er geç ayrışırlar ve kart "Video var" derken ekran boş kalır.
+    ///
+    /// Kural KATIDIR: yalnız Verified. Rejected, NeedsManualReview, EmbedBlocked,
+    /// Unavailable ve gerekçesi dolu her kayıt kullanıcıya GÖSTERİLMEZ.
+    /// </summary>
+    public static class MatchVideoRules
+    {
+        /// <summary>Uygulama içinde oynatılabilir ve kullanıcıya gösterilebilir mi?</summary>
+        public static bool IsPlayable(MatchVideo v)
+            => v is not null
+            && v.IsOfficial
+            && v.CanPlayInApp
+            && Formax.Domain.Constants.MatchVideoVerificationStatuses.IsShowable(v.VerificationStatus)
+            && string.IsNullOrWhiteSpace(v.RejectionReason)
+            && !string.IsNullOrWhiteSpace(v.EmbedUrl);
+
+        /// <summary>
+        /// Ekranda (oynatılamasa bile) GÖRÜNEBİLİR mi? Doğrulanmış ama gömmeye kapalı
+        /// resmî kaynak kullanıcıya "resmî kaynakta izle" olarak sunulabilir; yanlış ya
+        /// da şüpheli kayıt HİÇ görünmez.
+        /// </summary>
+        public static bool IsVisible(MatchVideo v)
+            => v is not null
+            && v.IsOfficial
+            && string.IsNullOrWhiteSpace(v.RejectionReason)
+            && v.VerificationStatus is
+                   Formax.Domain.Constants.MatchVideoVerificationStatuses.Verified
+                or Formax.Domain.Constants.MatchVideoVerificationStatuses.EmbedBlocked;
     }
 }

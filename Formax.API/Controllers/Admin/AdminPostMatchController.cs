@@ -37,6 +37,19 @@ namespace Formax.API.Controllers.Admin
         public async Task<IActionResult> Run(CancellationToken ct)
             => Ok(new { processed = await _job.RunCycleAsync(ct) });
 
+        /// <summary>
+        /// GERİYE DÖNÜK DENETİM. Varsayılan SALT OKUNURDUR: <c>?apply=true</c> verilmedikçe
+        /// hiçbir satır değişmez. Uygulandığında yalnız KANITLANMIŞ yanlış kayıtlar
+        /// <c>Rejected</c>, kanıtı yetersizler <c>NeedsManualReview</c> olur; hiçbir satır
+        /// SİLİNMEZ ve doğrulanmış doğru kayıtlara dokunulmaz.
+        /// </summary>
+        [HttpPost("video/audit")]
+        public async Task<IActionResult> Audit(
+            [FromServices] Formax.Infrastructure.PostMatch.MatchVideoAuditService audit,
+            [FromQuery] bool apply = false,
+            CancellationToken ct = default)
+            => Ok(new { applied = apply, report = await audit.RunAsync(apply, ct) });
+
         /// <summary>Maçın kayıtlı videoları — ekranın gördüğü şeyin aynısı.</summary>
         [HttpGet("video/{matchId:int}")]
         public IActionResult List(int matchId)

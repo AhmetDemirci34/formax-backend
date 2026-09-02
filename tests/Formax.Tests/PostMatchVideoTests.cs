@@ -668,16 +668,28 @@ public class PostMatchVideoTests
         var registrar = Registrar(db, new FakeEmbedVerifier(true));
 
         // Gol klibi özetten SONRA yayımlanmış olsun; yine de özet ana karta çıkmalı.
-        var goal = Leg1Highlights() with
+        //
+        // GOL KLİBİ DOĞRUDAN DEPOYA KURULUR, kayıt kapısından geçirilmez. Nedeni:
+        // 03.09.2026 sertleştirmesinden sonra "Greenwood'un golü" gibi bir başlık
+        // OTOMATİK kabul edilmez (gerçek özet işareti yoktur; bkz.
+        // MatchVideoHardeningTests.GolKelimesiTekBasina_KabulUretmez). Böyle bir klip
+        // ancak insan doğrulamasıyla girer. Bu test kayıt POLİTİKASINI değil, okuma
+        // yolunun SIRALAMASINI ölçer; ikisini birbirine bağlamak testi yanlış şeye
+        // duyarlı yapardı.
+        db.MatchVideos.Add(new MatchVideo
         {
-            ExternalVideoId = "goal-greenwood",
+            MatchId = Leg1Id, ExternalFixtureId = "1622621", ExternalVideoId = "goal-greenwood",
             Title = "Greenwood'un golü | Fenerbahçe - Lyon",
-            Description = null,
-            PublishedUtc = new DateTime(2026, 8, 18, 22, 0, 0, DateTimeKind.Utc),
-            SourcePageUrl = "https://www.youtube.com/watch?v=goal-greenwood"
-        };
+            OfficialPublisher = "TRT SPOR",
+            SourcePageUrl = "https://www.youtube.com/watch?v=goal-greenwood",
+            EmbedUrl = "https://www.youtube-nocookie.com/embed/goal-greenwood",
+            VideoType = MatchVideoTypes.Goal,
+            PublishedAtUtc = new DateTime(2026, 8, 18, 22, 0, 0, DateTimeKind.Utc),
+            IsOfficial = true, IsEmbeddable = true, CanPlayInApp = true,
+            VerificationStatus = MatchVideoVerificationStatuses.Verified
+        });
+        db.SaveChanges();
 
-        await registrar.RegisterAsync(Leg1Id, goal);
         await registrar.RegisterAsync(Leg1Id, Leg1Highlights());
 
         var videos = new MatchVideoReader(db).GetVideos(Leg1Id);

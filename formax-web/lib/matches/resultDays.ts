@@ -4,8 +4,14 @@
 // kullanılamaz: kullanıcı yurt dışındayken "bugün" kayar ve 21:00'den sonra başlayan
 // Avrupa maçları bir gün öteye düşer.
 
-/** Ürün kararı: bugün + önceki 7 takvim günü (toplam 8 gün) gezilebilir. */
-export const RESULT_DAY_SPAN = 8;
+/**
+ * Ürün kararı (03.09.2026): bugün + önceki 30 takvim günü gezilebilir.
+ *
+ * 7 gün, bitmiş maç ARŞİVİ için yetmiyordu: iki hafta önceki bir maça normal UI
+ * akışıyla ulaşmanın yolu kalmıyordu. Sınır YALNIZ gezinme içindir — uç daha eski
+ * tarihleri de sunar.
+ */
+export const RESULT_DAY_SPAN = 30;
 
 const TR_TZ = "Europe/Istanbul";
 

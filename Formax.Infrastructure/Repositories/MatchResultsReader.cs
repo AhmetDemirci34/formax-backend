@@ -7,6 +7,7 @@ using Formax.Application.DTOs.Matches;
 using Formax.Application.Interfaces;
 using Formax.Application.Services.Matches;
 using Formax.Domain.Constants;
+using Formax.Domain.Entities;
 using Formax.Infrastructure.Data;
 using Formax.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
@@ -81,13 +82,17 @@ namespace Formax.Infrastructure.Repositories
                 .ToList();
 
             // Oynatılabilir resmî video işareti — TEK sorgu, kart başına sorgu yok.
+            //
+            // KURAL EKRANLA AYNI YERDEN GELİR (<see cref="MatchVideoRules.IsPlayable"/>):
+            // Rejected, NeedsManualReview, gerekçesi dolu ya da gömme adresi olmayan
+            // hiçbir kayıt "Video var" işareti ÜRETMEZ. Kart "var" derken ekranın boş
+            // kalması, kullanıcı için ürünün bozuk olduğu anlamına gelir.
             var matchIds = deduped.Select(r => r.Id).ToList();
-            var playable = await _db.MatchVideos.AsNoTracking()
-                .Where(v => matchIds.Contains(v.MatchId) && v.CanPlayInApp)
-                .Select(v => v.MatchId)
-                .Distinct()
+            var videoRows = await _db.MatchVideos.AsNoTracking()
+                .Where(v => matchIds.Contains(v.MatchId))
                 .ToListAsync(ct).ConfigureAwait(false);
-            var playableSet = new HashSet<int>(playable);
+            var playableSet = new HashSet<int>(
+                videoRows.Where(MatchVideoRules.IsPlayable).Select(v => v.MatchId).Distinct());
 
             return deduped
                 // DETERMİNİSTİK SIRA: kickoff, sonra lig, sonra MatchId. Aynı dakikada

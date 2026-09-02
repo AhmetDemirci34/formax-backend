@@ -67,5 +67,45 @@ namespace Formax.Domain.Constants
 
         /// <summary>Arama yapıldı, resmî ve doğrulanabilir video bulunamadı.</summary>
         public const string Unavailable = "Unavailable";
+
+        /// <summary>
+        /// Kayıt YANLIŞ olduğu KANITLANDI (ör. stüdyo programı maç özeti diye bağlanmış).
+        /// Oynatılmaz, kartta işaret üretmez, ekranda görünmez.
+        /// </summary>
+        public const string Rejected = "Rejected";
+
+        /// <summary>
+        /// Kanıt YETERSİZ — ne kesin doğru ne kesin yanlış. Kayıt SİLİNMEZ (insan bakabilsin)
+        /// ama kullanıcıya asla gösterilmez: şüpheli içeriği "çalışan video" gibi sunmak,
+        /// hiç göstermemekten daha kötüdür.
+        /// </summary>
+        public const string NeedsManualReview = "NeedsManualReview";
+
+        /// <summary>Kullanıcıya gösterilmeye UYGUN tek durum.</summary>
+        public static bool IsShowable(string? value) => value == Verified;
+    }
+
+    /// <summary>
+    /// RET GEREKÇESİ — bir kaydın NEDEN gösterilmediğinin makine okunur nedeni.
+    ///
+    /// Serbest metin değil kapalı liste: geriye dönük tarama, "bu kayıt neden kapandı?"
+    /// sorusunu gruplayarak yanıtlayabilsin ve aynı hata sınıfı bir daha açılmasın.
+    /// </summary>
+    public static class MatchVideoRejectionReasons
+    {
+        /// <summary>Maç görüntüsü değil: stüdyo programı, yorum, röportaj, tahmin yayını.</summary>
+        public const string NotMatchHighlights = "NotMatchHighlights";
+
+        /// <summary>Başlık birden çok farklı karşılaşmayı listeliyor; tek maça bağlanamaz.</summary>
+        public const string MultipleMatchesInTitle = "MultipleMatchesInTitle";
+
+        /// <summary>Başlıkta gerçek bir özet işareti (Özet/Highlights) yok.</summary>
+        public const string NoHighlightMarker = "NoHighlightMarker";
+
+        /// <summary>Karşılaşmanın yalnız bir tarafı doğrulanabiliyor.</summary>
+        public const string TeamsNotConfirmed = "TeamsNotConfirmed";
+
+        /// <summary>Aynı video birden çok maça bağlanmış; hangisine ait olduğu belirsiz.</summary>
+        public const string SharedAcrossMatches = "SharedAcrossMatches";
     }
 }

@@ -812,6 +812,7 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.VideoType).HasMaxLength(40).IsRequired();
                 entity.Property(x => x.VerificationStatus).HasMaxLength(32).IsRequired();
                 entity.Property(x => x.VerificationNote).HasMaxLength(400);
+                entity.Property(x => x.RejectionReason).HasMaxLength(64);
                 entity.Property(x => x.AvailableCountries).HasMaxLength(1000);
                 entity.Property(x => x.EventPlayer).HasMaxLength(120);
                 entity.Property(x => x.EventTeam).HasMaxLength(120);

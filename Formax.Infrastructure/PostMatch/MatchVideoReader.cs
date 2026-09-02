@@ -4,6 +4,7 @@ using System.Linq;
 using Formax.Application.DTOs.Matches;
 using Formax.Application.Interfaces;
 using Formax.Domain.Constants;
+using Formax.Domain.Entities;
 using Formax.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +31,11 @@ namespace Formax.Infrastructure.PostMatch
             => _db.MatchVideos.AsNoTracking()
                    .Where(v => v.MatchId == matchId)
                    .ToList()
-                   .OrderByDescending(v => v.CanPlayInApp)
+                   // YANLIŞ VE ŞÜPHELİ KAYITLAR EKRANDAN TAMAMEN DÜŞER.
+                   // Rejected/NeedsManualReview bir kayıt "oynatılamıyor" satırı olarak
+                   // bile gösterilmez: yanlış bir videonun varlığını duyurmak da yanlıştır.
+                   .Where(MatchVideoRules.IsVisible)
+                   .OrderByDescending(MatchVideoRules.IsPlayable)
                    .ThenByDescending(v => MatchVideoTypes.IsMainHighlight(v.VideoType))
                    .ThenByDescending(v => v.PublishedAtUtc)
                    .Take(max)
@@ -41,12 +46,12 @@ namespace Formax.Infrastructure.PostMatch
                        SourcePageUrl   = v.SourcePageUrl,
                        // Oynatılamayan kayda gömme adresi TAŞINMAZ: ekranın elinde
                        // deneyebileceği bir adres kalmasın.
-                       EmbedUrl        = v.CanPlayInApp ? v.EmbedUrl : null,
+                       EmbedUrl        = MatchVideoRules.IsPlayable(v) ? v.EmbedUrl : null,
                        ThumbnailUrl    = v.ThumbnailUrl,
                        VideoType       = v.VideoType,
                        PublishedAtUtc  = v.PublishedAtUtc,
                        DurationSeconds = v.DurationSeconds,
-                       CanPlayInApp    = v.CanPlayInApp,
+                       CanPlayInApp    = MatchVideoRules.IsPlayable(v),
                        // Bölgesel kısıt DTO'ya TAŞINIR: ekran "oynamıyor" ile
                        // "senin bölgende oynamıyor"u ayırt edebilsin.
                        AvailableCountries = SplitCountries(v.AvailableCountries),
