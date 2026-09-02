@@ -4,6 +4,7 @@ using Formax.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Formax.Infrastructure.Migrations
 {
     [DbContext(typeof(FormaxDbContext))]
-    partial class FormaxDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902151340_PostMatchContentAndVideos")]
+    partial class PostMatchContentAndVideos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2522,49 +2525,14 @@ namespace Formax.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("AvailableCountries")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int>("AwayTeamId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("CanPlayInApp")
-                        .HasColumnType("bit");
-
-                    b.Property<int?>("DurationSeconds")
-                        .HasColumnType("int");
-
                     b.Property<string>("EmbedUrl")
                         .HasMaxLength(600)
                         .HasColumnType("nvarchar(600)");
-
-                    b.Property<int?>("EventExtraMinute")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("EventMinute")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EventPlayer")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("EventTeam")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("ExternalFixtureId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("ExternalVideoId")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
-
-                    b.Property<int>("HomeTeamId")
-                        .HasColumnType("int");
 
                     b.Property<bool>("IsEmbeddable")
                         .HasColumnType("bit");
@@ -2572,24 +2540,18 @@ namespace Formax.Infrastructure.Migrations
                     b.Property<bool>("IsOfficial")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsRegionRestricted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("MatchDateUtc")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("MatchId")
                         .HasColumnType("int");
-
-                    b.Property<string>("OfficialPublisher")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
 
                     b.Property<DateTime?>("PublishedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("SourcePageUrl")
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SourceUrl")
                         .IsRequired()
                         .HasMaxLength(600)
                         .HasColumnType("nvarchar(600)");
@@ -2603,16 +2565,6 @@ namespace Formax.Infrastructure.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
-                    b.Property<string>("VerificationNote")
-                        .IsRequired()
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<string>("VerificationStatus")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
                     b.Property<DateTime>("VerifiedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -2623,16 +2575,9 @@ namespace Formax.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MatchId", "CanPlayInApp")
-                        .HasDatabaseName("IX_MatchVideos_Match_Playable");
-
                     b.HasIndex("MatchId", "ExternalVideoId")
                         .IsUnique()
                         .HasDatabaseName("UX_MatchVideos_Match_Video");
-
-                    b.HasIndex("MatchId", "SourcePageUrl")
-                        .IsUnique()
-                        .HasDatabaseName("UX_MatchVideos_Match_SourcePage");
 
                     b.ToTable("MatchVideos");
                 });

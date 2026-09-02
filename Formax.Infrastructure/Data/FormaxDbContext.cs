@@ -108,6 +108,12 @@ namespace Formax.Infrastructure.Data
 
         /// <summary>Tekil fikstur istegi deneme defteri — restart-safe hiz siniri.</summary>
         public DbSet<FixtureRefreshAttempt> FixtureRefreshAttempts { get; set; } = null!;
+
+        /// <summary>EMEKLI haber bagi (02.09.2026) — tablo korunuyor, beslenmiyor/okunmuyor.</summary>
+        public DbSet<MatchPostContentLink> MatchPostContentLinks { get; set; } = null!;
+
+        /// <summary>Yalniz DOGRULANMIS resmi mac videolari.</summary>
+        public DbSet<MatchVideo> MatchVideos { get; set; } = null!;
         public DbSet<CompetitionContext> CompetitionContexts { get; set; } = null!;
         public DbSet<LeagueExternalMapping> LeagueExternalMappings { get; set; } = null!;
 
@@ -780,6 +786,43 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Purpose).HasMaxLength(32).IsRequired();
                 entity.Property(x => x.LastOutcome).HasMaxLength(32);
                 entity.HasIndex(x => new { x.Purpose, x.DayUtc }).HasDatabaseName("IX_FixtureRefreshAttempts_Purpose_Day");
+            });
+
+            modelBuilder.Entity<MatchPostContentLink>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ContentHash).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Category).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.MatchReason).HasMaxLength(256);
+                // Ayni makale ayni maca IKI KEZ baglanamaz.
+                entity.HasIndex(x => new { x.MatchId, x.ContentHash }).IsUnique()
+                      .HasDatabaseName("UX_MatchPostContentLinks_Match_Content");
+            });
+
+            modelBuilder.Entity<MatchVideo>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ExternalFixtureId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ExternalVideoId).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Title).HasMaxLength(300).IsRequired();
+                entity.Property(x => x.OfficialPublisher).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.SourcePageUrl).HasMaxLength(600).IsRequired();
+                entity.Property(x => x.EmbedUrl).HasMaxLength(600);
+                entity.Property(x => x.ThumbnailUrl).HasMaxLength(600);
+                entity.Property(x => x.VideoType).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.VerificationStatus).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.VerificationNote).HasMaxLength(400);
+                entity.Property(x => x.AvailableCountries).HasMaxLength(1000);
+                entity.Property(x => x.EventPlayer).HasMaxLength(120);
+                entity.Property(x => x.EventTeam).HasMaxLength(120);
+                // AYNI VIDEO IKI KEZ YAZILAMAZ — ne kaynak kimligiyle, ne kanonik adresle.
+                entity.HasIndex(x => new { x.MatchId, x.ExternalVideoId }).IsUnique()
+                      .HasDatabaseName("UX_MatchVideos_Match_Video");
+                entity.HasIndex(x => new { x.MatchId, x.SourcePageUrl }).IsUnique()
+                      .HasDatabaseName("UX_MatchVideos_Match_SourcePage");
+                // Okuma yolu her zaman "bu macin oynatilabilir videolari" diye sorar.
+                entity.HasIndex(x => new { x.MatchId, x.CanPlayInApp })
+                      .HasDatabaseName("IX_MatchVideos_Match_Playable");
             });
 
             // LeagueStandingsSnapshot — İÇ KAYNAKLI projeksiyon; lig+sezon başına TEK satır.

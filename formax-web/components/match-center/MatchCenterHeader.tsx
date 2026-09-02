@@ -8,7 +8,18 @@ import { BackIcon, BellIcon } from "./icons";
  * Geri butonu davranışı sayfaya bırakılır (`onBack`): dashboard değilse
  * dashboard'a döner, dashboard'daysa route geri gider.
  */
-export function MatchCenterHeader({ onBack }: { onBack: () => void }) {
+export function MatchCenterHeader({
+  onBack,
+  title = "Maç Detayı",
+}: {
+  onBack: () => void;
+  /**
+   * Ekranın ÜRÜN ADI. Bitmiş maçta ekran "Maç Detayı" değil "MAÇ ÖZETİ"dir;
+   * başlık da bunu söylemelidir, yoksa kullanıcı eksik bir detay ekranına
+   * baktığını sanır.
+   */
+  title?: string;
+}) {
   return (
     <header className="z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-goalai-surface/90 px-3 backdrop-blur-xl">
       <button
@@ -20,8 +31,8 @@ export function MatchCenterHeader({ onBack }: { onBack: () => void }) {
         <BackIcon size={22} />
       </button>
 
-      <h1 className="text-lg font-bold uppercase tracking-[0.16em] text-white">
-        Match Center
+      <h1 className="truncate px-2 text-lg font-bold uppercase tracking-[0.16em] text-white">
+        {title}
       </h1>
 
       <Link

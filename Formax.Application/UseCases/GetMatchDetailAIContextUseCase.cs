@@ -9,6 +9,7 @@ using Formax.Application.DTOs.Live;
 using Formax.Application.DTOs.Lineup;
 using Formax.Application.DTOs.Nabiz;
 using Formax.Application.DTOs.Standings;
+using Formax.Domain.Constants;
 using Formax.Application.Interfaces;
 using Formax.Application.Interfaces.Repositories;
 using Formax.Application.States;
@@ -40,6 +41,7 @@ namespace Formax.Application.UseCases
         private readonly IMatchLiveStatsRepository _matchLiveStatsRepository;
         private readonly IMatchMomentumRepository _matchMomentumRepository;
         private readonly IMatchLiveEventIngestionRepository _matchLiveEventRepository;
+        private readonly IMatchVideoReader _videoReader;
         private readonly INabizFeedRepository _nabizFeedRepository;
         private readonly IUserMatchFollowRepository _followRepository;
         // Radar v2 — anlatı zenginleştirme (opsiyonel; mevcut Execute akışını bozmaz).
@@ -80,6 +82,7 @@ namespace Formax.Application.UseCases
             IMatchLiveStatsRepository matchLiveStatsRepository,
             IMatchMomentumRepository matchMomentumRepository,
             IMatchLiveEventIngestionRepository matchLiveEventRepository,
+            IMatchVideoReader videoReader,
             INabizFeedRepository nabizFeedRepository,
             IUserMatchFollowRepository followRepository,
             MatchIntelligenceContextBuilder contextBuilder,
@@ -115,6 +118,7 @@ namespace Formax.Application.UseCases
             _matchLiveStatsRepository = matchLiveStatsRepository;
             _matchMomentumRepository = matchMomentumRepository;
             _matchLiveEventRepository = matchLiveEventRepository;
+            _videoReader = videoReader;
             _nabizFeedRepository = nabizFeedRepository;
             _followRepository = followRepository;
             _contextBuilder = contextBuilder;
@@ -308,6 +312,25 @@ namespace Formax.Application.UseCases
                 },
                 MatchDate    = match.MatchDate,
                 Status       = match.Status,
+                // ── MAÇ SONRASI ÖZET (02.09.2026) ───────────────────────────────
+                // Maç bittiğinde aynı rota özet gösterir. İY/2Y/MS kırılımı ve önemli
+                // anlar YALNIZ depodan okunur — bu yol hiçbir sağlayıcıya çıkmaz,
+                // dolayısıyla maç detayına tıklamak 0 provider isteği üretir.
+                ScoreBreakdown = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
+                    ? MatchScoreBreakdownDto.From(match, resultIsFinal: true)
+                    : null,
+                Events       = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
+                    ? MatchEventDto.FromEvents(_matchLiveEventRepository.GetByMatchId(match.Id))
+                    : new List<MatchEventDto>(),
+                // Maç videoları SALT DB'den okunur — arka planda önceden doğrulanmıştır.
+                // Bu okuma hiçbir sağlayıcıya, arama motoruna veya YouTube'a çıkmaz.
+                Videos       = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
+                    ? _videoReader.GetVideos(match.Id)
+                    : new List<MatchVideoDto>(),
+                // İstatistik: depodaki satır TAMAMEN sıfırsa null döner (veri yok).
+                Statistics   = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
+                    ? MatchStatisticsDto.From(_matchLiveStatsRepository.GetByMatchId(match.Id))
+                    : null,
                 League       = match.League,
                 // Sağlayıcının HAM tur adı (teşhis/geri-uyum) ve ondan türeyen Türkçe maç türü.
                 Round        = BuildRoundLabel(match),

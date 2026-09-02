@@ -32,6 +32,8 @@ using Formax.Infrastructure.Providers.Scheduling;
 using Formax.Infrastructure.Repositories;
 using Formax.Infrastructure.Services.Recommendation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using System;
 using Formax.Engine.Core.Scoring;
 
 
@@ -246,6 +248,28 @@ public static class DependencyInjection
 
         // ── Sprint 0: Fixture sync ─────────────────────────────────────────────
         services.AddScoped<IFixtureSyncRepository, FixtureSyncRepository>();
+
+        // ── MAÇ SONRASI VİDEO ──────────────────────────────────────────────────
+        // Bitmiş maç ekranı YALNIZ videodan beslenir. Maç sonrası HABER eşleştirmesi
+        // (02.09.2026 ürün kararı) kaldırılmıştır: ne toplayan job vardır, ne okuyan uç.
+        // MatchPostContentLinks tablosu ve geçmiş satırları silinmemiştir; yalnız
+        // beslenmez ve okunmaz.
+        services.AddHttpClient("postmatch-video", c =>
+        {
+            // Bu istemci YALNIZ resmî video uçlarına (YouTube kanal akışı + oembed) gider.
+            // api-football istemcisiyle karışmaz: video araması futbol veri kotasına
+            // dokunmamalıdır.
+            c.Timeout = TimeSpan.FromSeconds(15);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxPostMatchVideo/1.0");
+        });
+        services.AddScoped<IMatchVideoReader, Formax.Infrastructure.PostMatch.MatchVideoReader>();
+        services.AddScoped<IVideoEmbedVerifier, Formax.Infrastructure.PostMatch.YouTubeEmbedVerifier>();
+        services.AddScoped<IMatchVideoRegistrar, Formax.Infrastructure.PostMatch.MatchVideoRegistrar>();
+        services.AddScoped<IOfficialMatchVideoProvider>(sp =>
+            sp.GetRequiredService<IConfiguration>().GetValue("PostMatch:Video:Provider", "YouTubeOfficialChannels")
+                is "Disabled"
+                    ? new Formax.Infrastructure.PostMatch.DisabledOfficialMatchVideoProvider()
+                    : ActivatorUtilities.CreateInstance<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>(sp));
         services.AddScoped<IFixtureSyncLockRepository, FixtureSyncLockRepository>();
 
         // ── Sprint 4: NABIZ feed intelligence ─────────────────────────────────

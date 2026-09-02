@@ -702,6 +702,12 @@ internal class Program
             Formax.Infrastructure.News.Providers.BingNewsRssProvider>();
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.NewsDiscoveryJob>();
 
+        // MAÇ SONRASI VİDEO — bitmiş maçların RESMÎ videosunu ÖNCEDEN DB'ye yazar;
+        // böylece maç özeti tıklaması 0 dış istek üretir. Canlı polling yoktur ve
+        // api-football kotasına dokunulmaz.
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>());
+
         // ---------------- Phase 7 — SOCIAL DISCOVERY (resmi sosyal medya) ----------------
         // Platform-genişletilebilir ISocialProvider koleksiyonu (yeni platform = yeni satır).
         // YouTube RSS gerçek+key'siz; X/IG/FB kimlik-bilgisi olmadan IsEnabled=false (fake yok).

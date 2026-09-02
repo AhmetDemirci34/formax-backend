@@ -729,7 +729,88 @@ export interface RadarNarrativeDto {
   isAiGenerated: boolean;
 }
 
+/** Maç skor kırılımı — İY / 2Y / MS. 2Y BACKEND'de hesaplanır; ekran çıkarma yapmaz. */
+export interface MatchScoreBreakdownDto {
+  halfTime?: { home: number; away: number } | null;
+  secondHalf?: { home: number; away: number } | null;
+  fullTime?: { home: number; away: number } | null;
+  extraTime?: { home: number; away: number } | null;
+  penalties?: { home: number; away: number } | null;
+}
+
+/** Önemli anlar satırı — kaynakta olmayan olay üretilmez. */
+export interface MatchEventDto {
+  minute: number;
+  extraMinute?: number | null;
+  team?: string | null;
+  player?: string | null;
+  assist?: string | null;
+  eventType: string;
+  detail?: string | null;
+}
+
+/**
+ * Maç videosu. canPlayInApp false ise uygulama içi oynatıcı AÇILMAZ ve backend
+ * embedUrl'i null gönderir — ekranın deneyebileceği bir adres bırakılmaz.
+ *
+ * NOT: bitmiş maç ekranında MAÇ SONRASI HABER YOKTUR (02.09.2026 ürün kararı).
+ * Bu yüzden haber kartı için bir tip de tanımlı değildir; geri gelmesi isteniyorsa
+ * önce ürün kararının değişmesi gerekir.
+ */
+export interface MatchVideoDto {
+  title: string;
+  /** Resmî yayıncı adı ("UEFA", "TRT SPOR"…). */
+  publisher: string;
+  /** Kaynağın kendi sayfası. */
+  sourcePageUrl: string;
+  embedUrl?: string | null;
+  thumbnailUrl?: string | null;
+  videoType:
+    | 'MatchHighlights'
+    | 'ExtendedHighlights'
+    | 'Goal'
+    | 'Penalty'
+    | 'RedCard'
+    | 'VAR'
+    | 'ImportantMoment'
+    | string;
+  publishedAtUtc?: string | null;
+  durationSeconds?: number | null;
+  canPlayInApp: boolean;
+  /** Videonun açık olduğu ülkeler (ISO alpha-2). Boş = kaynak söylemedi. */
+  availableCountries?: string[];
+  /** true ise video yalnız belirli ülkelerde oynar; ekran bunu açıkça söyler. */
+  isRegionRestricted?: boolean;
+  /** Olay klibi meta verisi — yalnız AYRI kliplerde dolu. */
+  eventMinute?: number | null;
+  eventExtraMinute?: number | null;
+  eventPlayer?: string | null;
+  eventTeam?: string | null;
+}
+
+/** Tek istatistik satırı — ev/deplasman karşılaştırması. */
+export interface MatchStatisticRowDto {
+  key: string;
+  label: string;
+  home: number;
+  away: number;
+  isPercentage: boolean;
+}
+
+/**
+ * Maç istatistikleri. Backend YALNIZ gerçek veri varsa gönderir; bütün alanları
+ * sıfır olan bir satır "0 şut" değil VERİ YOK demektir ve null gelir.
+ */
+export interface MatchStatisticsDto {
+  rows: MatchStatisticRowDto[];
+}
+
 export interface MatchDetailDto {
+  videos?: MatchVideoDto[];
+  scoreBreakdown?: MatchScoreBreakdownDto | null;
+  events?: MatchEventDto[];
+  /** Yalnız gerçek veri varsa dolu; aksi hâlde null ve bölüm hiç render edilmez. */
+  statistics?: MatchStatisticsDto | null;
   matchId: number;
   homeTeam: TeamSummaryDto;
   awayTeam: TeamSummaryDto;

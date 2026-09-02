@@ -8,6 +8,16 @@ namespace Formax.Domain.Constants
 
         /// <summary>Gelecek maçın geçici tarih/saatini doğrulama.</summary>
         public const string FutureSchedule = "FutureSchedule";
+
+        /// <summary>Bitmiş maçın maç sonrası içeriğini toplama (haber/olay/istatistik).</summary>
+        public const string PostMatchContent = "PostMatchContent";
+
+        /// <summary>
+        /// Bitmis macin RESMI VIDEOSUNU arama. AYRI BUTCE: video aramasi api-football
+        /// kotasina DOKUNMAZ (bambaska kaynaklara gider) ve haber butcesiyle karisirsa
+        /// biri digerini ac birakir.
+        /// </summary>
+        public const string PostMatchVideo = "PostMatchVideo";
     }
 
     /// <summary>

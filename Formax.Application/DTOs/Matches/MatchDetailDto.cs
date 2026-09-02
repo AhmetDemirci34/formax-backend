@@ -18,6 +18,38 @@ public class MatchDetailDto
     public DateTime MatchDate { get; set; }
     public string Status { get; set; } = string.Empty;
 
+    // ── MAÇ SONRASI ÖZET (02.09.2026) — additive ────────────────────────────────
+    // Maç bittiğinde aynı rota (/match/{id}) maç öncesi detay yerine ÖZET gösterir.
+    // Bu alanlar yalnız Finished maçta dolar; başlamamış maçta null/boş kalır ve
+    // mevcut maç öncesi sözleşme AYNEN korunur.
+
+    /// <summary>İY / 2Y / MS kırılımı. Maç bitmediyse null.</summary>
+    public MatchScoreBreakdownDto? ScoreBreakdown { get; set; }
+
+    /// <summary>
+    /// Önemli anlar — kronolojik, tekilleştirilmiş. Depoda olay yoksa BOŞ liste
+    /// (uydurma olay üretilmez; ekran dürüst boş durum gösterir).
+    /// </summary>
+    public List<MatchEventDto> Events { get; set; } = new();
+
+    /// <summary>
+    /// MAÇ VİDEOLARI — özet, gol ve önemli an. Yalnız DOĞRULANMIŞ resmî kayıtlar.
+    ///
+    /// MAÇ SONRASI HABER YOKTUR (02.09.2026 ürün kararı): bitmiş maç ekranı haber,
+    /// teknik direktör/oyuncu açıklaması ve basın/sosyal yorum GÖSTERMEZ. Bu alanın
+    /// bir haber karşılığı bilerek bırakılmamıştır — boş bir başlık bile gösterilmez.
+    /// </summary>
+    public List<MatchVideoDto> Videos { get; set; } = new();
+
+    /// <summary>
+    /// MAÇ İSTATİSTİKLERİ — yalnız GERÇEK veri varsa dolu, aksi hâlde null.
+    ///
+    /// Depoda satır olması veri olduğu anlamına gelmez: bütün alanları sıfır olan bir
+    /// canlı-istatistik satırı "0 şut, %0 topa sahip olma" değil, VERİ YOK demektir.
+    /// Karar burada bir kez verilir; ekran bölümü null ise hiç render etmez.
+    /// </summary>
+    public MatchStatisticsDto? Statistics { get; set; }
+
     // ── Match meta ──────────────────────────────────────────────────────────────
     public string League { get; set; } = string.Empty;
     /// <summary>Sağlayıcının HAM tur adı ("3rd Qualifying Round", "Regular Season - 1").</summary>

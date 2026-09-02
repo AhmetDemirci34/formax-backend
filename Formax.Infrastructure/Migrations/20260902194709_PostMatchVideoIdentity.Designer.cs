@@ -4,6 +4,7 @@ using Formax.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Formax.Infrastructure.Migrations
 {
     [DbContext(typeof(FormaxDbContext))]
-    partial class FormaxDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902194709_PostMatchVideoIdentity")]
+    partial class PostMatchVideoIdentity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2522,10 +2525,6 @@ namespace Formax.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("AvailableCountries")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
                     b.Property<int>("AwayTeamId")
                         .HasColumnType("int");
 
@@ -2538,20 +2537,6 @@ namespace Formax.Infrastructure.Migrations
                     b.Property<string>("EmbedUrl")
                         .HasMaxLength(600)
                         .HasColumnType("nvarchar(600)");
-
-                    b.Property<int?>("EventExtraMinute")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("EventMinute")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EventPlayer")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("EventTeam")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("ExternalFixtureId")
                         .IsRequired()
@@ -2570,9 +2555,6 @@ namespace Formax.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsOfficial")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsRegionRestricted")
                         .HasColumnType("bit");
 
                     b.Property<DateTime>("MatchDateUtc")
