@@ -249,6 +249,9 @@ public static class DependencyInjection
         // ── Sprint 0: Fixture sync ─────────────────────────────────────────────
         services.AddScoped<IFixtureSyncRepository, FixtureSyncRepository>();
 
+        // SONUCLAR SEKMESI — gun bazli bitmis mac okuma yolu (salt DB, sifir dis istek).
+        services.AddScoped<IMatchResultsReader, MatchResultsReader>();
+
         // ── MAÇ SONRASI VİDEO ──────────────────────────────────────────────────
         // Bitmiş maç ekranı YALNIZ videodan beslenir. Maç sonrası HABER eşleştirmesi
         // (02.09.2026 ürün kararı) kaldırılmıştır: ne toplayan job vardır, ne okuyan uç.

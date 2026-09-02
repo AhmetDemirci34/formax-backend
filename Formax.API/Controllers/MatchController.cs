@@ -1,4 +1,8 @@
-﻿using Formax.API.Common;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Formax.API.Common;
+using Formax.Application.Interfaces;
 using Formax.Application.UseCases;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -248,5 +252,55 @@ namespace Formax.API.Controllers
             var userId = User.GetUserId();
             return Ok(await useCase.Handle(userId));
         }
+
+        // =========================
+        // 📅 SONUÇLAR — "Maçlar → SONUÇLAR" sekmesi
+        // =========================
+        //
+        // NEDEN AYRI UÇ: yukarıdaki GET /api/matches "şimdi" merkezli YAKLAŞAN listesidir.
+        // Durumu SAATTEN türetir, biten maçlar için yalnız 8 saatlik bir kuyruk taşır ve
+        // her çağrıda Sapma Motoru + kullanıcı ilgi sıralaması çalıştırır. Sonuç listesi
+        // bunların hiçbirine ihtiyaç duymaz, buna karşılık gün bazlı okumaya ve depodaki
+        // GERÇEK duruma ihtiyaç duyar. Mevcut sözleşme bozulmadan additive olarak eklendi.
+        //
+        // Her iki uç da SALT DB'dir: bu sayfayı açmak api-football'a istek ÜRETMEZ.
+
+        /// <summary>
+        /// Bir Türkiye takvim gününün bitmiş maçları (kilitli 11 organizasyon).
+        /// <paramref name="date"/> "yyyy-MM-dd" biçiminde ve GELECEK olamaz.
+        /// </summary>
+        [HttpGet("results")]
+        public async Task<IActionResult> GetResults(
+            [FromServices] IMatchResultsReader reader,
+            [FromQuery] string? date,
+            CancellationToken ct)
+        {
+            var today = Formax.Infrastructure.Time.IstanbulCalendar.TodayIn(DateTime.UtcNow);
+
+            DateOnly day;
+            if (string.IsNullOrWhiteSpace(date)) day = today;
+            else if (!DateOnly.TryParseExact(date, "yyyy-MM-dd",
+                         System.Globalization.CultureInfo.InvariantCulture,
+                         System.Globalization.DateTimeStyles.None, out day))
+                return BadRequest(new { error = "date 'yyyy-MM-dd' biçiminde olmalı" });
+
+            // GELECEĞE BAKILMAZ: oynanmamış maçın sonucu yoktur.
+            if (day > today)
+                return BadRequest(new { error = "gelecek bir gün için sonuç istenemez" });
+
+            var results = await reader.GetResultsAsync(day, ct);
+            return Ok(new { date = day.ToString("yyyy-MM-dd"), count = results.Count, results });
+        }
+
+        /// <summary>
+        /// Son <paramref name="days"/> Türkiye günü içinde SONUÇ BULUNAN günler.
+        /// Tarih seçici "en yakın sonuçlu gün"ü buradan seçer — 8 gün için 8 istek atmaz.
+        /// </summary>
+        [HttpGet("results/days")]
+        public async Task<IActionResult> GetResultDays(
+            [FromServices] IMatchResultsReader reader,
+            [FromQuery] int days = 8,
+            CancellationToken ct = default)
+            => Ok(new { days = await reader.GetRecentResultDaysAsync(days, ct) });
     }
 }
