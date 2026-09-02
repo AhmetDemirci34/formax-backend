@@ -152,7 +152,18 @@ public class FutureScheduleRefreshTests : IDisposable
     }
 
     private Task RunCycle(FixtureSyncJob job)
-        => job.RunBackfillAsync(new DateTime(2026, 9, 1), new DateTime(2026, 9, 1));
+        => job.RunBackfillAsync(DateTime.UtcNow.Date, DateTime.UtcNow.Date);
+
+    /// <summary>
+    /// SAAT BAĞIMLILIĞI TUZAĞI (ölçüldü 02.09.2026): üretim kodu
+    /// <c>RefreshFutureSchedulesAsync</c> adayları GERÇEK <c>DateTime.UtcNow</c>'a göre
+    /// süzer (<c>MatchDate > nowUtc</c>). Testin seed'i sabit takvim tarihi yazarsa test
+    /// bir gün sonra kendiliğinden kırmızıya döner — "yakın" seçilen maç 02.09 12:00'de
+    /// geçmişe düştü ve öncelik testi patladı. Bu yüzden job'ı çalıştıran her testin
+    /// gelecek tarihleri gerçek saate GÖRE üretilir.
+    /// </summary>
+    private static DateTime Future(int days, int hourUtc = 12)
+        => DateTime.UtcNow.Date.AddDays(days).AddHours(hourUtc);
 
     // ── Testler ───────────────────────────────────────────────────────────────
 
@@ -160,12 +171,12 @@ public class FutureScheduleRefreshTests : IDisposable
     public async Task BasaksehirGalatasaray_KabulSenaryosu()
     {
         // BAŞLANGIÇ: geçici tarih 6 Eylül 12:00 — UI'ın 4 günlük penceresine girmiyor.
-        SeedMatch(new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc), KickoffPrecisions.Provisional);
+        SeedMatch(Future(5, 12), KickoffPrecisions.Provisional);   // nominal tur tarihi (gerçekte 06.09 12:00)
 
         // SAĞLAYICI: gerçek tarih 4 Eylül 17:00 UTC (TR 20:00), kesin.
         var (job, provider) = BuildJob(new Dictionary<string, SportsFixtureResult?>
         {
-            [ExtId] = ProviderFixture(new DateTime(2026, 9, 4, 17, 0, 0, DateTimeKind.Utc))
+            [ExtId] = ProviderFixture(Future(3, 17))                        // gerçek kickoff (gerçekte 04.09 17:00 UTC = TR 20:00)
         });
 
         await RunCycle(job);
@@ -175,19 +186,22 @@ public class FutureScheduleRefreshTests : IDisposable
         var m = Assert.Single(rows);                          // DUPLICATE OLUŞMADI
 
         Assert.Equal(98933, m.Id);                            // aynı satır güncellendi
-        Assert.Equal(new DateTime(2026, 9, 4, 17, 0, 0), m.MatchDate);
+        Assert.Equal(Future(3, 17), m.MatchDate);
         Assert.Equal(KickoffPrecisions.Confirmed, m.KickoffPrecision);
         Assert.NotNull(m.ScheduleVerifiedAtUtc);
         Assert.Equal(SuperLig, m.LeagueId);
 
-        // Türkiye gösterimi 4 Eylül 20:00
+        // Türkiye gösterimi = UTC + 3 sa (gerçek senaryoda 17:00 UTC → 4 Eylül 20:00 TR).
+        // Sabit takvim tarihi yerine ilişki doğrulanır; mutlak tarih eşitliği
+        // FourCalendarDayWindowTests.TurkiyeSaatinden_UTCye_DonusumDogru'da kanıtlanır.
         var tz = Formax.Infrastructure.Http.ApiFootballTimeZone.TryResolve("Europe/Istanbul")!;
         var local = TimeZoneInfo.ConvertTimeFromUtc(
             DateTime.SpecifyKind(m.MatchDate, DateTimeKind.Utc), tz);
-        Assert.Equal(new DateTime(2026, 9, 4, 20, 0, 0), local);
+        Assert.Equal(m.MatchDate.AddHours(3), local);
+        Assert.Equal(20, local.Hour);                       // 17:00 UTC → TR 20:00
 
-        // Dört takvim günü penceresine GİRER (1 Eylül'den bakıldığında)
-        var windowEnd = MatchReadRepository.FourCalendarDayWindowEndUtc(NowUtc);
+        // Dört takvim günü penceresine GİRER: maç bugünden 3 gün sonra, pencere 4 gün.
+        var windowEnd = MatchReadRepository.FourCalendarDayWindowEndUtc(DateTime.UtcNow);
         Assert.True(m.MatchDate <= windowEnd);
 
         Assert.Equal(1, provider.Calls);                      // tek tekil çağrı
@@ -196,13 +210,13 @@ public class FutureScheduleRefreshTests : IDisposable
     [Fact]
     public async Task GecersizSaglayiciCevabi_MevcutKaydiBOZMAZ()
     {
-        var original = new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc);
+        var original = Future(5, 12);
         SeedMatch(original, KickoffPrecisions.Provisional);
 
         // Sağlayıcı BAŞKA bir ligin fikstürünü döndürdü — kimlik uyuşmuyor.
         var (job, _) = BuildJob(new Dictionary<string, SportsFixtureResult?>
         {
-            [ExtId] = ProviderFixture(new DateTime(2026, 9, 4, 17, 0, 0, DateTimeKind.Utc), leagueId: 39)
+            [ExtId] = ProviderFixture(Future(3, 17), leagueId: 39)
         });
 
         await RunCycle(job);
@@ -216,7 +230,7 @@ public class FutureScheduleRefreshTests : IDisposable
     [Fact]
     public async Task SaglayiciBosDonerse_MevcutKaydiBOZMAZ()
     {
-        var original = new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc);
+        var original = Future(5, 12);
         SeedMatch(original, KickoffPrecisions.Provisional);
 
         var (job, provider) = BuildJob(new Dictionary<string, SportsFixtureResult?> { [ExtId] = null });
@@ -232,11 +246,11 @@ public class FutureScheduleRefreshTests : IDisposable
     [Fact]
     public async Task ConfirmedFikstur_TTLIcinde_YenidenIstenmez()
     {
-        SeedMatch(new DateTime(2026, 9, 3, 17, 0, 0, DateTimeKind.Utc), KickoffPrecisions.Confirmed);
+        SeedMatch(Future(2, 17), KickoffPrecisions.Confirmed);
 
         var (job, provider) = BuildJob(new Dictionary<string, SportsFixtureResult?>
         {
-            [ExtId] = ProviderFixture(new DateTime(2026, 9, 3, 17, 0, 0, DateTimeKind.Utc))
+            [ExtId] = ProviderFixture(Future(2, 17))
         });
 
         await RunCycle(job);
@@ -247,7 +261,7 @@ public class FutureScheduleRefreshTests : IDisposable
     [Fact]
     public async Task Restart_AyniFikstruYenidenISTEMEZ()
     {
-        SeedMatch(new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc), KickoffPrecisions.Provisional);
+        SeedMatch(Future(5, 12), KickoffPrecisions.Provisional);   // nominal tur tarihi (gerçekte 06.09 12:00)
 
         var (job1, p1) = BuildJob(new Dictionary<string, SportsFixtureResult?> { [ExtId] = null });
         await RunCycle(job1);
@@ -270,7 +284,7 @@ public class FutureScheduleRefreshTests : IDisposable
             {
                 Id = 5000 + i, ExternalMatchId = $"ext{i}", LeagueId = SuperLig,
                 HomeTeamId = 1, AwayTeamId = 2,
-                MatchDate = new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc).AddMinutes(i),
+                MatchDate = Future(4, 12).AddMinutes(i),
                 Status = "NotStarted", KickoffPrecision = KickoffPrecisions.Provisional
             });
         _db.SaveChanges();
@@ -291,13 +305,13 @@ public class FutureScheduleRefreshTests : IDisposable
         _db.Matches.Add(new Match
         {
             Id = 6001, ExternalMatchId = "uzak", LeagueId = SuperLig, HomeTeamId = 1, AwayTeamId = 2,
-            MatchDate = new DateTime(2026, 9, 8, 12, 0, 0, DateTimeKind.Utc),
+            MatchDate = Future(6, 12),
             Status = "NotStarted", KickoffPrecision = KickoffPrecisions.Provisional
         });
         _db.Matches.Add(new Match
         {
             Id = 6002, ExternalMatchId = "yakin", LeagueId = SuperLig, HomeTeamId = 1, AwayTeamId = 2,
-            MatchDate = new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc),
+            MatchDate = Future(1, 12),
             Status = "NotStarted", KickoffPrecision = KickoffPrecisions.Provisional
         });
         _db.SaveChanges();

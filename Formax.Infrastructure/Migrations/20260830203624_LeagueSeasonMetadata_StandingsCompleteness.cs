@@ -1,7 +1,12 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-#nullable disable
+// EF'in ürettiği başlık "#nullable disable" idi; bu dosyaya elle eklenen InsertData
+// çağrısı `new object?[]` kullandığı için annotation bağlamı kapalıyken CS8632 veriyordu.
+// YALNIZ ANNOTATION bağlamı açılır: `?` işaretleri geçerli olur, null-state UYARILARI
+// ise EF'in ürettiği dosyalarda olduğu gibi kapalı kalır. `?` silinmedi — dizideki null
+// (EndUtc bilinmiyor) bilinçli ve anlamlıdır.
+#nullable enable annotations
 
 namespace Formax.Infrastructure.Migrations
 {
