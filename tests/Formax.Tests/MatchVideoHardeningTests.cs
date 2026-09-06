@@ -353,7 +353,7 @@ public class MatchVideoHardeningTests
     public async Task DenetimSonrasi_SonucKartlarindaVideoVarIsaretiDuzelir()
     {
         using var db = RealWorldDb(nameof(DenetimSonrasi_SonucKartlarindaVideoVarIsaretiDuzelir));
-        var results = new MatchResultsReader(db);
+        var results = TestReaders.Results(db);
 
         // ÖNCE: yanlış kayıtlar yüzünden iki maç "Video var" diyordu.
         var before = await results.GetResultsAsync(new DateOnly(2026, 8, 31));

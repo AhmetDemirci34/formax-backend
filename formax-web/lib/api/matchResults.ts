@@ -57,3 +57,16 @@ export async function getMatchResultDays(days: number): Promise<MatchResultDayDt
   });
   return res.data.days ?? [];
 }
+
+/** Takım adına göre maç arama — salt DB, sağlayıcıya çıkmaz. */
+export async function searchMatchesByTeam(
+  team: string,
+  scope: "upcoming" | "finished",
+  signal?: AbortSignal
+): Promise<MatchResultItemDto[]> {
+  const res = await apiClient.get<{ count: number; results: MatchResultItemDto[] }>(
+    "/api/matches/search",
+    { params: { team, scope }, signal }
+  );
+  return res.data.results ?? [];
+}

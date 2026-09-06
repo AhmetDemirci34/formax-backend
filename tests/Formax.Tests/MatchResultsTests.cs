@@ -85,7 +85,7 @@ public class MatchResultsTests
                 MatchStatuses.Postponed, Fener, Lyon, 0, 0));
         db.SaveChanges();
 
-        var results = await new MatchResultsReader(db).GetResultsAsync(Aug18);
+        var results = await TestReaders.Results(db).GetResultsAsync(Aug18);
 
         var only = Assert.Single(results);
         Assert.Equal(Leg1Id, only.MatchId);
@@ -105,7 +105,7 @@ public class MatchResultsTests
             Fener, Lyon, 1, 1));
         db.SaveChanges();
 
-        var results = await new MatchResultsReader(db).GetResultsAsync(Aug18);
+        var results = await TestReaders.Results(db).GetResultsAsync(Aug18);
 
         Assert.Single(results);
         Assert.DoesNotContain(results, r => r.LeagueId == 0);
@@ -121,7 +121,7 @@ public class MatchResultsTests
             M(900021, "fx-71", Leg1Kickoff, 71, MatchStatuses.Finished, Fener, Lyon, 3, 1, league: "Serie A"));
         db.SaveChanges();
 
-        var results = await new MatchResultsReader(db).GetResultsAsync(Aug18);
+        var results = await TestReaders.Results(db).GetResultsAsync(Aug18);
 
         Assert.Single(results);
         Assert.All(results, r => Assert.Contains(r.LeagueId, LockedCompetitions.All));
@@ -154,7 +154,7 @@ public class MatchResultsTests
             LockedCompetitions.SuperLig, MatchStatuses.Finished, Fener, Lyon, 0, 3, league: "Süper Lig"));
         db.SaveChanges();
 
-        var reader = new MatchResultsReader(db);
+        var reader = TestReaders.Results(db);
         var aug26 = await reader.GetResultsAsync(Aug26);
         var aug27 = await reader.GetResultsAsync(new DateOnly(2026, 8, 27));
 
@@ -174,7 +174,7 @@ public class MatchResultsTests
             MatchStatuses.Finished, Fener, Lyon, 1, 1, 0, 1, "Play-offs"));
         db.SaveChanges();
 
-        var results = await new MatchResultsReader(db).GetResultsAsync(Aug18);
+        var results = await TestReaders.Results(db).GetResultsAsync(Aug18);
 
         Assert.Single(results);
         // En küçük MatchId kazanır → kopya her çalıştırmada AYNI şekilde elenir.
@@ -197,7 +197,7 @@ public class MatchResultsTests
                 LockedCompetitions.LaLiga, MatchStatuses.Finished, Fener, Lyon, 0, 0, league: "La Liga"));
         db.SaveChanges();
 
-        var reader = new MatchResultsReader(db);
+        var reader = TestReaders.Results(db);
         var first = await reader.GetResultsAsync(Aug18);
         var second = await reader.GetResultsAsync(Aug18);
 
@@ -230,7 +230,7 @@ public class MatchResultsTests
                 MatchStatuses.Finished, Fener, Lyon, 2, 2, league: "Süper Lig"));
         db.SaveChanges();
 
-        var days = await new MatchResultsReader(db).GetRecentResultDaysAsync(8);
+        var days = await TestReaders.Results(db).GetRecentResultDaysAsync(8);
 
         Assert.DoesNotContain(days, d => d.Date == today.ToString("yyyy-MM-dd"));
         // İlk kayıt = EN YAKIN sonuçlu gün. Tarih seçici doğrudan bunu seçer.
@@ -256,7 +256,7 @@ public class MatchResultsTests
                 MatchStatuses.Finished, Fener, Lyon, 1, 1));
         db.SaveChanges();
 
-        var days = await new MatchResultsReader(db).GetRecentResultDaysAsync(8);
+        var days = await TestReaders.Results(db).GetRecentResultDaysAsync(8);
 
         // Bugün "sonuçlu gün" DEĞİLDİR: oynanmamış maç ve kapsam dışı satır sayılmaz.
         Assert.Empty(days);
@@ -268,7 +268,7 @@ public class MatchResultsTests
     public async Task IkiAyak_KendiGununde_KendiVerisiyleDoner()
     {
         using var db = SeededDb(nameof(IkiAyak_KendiGununde_KendiVerisiyleDoner));
-        var reader = new MatchResultsReader(db);
+        var reader = TestReaders.Results(db);
 
         var aug18 = Assert.Single(await reader.GetResultsAsync(Aug18));
         Assert.Equal(Leg1Id, aug18.MatchId);
@@ -325,7 +325,7 @@ public class MatchResultsTests
             });
         db.SaveChanges();
 
-        var reader = new MatchResultsReader(db);
+        var reader = TestReaders.Results(db);
         Assert.True((await reader.GetResultsAsync(Aug18))[0].HasPlayableOfficialVideo);
         Assert.False((await reader.GetResultsAsync(Aug26))[0].HasPlayableOfficialVideo);
     }
@@ -334,7 +334,7 @@ public class MatchResultsTests
     public async Task BosGun_HataDegilBosListedir()
     {
         using var db = SeededDb(nameof(BosGun_HataDegilBosListedir));
-        var results = await new MatchResultsReader(db).GetResultsAsync(new DateOnly(2026, 8, 20));
+        var results = await TestReaders.Results(db).GetResultsAsync(new DateOnly(2026, 8, 20));
         Assert.Empty(results);
     }
 }

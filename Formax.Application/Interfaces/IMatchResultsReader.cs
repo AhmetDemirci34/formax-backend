@@ -26,5 +26,18 @@ namespace Formax.Application.Interfaces
         /// (bugün dâhil, yeniden eskiye). Tarih seçici "en yakın sonuçlu gün"ü buradan seçer.
         /// </summary>
         Task<List<MatchResultDayDto>> GetRecentResultDaysAsync(int days, CancellationToken ct = default);
+
+        /// <summary>
+        /// TAKIM ARAMASI — "Takım ara…" kutusunun veri kaynağı.
+        ///
+        /// Salt DB'den okur, sağlayıcıya ÇIKMAZ. Aramak api-football kotası harcamaz.
+        /// Kapsam: kilitli 11 organizasyon.
+        /// <paramref name="scope"/> upcoming → Status=NotStarted; finished → Status=Finished.
+        /// </summary>
+        /// <param name="term">Arama terimi — en az 2 karakter, önceden kırpılmış.</param>
+        /// <param name="scope">upcoming veya finished.</param>
+        /// <param name="maxResults">Döndürülecek azami sonuç sayısı.</param>
+        Task<List<MatchResultItemDto>> SearchByTeamAsync(
+            string term, string scope, int maxResults = 100, CancellationToken ct = default);
     }
 }

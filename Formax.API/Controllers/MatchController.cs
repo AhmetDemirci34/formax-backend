@@ -296,6 +296,33 @@ namespace Formax.API.Controllers
         /// Son <paramref name="days"/> Türkiye günü içinde SONUÇ BULUNAN günler.
         /// Tarih seçici "en yakın sonuçlu gün"ü buradan seçer — 8 gün için 8 istek atmaz.
         /// </summary>
+        /// <summary>
+        /// TAKIM ARAMASI — "Takım ara…" kutusunun ucu.
+        ///
+        /// <paramref name="scope"/>: <c>upcoming</c> → başlamamış maçlar (mevcut sezonun
+        /// GELECEĞİ), <c>finished</c> → mevcut sezonun bitmiş maçları. Her iki hâlde de
+        /// kapsam kilitli 11 organizasyondur ve arama SEÇİLİ GÜNLE SINIRLI DEĞİLDİR.
+        ///
+        /// Salt DB okur: aramak api-football kotası harcamaz, video keşfi ya da LLM
+        /// tetiklemez. İki karakterden kısa terim DB'ye hiç gitmez.
+        /// </summary>
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchByTeam(
+            [FromServices] IMatchResultsReader reader,
+            [FromQuery] string? team,
+            [FromQuery] string scope = "upcoming",
+            CancellationToken ct = default)
+        {
+            if (!Formax.Application.Services.Matches.TeamSearchTerm.IsSearchable(team))
+                return Ok(new { team, scope, count = 0, results = Array.Empty<object>() });
+
+            if (scope is not ("upcoming" or "finished"))
+                return BadRequest(new { error = "scope 'upcoming' veya 'finished' olmalı" });
+
+            var results = await reader.SearchByTeamAsync(team!, scope, 100, ct);
+            return Ok(new { team, scope, count = results.Count, results });
+        }
+
         [HttpGet("results/days")]
         public async Task<IActionResult> GetResultDays(
             [FromServices] IMatchResultsReader reader,

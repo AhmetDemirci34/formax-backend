@@ -24,7 +24,10 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useMatchList } from "@/hooks/useMatchList";
 import { useResultDaySelection } from "@/hooks/useResultDaySelection";
+import { useTeamSearch, type SearchScope } from "@/hooks/useTeamSearch";
 import { buildLeagueGroups } from "@/lib/matches/leagueGrouping";
+import { TeamSearchInput } from "@/components/maclar/TeamSearchInput";
+import { SearchResults } from "@/components/maclar/SearchResults";
 
 export default function MaclarPage() {
   const router = useRouter();
@@ -45,6 +48,11 @@ export default function MaclarPage() {
   const openMatch = (matchId: number) => router.push(`/match/${matchId}`);
   const upcoming = tab === "upcoming";
 
+  // TAKIM ARAMASI — her iki sekmede de aynı kutuyu gösterir.
+  // Scope sekmeye göre otomatik belirlenir: upcoming → NotStarted, results → Finished.
+  const searchScope: SearchScope = upcoming ? "upcoming" : "finished";
+  const search = useTeamSearch(searchScope);
+
   return (
     <div className="flex min-h-[100dvh] flex-col overflow-x-hidden bg-bg-deep">
       <header className="sticky top-0 z-20 bg-bg-deep/95 pt-[var(--safe-top)] backdrop-blur-md">
@@ -58,6 +66,13 @@ export default function MaclarPage() {
         </div>
 
         <MatchesTabs value={tab} onChange={setTab} />
+
+        <TeamSearchInput
+          query={search.query}
+          onChange={search.setQuery}
+          onClear={search.clear}
+          isSearching={search.isSearching}
+        />
 
         {/* Her sekmenin tarih kuralı FARKLIDIR: YAKLAŞAN ileri gider, SONUÇLAR gitmez.
             İkisi de aynı yerde (sticky başlıkta) durur ki sekme değişince kontroller
@@ -73,7 +88,13 @@ export default function MaclarPage() {
         ) : null}
       </header>
 
-      {upcoming ? (
+      {search.isActive ? (
+        <SearchResults
+          results={search.results}
+          isSearching={search.isSearching}
+          onOpen={openMatch}
+        />
+      ) : upcoming ? (
         <main className="flex flex-col gap-2.5 px-3.5 pb-[calc(var(--bottom-nav-height)+16px)] pt-2">
           {isLoading ? (
             <LoadingState label="Maçlar yükleniyor..." />

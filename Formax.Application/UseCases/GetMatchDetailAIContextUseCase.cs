@@ -464,19 +464,64 @@ namespace Formax.Application.UseCases
             // okumaz → Olası Sonuçlar bu bağlantıdan etkilenmez.
             var context = _contextBuilder.Build(detail, null, ranked, evidenceCtx, aiContext.AvailabilityFull);
 
-            // ÜÇ YÜZEY PARALEL — daha önce ARDIŞIK üretiliyordu ve cache soğukken üç LLM
-            // çağrısının süresi TOPLANIYORDU (ölçüldü: /detail ~42 sn). Yüzeyler birbirinden
-            // bağımsızdır (aynı context, farklı prompt) → aynı anda üretilebilirler.
-            // AI içeriği, prompt'u ve guard'ı DEĞİŞMEDİ; yalnız bekleme biçimi değişti.
-            var discoverTask = _narrativePipeline.GenerateAsync(context, RadarSurface.Discover, aiAllowed, ct);
-            var reportTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.MatchDetail, aiAllowed, ct);
-            var inceleTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.AiIncele, aiAllowed, ct);
+            // ── ANLATI ARTIK CEVABI BLOKLAMAZ (ÖLÇÜLDÜ 03.09.2026) ─────────────────
+            //
+            // KÖK NEDEN: bu uç, önbelleği soğuk bir maçta bulut LLM'i BEKLİYORDU. Aşama
+            // profili (aynı istek):
+            //     sync=130ms context=15ms evidence=2ms news=37ms
+            //     narrative(LLM)=13.100ms  → total=13.284ms
+            // Yani ekranın gerçekten ihtiyaç duyduğu her şey ~184 ms'de hazırdı; kalan
+            // 13 saniye yalnız anlatı beklemesiydi. Soğuk LLM süresi 5,7–13,1 sn arasında
+            // dalgalanıyor; istemci zaman aşımı 10 sn. 10 sn'yi aştığı anlarda istek
+            // iptal ediliyor ve kullanıcı "Maç bilgileri şu an yüklenemiyor" görüyordu.
+            // Yenileyince anlatı artık önbellekte olduğu için 0,2 sn'de açılıyordu —
+            // "bazen açılmıyor, yenileyince düzeliyor" şikâyetinin tam tarifi.
+            //
+            // ÇÖZÜM ZAMAN AŞIMINI BÜYÜTMEK DEĞİLDİR: o, kullanıcıyı 13 saniye spinner'a
+            // baktırmak olurdu. Bunun yerine anlatı için KISA BİR BÜTÇE beklenir; bütçe
+            // dolarsa cevap anlatısız döner ve üretim ARKA PLANDA sürer. Pipeline sonucu
+            // önbelleğe yazdığı için bir sonraki açılış hazır bulur.
+            //
+            // BİTMİŞ MAÇTA HİÇ ÜRETİLMEZ: kilitli "Bitmiş Maç Özeti" ekranı anlatı
+            // GÖSTERMEZ (ürün kararı). Görünmeyecek bir metin için bulut LLM beklemek
+            // hem kullanıcıyı bekletir hem boşuna maliyettir.
+            var isFinished = string.Equals(detail.Status, MatchStatuses.Finished,
+                StringComparison.OrdinalIgnoreCase);
 
-            await Task.WhenAll(discoverTask, reportTask, inceleTask);
+            if (!isFinished)
+            {
+                // Görevler İSTEK TOKEN'INA BAĞLANMAZ: cevap döndükten sonra da devam edip
+                // önbelleği ısıtmalıdırlar. İstekle birlikte iptal edilselerdi, bütçeyi
+                // aşan her açılış önbelleği boş bırakır ve sorun kendini tekrarlardı.
+                var discoverTask = _narrativePipeline.GenerateAsync(context, RadarSurface.Discover, aiAllowed, CancellationToken.None);
+                var reportTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.MatchDetail, aiAllowed, CancellationToken.None);
+                var inceleTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.AiIncele, aiAllowed, CancellationToken.None);
 
-            var discover = discoverTask.Result;
-            var report   = reportTask.Result;
-            var incele   = inceleTask.Result;
+                var all = Task.WhenAll(discoverTask, reportTask, inceleTask);
+                var finishedInBudget = await Task.WhenAny(all, Task.Delay(NarrativeBudget, ct))
+                                                 .ConfigureAwait(false) == all;
+
+                if (finishedInBudget && all.IsCompletedSuccessfully)
+                {
+                    ApplyNarrative(detail, discoverTask.Result, reportTask.Result, inceleTask.Result);
+                }
+                else
+                {
+                    // Arka planda sürecek görevin hatası GÖZLENİR: gözlenmeyen istisna
+                    // süreç düzeyinde patlama riskidir ve sessizce kaybolur.
+                    _ = all.ContinueWith(
+                        t => _logger.LogWarning(t.Exception,
+                            "[DETAIL] {MatchId} anlatısı arka planda tamamlanamadı.", matchId),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted,
+                        TaskScheduler.Default);
+
+                    _logger.LogInformation(
+                        "[DETAIL] {MatchId} anlatı bütçesi ({Budget} ms) doldu — cevap anlatısız döndü, üretim arka planda sürüyor.",
+                        matchId, NarrativeBudget.TotalMilliseconds);
+                }
+            }
+
             tNarrative = sw.ElapsedMilliseconds;
 
             _logger.LogInformation(
@@ -485,6 +530,25 @@ namespace Formax.Application.UseCases
                 matchId, tSync, tContext - tSync, tEvidence - tContext,
                 tNews - tEvidence, tNarrative - tNews, tNarrative);
 
+            return detail;
+        }
+
+        /// <summary>
+        /// ANLATI BÜTÇESİ — cevabın anlatı için bekleyebileceği EN UZUN süre.
+        ///
+        /// Ölçüm (03.09.2026): anlatı dışındaki her şey ~184 ms; soğuk LLM 5,7–13,1 sn.
+        /// Sıcak (önbellekli) anlatı ~0,2 sn içinde döner, yani bu bütçe normal akışta
+        /// hiç devreye girmez — yalnız soğuk çağrıda cevabı kurtarır.
+        /// </summary>
+        private static readonly TimeSpan NarrativeBudget = TimeSpan.FromSeconds(3);
+
+        /// <summary>Üç yüzeyin sonucunu DTO'ya taşır (içerik ve alanlar DEĞİŞMEDİ).</summary>
+        private static void ApplyNarrative(
+            MatchDetailDto detail,
+            Formax.Application.AI.Radar.RadarNarrativeResult discover,
+            Formax.Application.AI.Radar.RadarNarrativeResult report,
+            Formax.Application.AI.Radar.RadarNarrativeResult incele)
+        {
             detail.AiNarrative = new RadarNarrativeDto
             {
                 RadarSummary       = discover.RadarSummary,
@@ -504,8 +568,6 @@ namespace Formax.Application.UseCases
                 ReasoningConfidence = report.ReasoningConfidence,
                 IsAiGenerated      = discover.IsAiGenerated || report.IsAiGenerated || incele.IsAiGenerated
             };
-
-            return detail;
         }
 
         // ────────────────────────────────────────────────────────────────────────
