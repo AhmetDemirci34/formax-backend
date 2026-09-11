@@ -48,12 +48,50 @@ namespace Formax.Infrastructure.Http
         private readonly ApiFootballMetrics _metrics;
         private readonly IConfiguration _config;
         private readonly ILogger<ApiFootballCacheHandler> _logger;
+        /// <summary>İstek başına sırsız kayıt; testlerde verilmeyebilir.</summary>
+        private readonly Telemetry.ApiFootballRequestLog? _requestLog;
 
         public ApiFootballCacheHandler(
             IMemoryCache l1, ApiFootballHttpCacheStore l2, ApiFootballMetrics metrics,
-            IConfiguration config, ILogger<ApiFootballCacheHandler> logger)
+            IConfiguration config, ILogger<ApiFootballCacheHandler> logger,
+            Telemetry.ApiFootballRequestLog? requestLog = null)
         {
             _l1 = l1; _l2 = l2; _metrics = metrics; _config = config; _logger = logger;
+            _requestLog = requestLog;
+        }
+
+        /// <summary>Tek satır kayıt — çağıran ve güvenli sorgu burada çözülür.</summary>
+        private void Log(Uri uri, string family, string cache, string budget, int? http, string result, bool real)
+        {
+            if (_requestLog == null) return;
+            var (safeQuery, fixture) = Telemetry.ApiFootballRequestLog.Sanitize(uri);
+            _requestLog.Record(new Telemetry.ApiFootballRequestLog.Entry(
+                DateTime.UtcNow, Telemetry.ApiFootballCallScope.Current, family, safeQuery, fixture,
+                cache, budget, http, result, real));
+        }
+
+        /// <summary>
+        /// Sağlayıcının gövde içi hata alanı — YALNIZ anahtar adları döner (ör. "rateLimit",
+        /// "plan"); ileti metni kayda girmez.
+        /// </summary>
+        public static string ProviderResultOf(bool success, string? body)
+        {
+            if (!success) return "HttpError";
+            if (string.IsNullOrWhiteSpace(body)) return "EmptyBody";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                if (!doc.RootElement.TryGetProperty("errors", out var errors)) return "OK";
+                if (errors.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    var keys = errors.EnumerateObject().Select(p => p.Name).ToList();
+                    return keys.Count == 0 ? "OK" : "ProviderError:" + string.Join(",", keys);
+                }
+                if (errors.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    return errors.GetArrayLength() == 0 ? "OK" : "ProviderError:array";
+                return "OK";
+            }
+            catch (System.Text.Json.JsonException) { return "UnparsableBody"; }
         }
 
         /// <summary>
@@ -73,7 +111,13 @@ namespace Formax.Infrastructure.Http
             HttpRequestMessage request, CancellationToken ct)
         {
             if (!Enabled || request.Method != HttpMethod.Get || request.RequestUri == null)
-                return await base.SendAsync(request, ct).ConfigureAwait(false);
+            {
+                var direct = await base.SendAsync(request, ct).ConfigureAwait(false);
+                if (request.RequestUri != null)
+                    Log(request.RequestUri, ApiFootballEndpointFamily.Classify(request.RequestUri), "Bypass",
+                        "NotApplicable", (int)direct.StatusCode, direct.IsSuccessStatusCode ? "OK" : "HttpError", true);
+                return direct;
+            }
 
             var family = ApiFootballEndpointFamily.Classify(request.RequestUri);
             var normalized = NormalizeKey(request.RequestUri);
@@ -83,6 +127,7 @@ namespace Formax.Infrastructure.Http
             if (_l1.TryGetValue(cacheKey, out CachedResponse? l1) && l1 != null)
             {
                 _metrics.RecordCacheHit();
+                Log(request.RequestUri!, family, "L1Hit", "NotApplicable", null, "NotRequested", false);
                 return l1.ToHttpResponse();
             }
 
@@ -108,6 +153,7 @@ namespace Formax.Infrastructure.Http
             if (stored != null)
             {
                 _metrics.RecordPersistentCacheHit();
+                Log(request.RequestUri!, family, "L2Hit", "NotApplicable", null, "NotRequested", false);
                 var fromStore = new CachedResponse(HttpStatusCode.OK, stored);
                 _l1.Set(cacheKey, fromStore, TimeSpan.FromMinutes(15));
                 return fromStore;
@@ -125,6 +171,7 @@ namespace Formax.Infrastructure.Http
                 _logger.LogDebug(
                     "[AF-CACHE] {Caller} cache-only — {Family} için gerçek istek YAPILMADI (merkezi veri bekleniyor).",
                     caller, family);
+                Log(request.RequestUri!, family, "Miss", "CacheOnlyBlocked", null, "NotRequested", false);
                 return new CachedResponse(HttpStatusCode.OK,
                     "{\"errors\":{\"formax_cache_only\":\"caller may not purchase provider data\"},\"results\":0,\"response\":[]}");
             }
@@ -140,6 +187,7 @@ namespace Formax.Infrastructure.Http
                     _logger.LogWarning(
                         "[AF-BUDGET] Günlük bütçe doldu ({Used}/{Limit}) — {Caller} için {Family} isteği YAPILMADI.",
                         used, ceiling, caller ?? "unattributed", family);
+                    Log(request.RequestUri!, family, "Miss", "BudgetBlocked", null, "NotRequested", false);
                     // Sağlayıcı gövde hatası biçiminde döner: mevcut guard'lar bunu "veri yok"
                     // sanmaz, istisnaya çevirir → sahte boş kayıt YAZILMAZ.
                     return new CachedResponse(HttpStatusCode.OK,
@@ -155,6 +203,8 @@ namespace Formax.Infrastructure.Http
             await _l2.IncrementDailyUsageAsync(ct).ConfigureAwait(false);
 
             var result = new CachedResponse(response.StatusCode, body);
+            Log(request.RequestUri!, family, "Miss", "Allowed", (int)response.StatusCode,
+                ProviderResultOf(response.IsSuccessStatusCode, body), true);
 
             if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(body))
             {

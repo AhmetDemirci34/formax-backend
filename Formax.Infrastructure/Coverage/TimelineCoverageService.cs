@@ -236,7 +236,11 @@ namespace Formax.Infrastructure.Coverage
             var refreshHours = RefreshHours();
 
             // Gerçek plan limiti — /status (cached 1h); alınamazsa config fallback.
-            var status = await _provider.GetApiStatusAsync(ct);
+            // ATIF: bu /status isteği admin kota raporundan (GET /admin/timeline/quota) doğar.
+            // Kapsam ilan edilmediği için ölçümde "unattributed" görünüyordu.
+            Formax.Application.DTOs.Diagnostics.SportsApiStatus? status;
+            using (Formax.Infrastructure.Telemetry.ApiFootballCallScope.Begin("TimelineQuotaReport"))
+                status = await _provider.GetApiStatusAsync(ct);
             int limit; int usedToday; string source;
             if (status != null && status.DailyLimit > 0)
             {

@@ -97,15 +97,9 @@ function PredictionCard({ card }: { card: UserPredictionCardDto }) {
         />
       </div>
 
-      {/* İY / MS — YALNIZ bitmiş maçta ve YALNIZ gerçekten varsa. 0-0 uydurulmaz. */}
-      {isFinished && (
-        <p className="text-[10.5px] tabular-nums text-text-muted">
-          {card.halfTimeHomeScore != null && card.halfTimeAwayScore != null
-            ? `İY ${card.halfTimeHomeScore}-${card.halfTimeAwayScore} · `
-            : ""}
-          MS {card.homeScore}-{card.awayScore}
-        </p>
-      )}
+      {/* İY / 2Y / MS — YALNIZ bitmiş maçta ve YALNIZ gerçekten varsa. 0-0 uydurulmaz;
+          2Y backend'de hesaplanır (frontend çıkarma yapmaz). */}
+      {isFinished && <p className="text-[10.5px] tabular-nums text-text-muted">{scoreLine(card)}</p>}
 
       <div className="flex flex-col gap-1.5 border-t border-white/[0.06] pt-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
@@ -121,7 +115,7 @@ function PredictionCard({ card }: { card: UserPredictionCardDto }) {
   );
 }
 
-function SelectionRow({ selection }: { selection: UserPickDto }) {
+export function SelectionRow({ selection }: { selection: UserPickDto }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary">
@@ -145,24 +139,57 @@ function SelectionRow({ selection }: { selection: UserPickDto }) {
  * "ilk golü kim attı" skordan türetilemez). Böyle bir seçim sessizce "yanlış"
  * sayılmaz; ekran bunu açıkça söyler.
  */
-function SelectionOutcome({ selection }: { selection: UserPickDto }) {
-  if (selection.selectionStatus === "Unsettleable") {
-    return (
-      <span className="text-[10.5px] font-semibold text-text-muted">Sonuç hesaplanamadı</span>
-    );
-  }
-  if (selection.isCorrect === true) {
-    return <span className="text-[10.5px] font-bold uppercase text-formax-green">Doğru</span>;
-  }
-  if (selection.isCorrect === false) {
-    return <span className="text-[10.5px] font-bold uppercase text-formax-amber">Yanlış</span>;
-  }
+export function SelectionOutcome({ selection }: { selection: UserPickDto }) {
+  const text = selectionOutcomeLabel(selection);
+  if (!text) return null;
+  const tone =
+    selection.isCorrect === true
+      ? "font-bold uppercase text-formax-green"
+      : selection.isCorrect === false
+        ? "font-bold uppercase text-formax-amber"
+        : "font-semibold text-text-muted";
+  return <span className={`text-[10.5px] ${tone}`}>{text}</span>;
+}
+
+/**
+ * SEÇİMİN SONUÇ ETİKETİ — saf fonksiyon (test edilir).
+ * Hesaplanamayan seçim "Yanlış" SAYILMAZ; sonuçlanmamış seçimde etiket yoktur.
+ */
+export function selectionOutcomeLabel(selection: Pick<UserPickDto, "selectionStatus" | "isCorrect">): string | null {
+  if (selection.selectionStatus === "Unsettleable") return "Sonuç hesaplanamadı";
+  if (selection.isCorrect === true) return "Doğru";
+  if (selection.isCorrect === false) return "Yanlış";
   return null;
 }
 
-function StatusBadge({ cardStatus }: { cardStatus: string }) {
-  const label =
-    cardStatus === "Settled" ? "Tamamlandı" : cardStatus === "Pending" ? "Bekleyen" : "Aktif";
+/** Kart durumu etiketi — "Tamamlandı" yalnız backend Settled derse. */
+export function cardStatusLabel(cardStatus: string): string {
+  return cardStatus === "Settled" ? "Tamamlandı" : cardStatus === "Pending" ? "Bekleyen" : "Aktif";
+}
+
+/** "İY 1-0 · 2Y 1-1 · MS 2-1" — yalnız gerçekten var olan parçalar. */
+export function scoreLine(
+  card: Pick<
+    UserPredictionCardDto,
+    | "homeScore"
+    | "awayScore"
+    | "halfTimeHomeScore"
+    | "halfTimeAwayScore"
+    | "secondHalfHomeScore"
+    | "secondHalfAwayScore"
+  >
+): string {
+  const parts: string[] = [];
+  if (card.halfTimeHomeScore != null && card.halfTimeAwayScore != null)
+    parts.push(`İY ${card.halfTimeHomeScore}-${card.halfTimeAwayScore}`);
+  if (card.secondHalfHomeScore != null && card.secondHalfAwayScore != null)
+    parts.push(`2Y ${card.secondHalfHomeScore}-${card.secondHalfAwayScore}`);
+  if (card.homeScore != null && card.awayScore != null) parts.push(`MS ${card.homeScore}-${card.awayScore}`);
+  return parts.join(" · ");
+}
+
+export function StatusBadge({ cardStatus }: { cardStatus: string }) {
+  const label = cardStatusLabel(cardStatus);
   const tone =
     cardStatus === "Settled"
       ? "text-text-muted"

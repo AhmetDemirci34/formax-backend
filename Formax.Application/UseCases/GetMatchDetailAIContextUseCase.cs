@@ -301,6 +301,11 @@ namespace Formax.Application.UseCases
                 _                     => "Bu maç için AI şu aşamada yönlendirici bir analiz sunmamayı tercih etmiştir."
             };
 
+            // Bitmiş maçın videoları SALT DB'den okunur (arka planda önceden doğrulanmıştır);
+            // arama durumu da aynı listeye ve kalıcı deftere bakar.
+            var isFinished = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase);
+            var finishedVideos = isFinished ? _videoReader.GetVideos(match.Id) : new List<MatchVideoDto>();
+
             return new MatchDetailDto
             {
                 MatchId  = match.Id,
@@ -339,9 +344,9 @@ namespace Formax.Application.UseCases
                     : new List<MatchEventDto>(),
                 // Maç videoları SALT DB'den okunur — arka planda önceden doğrulanmıştır.
                 // Bu okuma hiçbir sağlayıcıya, arama motoruna veya YouTube'a çıkmaz.
-                Videos       = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
-                    ? _videoReader.GetVideos(match.Id)
-                    : new List<MatchVideoDto>(),
+                Videos       = finishedVideos,
+                // ARAMA DURUMU — kalıcı defterden; saatten türetilmez. Sıfır dış istek.
+                VideoSearch  = isFinished ? BuildVideoSearch(match.ExternalMatchId, finishedVideos) : null,
                 // İSTATİSTİK — ÖNCE KANONİK KAYIT (nullable ölçümler), sonra eski tablo.
                 // Kanonik satırda sağlayıcının vermediği ölçüm null kalır ve o satır hiç
                 // gösterilmez; eski tabloda her alan int olduğu için "veri yok" ile
@@ -1099,6 +1104,26 @@ namespace Formax.Application.UseCases
 
             var canonical = MatchStatisticsDto.FromTeamRows(home, away);
             return canonical ?? MatchStatisticsDto.From(_matchLiveStatsRepository.GetByMatchId(matchId));
+        }
+
+        /// <summary>
+        /// RESMÎ ÖZET ARAMASININ DURUMU — kural <see cref="Services.PostMatch.PostMatchVideoSearchStatus"/>.
+        /// Defter okuması salt DB'dir; bu metot hiçbir sağlayıcıya çıkmaz.
+        /// </summary>
+        private VideoSearchDto BuildVideoSearch(string? externalMatchId, IReadOnlyList<MatchVideoDto> videos)
+        {
+            var ledger = string.IsNullOrWhiteSpace(externalMatchId)
+                ? Services.PostMatch.FixtureAttemptSummary.None
+                : _fixtureSync.GetFixtureAttemptSummary(externalMatchId!, FixtureRefreshPurposes.PostMatchVideo);
+
+            var hasPlayable = videos.Any(v => v.CanPlayInApp);
+            return new VideoSearchDto
+            {
+                Status = Services.PostMatch.PostMatchVideoSearchStatus.Resolve(hasPlayable, ledger),
+                AttemptsMade = ledger.Attempts,
+                MaxAttempts = Services.PostMatch.PostMatchVideoSchedule.MaxAttempts,
+                LastAttemptUtc = ledger.LastAttemptUtc
+            };
         }
 
         private LineupSectionDto BuildLineupSection(int matchId, DateTime kickoffUtc, string? externalMatchId)

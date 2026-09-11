@@ -27,9 +27,10 @@ namespace Formax.Infrastructure.BackgroundJobs;
 ///  • api-football kotasına DOKUNULMAZ: video araması bambaşka kaynaklara gider.
 ///
 /// TEKRAR TAKVİMİ — ölçülmüş bir gerçeğe dayanır: resmî özet maçtan ~30-40 dk sonra
-/// yayımlanır, ama yayıncıya göre saatler de sürebilir. Bu yüzden üç kez bakılır:
-///   1) maç bitiminden ~75 dk sonra   2) ~6 saat sonra   3) ~24 saat sonra
-/// Üçü de boş dönerse arama BİTER ve sonuç dürüstçe "Unavailable" olarak yazılır.
+/// yayımlanır, ama yayıncıya göre saatler de sürebilir. Bu yüzden DÖRT kez bakılır:
+///   FT+60dk → FT+3sa → FT+6sa → FT+24sa (takvim: PostMatchVideoSchedule).
+/// Dördü de boş dönerse arama BİTER ve sonuç dürüstçe "Unavailable" olarak yazılır.
+/// Plan/rate limit engeli ya da erişilemeyen kaynak deneme SAYILMAZ.
 /// Sonsuza dek yoklamak, bulunmayan videoyu var etmez; yalnız dış istek harcar.
 ///
 /// KALICI DEFTER: <c>FixtureRefreshAttempts</c> (amaç <c>PostMatchVideo</c>) yeniden
@@ -48,7 +49,8 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
     /// düdükten ~30-40 dk sonra yayımlanıyor; ilk bakışı 75 dakikaya çekmek, hazır
     /// olan videoyu gereksiz yere geciktiriyordu.
     /// </summary>
-    public static readonly TimeSpan FirstCheckAfterFullTime = TimeSpan.FromMinutes(60);
+    public static readonly TimeSpan FirstCheckAfterFullTime =
+        Application.Services.PostMatch.PostMatchVideoSchedule.FirstCheckAfterFullTime;
 
     /// <summary>
     /// İlk bakış boş dönerse sırasıyla beklenecek süreler. Toplam takvim:
@@ -59,15 +61,19 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
     /// Aralıklar bir öncekinin ÜZERİNE eklenir: 60dk + 2sa = FT+3sa, + 3sa = FT+6sa,
     /// + 18sa = FT+24sa.
     /// </summary>
-    public static readonly IReadOnlyList<TimeSpan> RetryBackoff = new[]
-    {
-        TimeSpan.FromHours(2),
-        TimeSpan.FromHours(3),
-        TimeSpan.FromHours(18)
-    };
+    public static readonly IReadOnlyList<TimeSpan> RetryBackoff =
+        Application.Services.PostMatch.PostMatchVideoSchedule.RetryBackoff;
 
-    /// <summary>Toplam deneme hakkı: ilk bakış + iki tekrar.</summary>
-    public static readonly int MaxAttempts = 1 + RetryBackoff.Count;
+    /// <summary>Takvime başlamış maçın kalan haklarının kullanılabileceği en geriye bakış.</summary>
+    public static readonly TimeSpan StartedScheduleCeiling = TimeSpan.FromDays(30);
+
+    /// <summary>Engellenen turun defter kodları (kolon 32 karakter). Bunlar deneme SAYILMAZ.</summary>
+    public const string BlockedRateLimited = "Blocked:RateLimited";
+    public const string BlockedUnreachable = "Blocked:Unreachable";
+    public const string BlockedError = "Blocked:Error";
+
+    /// <summary>Toplam deneme hakkı: ilk bakış + üç tekrar (takvimin tek kaynağı Application katmanıdır).</summary>
+    public static readonly int MaxAttempts = Application.Services.PostMatch.PostMatchVideoSchedule.MaxAttempts;
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PostMatchEnrichmentJob> _logger;
@@ -101,12 +107,7 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
     /// <param name="attemptsSoFar">Bugüne kadarki toplam deneme (gün sınırından bağımsız).</param>
     /// <param name="lastAttemptUtc">En son deneme anı; hiç denenmediyse null.</param>
     public static bool IsDue(DateTime matchEndUtc, int attemptsSoFar, DateTime? lastAttemptUtc, DateTime nowUtc)
-    {
-        if (attemptsSoFar >= MaxAttempts) return false;                 // hak bitti
-        if (attemptsSoFar == 0) return nowUtc >= matchEndUtc + FirstCheckAfterFullTime;
-        if (lastAttemptUtc == null) return true;                        // sayaç var, an yok → dene
-        return nowUtc >= lastAttemptUtc.Value + RetryBackoff[Math.Min(attemptsSoFar - 1, RetryBackoff.Count - 1)];
-    }
+        => Application.Services.PostMatch.PostMatchVideoSchedule.IsDue(matchEndUtc, attemptsSoFar, lastAttemptUtc, nowUtc);
 
     /// <summary>Bir tur — public; testten ve elle tetikten çağrılabilir.</summary>
     public async Task<int> RunCycleAsync(CancellationToken ct = default)
@@ -118,6 +119,7 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
         var registrar = sp.GetRequiredService<IMatchVideoRegistrar>();
         var provider = sp.GetRequiredService<IOfficialMatchVideoProvider>();
         var repo = sp.GetRequiredService<IFixtureSyncRepository>();
+        var videoLog = sp.GetService<Telemetry.VideoDiscoveryRequestLog>();
 
         // ── AŞAMA 1: OLAY + İSTATİSTİK ────────────────────────────────────────
         //
@@ -197,30 +199,57 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
 
             var stored = 0;
             var outcome = "NoData";
+            var blocked = false;
             try
             {
                 var identity = await registrar.BuildIdentityAsync(m.Id, ct).ConfigureAwait(false);
                 if (identity != null)
                 {
-                    foreach (var candidate in await provider.DiscoverAsync(identity, ct).ConfigureAwait(false))
+                    var found = await provider.DiscoverAsync(identity, ct).ConfigureAwait(false);
+
+                    // TUR TAMAMLANDI MI? Hiçbir yapılandırılmış sağlayıcı aramasını hatasız
+                    // bitiremediyse (rate limit / plan / erişilemeyen kaynak) bu bir
+                    // "bulunamadı" DEĞİLDİR: deneme SAYILMAZ.
+                    if (provider is IVideoDiscoveryDiagnostics diag && !diag.LastRunCompleted)
+                    {
+                        blocked = true;
+                        // LastOutcome kolonu 32 karakter: kısa SABİT kod yazılır; sağlayıcı
+                        // bazındaki ayrıntı video istek kaydında ve logda durur.
+                        outcome = diag.LastOutcomes.Any(o => o.Note.StartsWith("rate-limit", StringComparison.Ordinal))
+                            ? BlockedRateLimited
+                            : BlockedUnreachable;
+                        _logger.LogWarning("[POST-MATCH VIDEO] {MatchId} turu engellendi (deneme sayilmadi): {Detail}",
+                            m.Id, string.Join(" | ", diag.LastOutcomes.Select(o => o.Provider + "=" + o.Note)));
+                    }
+
+                    foreach (var candidate in found)
                     {
                         var result = await registrar.RegisterAsync(m.Id, candidate, ct).ConfigureAwait(false);
                         if (result.Stored) stored++;
+                        videoLog?.RecordVerdict(new Telemetry.VideoDiscoveryRequestLog.VerdictEntry(
+                            DateTime.UtcNow, candidate.ProviderName, m.Id, extId,
+                            candidate.SourceIdentifier, candidate.ExternalVideoId, candidate.Title,
+                            result.Stored, result.Status, result.Reason));
                     }
                 }
-                if (stored > 0) outcome = "Applied";
-                else if (attempts + 1 >= MaxAttempts)
+                if (stored > 0) { outcome = "Applied"; blocked = false; }
+                else if (!blocked && attempts + 1 >= MaxAttempts)
                     // Hak bitti: "aradık, resmî video bulunamadı" DÜRÜST sonucu saklanır.
                     outcome = MatchVideoVerificationStatuses.Unavailable;
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                outcome = "ProviderError";
+                // Beklenmeyen hata da bir arama sonucu değildir: sayılmaz.
+                blocked = true;
+                outcome = BlockedError;
                 _logger.LogWarning(ex, "[POST-MATCH VIDEO] {MatchId} icin arama basarisiz.", m.Id);
             }
 
-            repo.RecordFixtureAttemptOutcome(extId, FixtureRefreshPurposes.PostMatchVideo, nowUtc, outcome);
+            if (blocked)
+                repo.RecordFixtureAttemptBlocked(extId, FixtureRefreshPurposes.PostMatchVideo, nowUtc, outcome);
+            else
+                repo.RecordFixtureAttemptOutcome(extId, FixtureRefreshPurposes.PostMatchVideo, nowUtc, outcome);
             processed++;
         }
 
@@ -253,6 +282,32 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
                      && locked.Contains(m.LeagueId)
                      && m.ExternalMatchId != null && m.ExternalMatchId != "")
             .ToListAsync(ct).ConfigureAwait(false);
+
+        // TAKVİME BAŞLAMIŞ MAÇLAR PENCEREDEN DÜŞMEZ (11.09.2026): ekran "en az bir deneme
+        // hakkı varsa kontrol ediliyor" der. Pencere dışına düşen ama 1–3 gerçek denemesi
+        // olan bir maç bir daha hiç aranmasaydı bu cümle boş bir vaat olurdu. Üst sınır
+        // (StartedScheduleCeiling) sonsuz geriye tarama yapılmasını önler.
+        var ceiling = nowUtc - StartedScheduleCeiling;
+        var startedIds = await db.FixtureRefreshAttempts.AsNoTracking()
+            .Where(a => a.Purpose == FixtureRefreshPurposes.PostMatchVideo)
+            .GroupBy(a => a.ExternalMatchId)
+            .Select(g => new { Id = g.Key, Attempts = g.Sum(a => a.AttemptCount) })
+            .Where(x => x.Attempts > 0 && x.Attempts < MaxAttempts)
+            .Select(x => x.Id)
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        if (startedIds.Count > 0)
+        {
+            var known = new HashSet<int>(rows.Select(r => r.Id));
+            var resumed = await db.Matches.AsNoTracking()
+                .Where(m => m.Status == MatchStatuses.Finished
+                         && m.MatchDate < since && m.MatchDate >= ceiling
+                         && locked.Contains(m.LeagueId)
+                         && m.ExternalMatchId != null
+                         && startedIds.Contains(m.ExternalMatchId))
+                .ToListAsync(ct).ConfigureAwait(false);
+            rows.AddRange(resumed.Where(m => known.Add(m.Id)));
+        }
 
         return rows
             .OrderByDescending(m => followedIds.Contains(m.Id))

@@ -42,6 +42,12 @@ public class MatchDetailDto
     public List<MatchVideoDto> Videos { get; set; } = new();
 
     /// <summary>
+    /// RESMÎ ÖZET ARAMASININ DURUMU — YALNIZ kalıcı defterden (FixtureRefreshAttempts,
+    /// amaç PostMatchVideo) türetilir; saatten türetilmez. Yalnız bitmiş maçta dolar.
+    /// </summary>
+    public VideoSearchDto? VideoSearch { get; set; }
+
+    /// <summary>
     /// MAÇ İSTATİSTİKLERİ — yalnız GERÇEK veri varsa dolu, aksi hâlde null.
     ///
     /// Depoda satır olması veri olduğu anlamına gelmez: bütün alanları sıfır olan bir

@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { TeamCrest } from "@/components/ui/TeamCrest";
-import { formatMatchDateTR, isVideoSearchWindowOver } from "@/lib/matchClock";
-import type {
-  MatchDetailDto,
-  MatchEventDto,
-  MatchStatisticsDto,
-  MatchVideoDto,
-} from "@/types/api";
+import { formatMatchDateTR } from "@/lib/matchClock";
+import { arrangeVideos, videoEmptyStateText } from "@/lib/video/videoSearch";
+import { eventLabel } from "@/lib/matches/eventLabels";
+import { hasVerifiedLineup } from "@/lib/lineup/lineupStatus";
+import { VideoPlayerCard } from "./VideoPlayerCard";
+import { LineupPanel } from "@/components/match-center/lineup/LineupPanel";
+import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto } from "@/types/api";
 
 /**
  * BİTMİŞ MAÇ ÖZETİ — kilitli ekran (02.09.2026 ürün kararı).
@@ -38,27 +37,18 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   const when = formatMatchDateTR(match.matchDate);
   const videos = match.videos ?? [];
 
-  // ANA VİDEO = oynatılabilen ilk özet. Backend zaten oynatılabilirliğe ve türe göre
-  // sıralar; ekran o kararı yeniden yorumlamaz, yalnız ilkini ana karta alır.
-  const main = videos.find((v) => v.canPlayInApp && isMainHighlight(v.videoType)) ?? null;
+  // ANA VİDEO = oynatılabilen ilk özet; önemli anlar yalnız AYRI klipler (ana özet
+  // TEKRAR düşmez); ana video yoksa oynatılamayan ama gerçek resmî kaynaklar. Backend
+  // sıralaması korunur — kural lib/video/videoSearch.arrangeVideos'tadır.
+  const { main, moments, blocked } = arrangeVideos(videos);
 
-  // GOLLER VE ÖNEMLİ ANLAR yalnız AYRI kliplerdir. Ana özet buraya TEKRAR düşmez ve
-  // tam özet sahte gol kliplerine BÖLÜNMEZ.
-  const moments = videos.filter((v) => isMoment(v.videoType) && v !== main);
+  // ARAMA DURUMU KALICI DEFTERDEN (11.09.2026 ürün kuralı): "bulunamadı" YALNIZ backend
+  // dört gerçek denemenin tamamlandığını söylediğinde. Maçtan sonra geçen süre tek başına
+  // hiçbir şey kanıtlamaz — iş hiç çalışmamış ya da rate limit'e takılmış olabilir.
+  const videoEmptyText = videoEmptyStateText(match.videoSearch);
 
-  // Oynatılamayan ama gerçek olan resmî kaynaklar (embed yasağı / bölgesel kısıt):
-  // ana video yoksa kullanıcı hiç değilse kaynağa gidebilsin.
-  const blocked = main ? [] : videos.filter((v) => !v.canPlayInApp && isMainHighlight(v.videoType));
-
-  // ARAMA HÂLÂ SÜRÜYOR MU? Backend'in tekrar takvimi (PostMatchEnrichmentJob) son
-  // düdükten sonra FT+60dk → FT+3sa → FT+6sa → FT+24sa olmak üzere DÖRT kez bakar;
-  // dördü de boş dönerse arama BİTER.
-  //
-  // NEDEN İKİ AYRI METİN: "henüz bulunamadı" ile "aranıyor" kullanıcı için aynı şey
-  // değildir. Maç biteli 40 dakika olmuşken "bulunamadı" demek yanlıştır — daha hiç
-  // bakılmamıştır ve kullanıcı ekranı bir daha açmaz. Arama bittikten sonra hâlâ
-  // "kontrol ediliyor" demek ise sonu gelmeyen bir bekleyiş vaat etmektir.
-  const searchWindowOver = isVideoSearchWindowOver(match.matchDate);
+  // KADRO — maç bitmiş olsa bile DB'de doğrulanmış kadro varsa kaybolmaz.
+  const showLineup = hasVerifiedLineup(match.lineup);
 
   const fmt = (s?: { home: number; away: number } | null) => (s ? `${s.home}-${s.away}` : "—");
 
@@ -68,12 +58,15 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
 
   // Sonuç kartı dışında hiçbir ayrıntı yoksa tek bir genel mesaj. Ana video boş
   // durumu zaten aynı anlamı verdiği için ikisi ASLA birlikte gösterilmez.
-  const hasAnyDetail = videos.length > 0 || events.length > 0 || !!stats || showStandings;
+  // Arama durumu (videoSearch) da bir ayrıntıdır: "kontrol ediliyor" cümlesi, genel
+  // "ayrıntı yok" mesajının yerine geçer ve ikisi yine ASLA birlikte gösterilmez.
+  const hasAnyDetail =
+    videos.length > 0 || events.length > 0 || !!stats || showStandings || showLineup || !!match.videoSearch;
 
   return (
-    <div className="flex w-full max-w-full flex-col gap-3 overflow-x-hidden px-3 pb-28">
+    <div className="flex min-h-0 w-full max-w-full flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 pb-28">
       {/* ── SONUÇ KARTI ───────────────────────────────────────────────────── */}
-      <section className="w-full max-w-full overflow-hidden rounded-2xl border border-goalai-border bg-goalai-surface-bright">
+      <section className="w-full max-w-full shrink-0 overflow-hidden rounded-2xl border border-goalai-border bg-goalai-surface-bright">
         <div className="flex flex-col gap-1 border-b border-goalai-border/60 px-3 py-2.5">
           <div className="flex items-start justify-between gap-2">
             <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-white/60">
@@ -165,13 +158,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
             </div>
           ) : (
             <>
-              <Empty
-                text={
-                  searchWindowOver
-                    ? "Bu maç için uygulama içinde oynatılabilen resmî özet videosu bulunamadı."
-                    : "Resmî maç özeti kontrol ediliyor."
-                }
-              />
+              <Empty text={videoEmptyText} />
               {blocked.length > 0 && (
                 <ul className="flex flex-col gap-2 px-3 pb-3">
                   {blocked.map((v) => (
@@ -210,6 +197,15 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         </Panel>
       )}
 
+      {/* ── KADROLAR — yalnız DOĞRULANMIŞ kadro varsa (boş bölüm başlığı yok) ── */}
+      {showLineup && (
+        <Panel title="Kadrolar">
+          <div className="p-3">
+            <LineupPanel match={match} />
+          </div>
+        </Panel>
+      )}
+
       {/* ── MAÇ İSTATİSTİKLERİ — backend null derse bölüm HİÇ yok ─────────── */}
       {stats && stats.rows.length > 0 && (
         <Panel title="Maç İstatistikleri">
@@ -224,190 +220,6 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         </Panel>
       )}
     </div>
-  );
-}
-
-/** Ana özet türleri — ekranın büyük kartına yalnız bunlar çıkar. */
-function isMainHighlight(videoType: string) {
-  return videoType === "MatchHighlights" || videoType === "ExtendedHighlights";
-}
-
-/** "Goller ve önemli anlar" listesine giren AYRI klip türleri. */
-function isMoment(videoType: string) {
-  return (
-    videoType === "Goal" ||
-    videoType === "Penalty" ||
-    videoType === "RedCard" ||
-    videoType === "VAR" ||
-    videoType === "ImportantMoment"
-  );
-}
-
-const VIDEO_TYPE_LABEL: Record<string, string> = {
-  MatchHighlights: "Maç Özeti",
-  ExtendedHighlights: "Uzun Özet",
-  Goal: "Gol",
-  Penalty: "Penaltı",
-  RedCard: "Kırmızı Kart",
-  VAR: "VAR Kararı",
-  ImportantMoment: "Önemli An",
-};
-
-/**
- * VİDEO KARTI — poster + tıklayınca AÇILAN oynatıcı.
- *
- * KURALLAR:
- *  • Oynatıcı FORMAX ekranının İÇİNDE açılır; yeni sekmeye yönlendirme yoktur.
- *  • SAYFA AÇILIRKEN IFRAME OLUŞTURULMAZ. iframe yalnız kullanıcı oynat düğmesine
- *    bastıktan sonra kurulur — yani sayfa açılışı hiçbir dış istek üretmez.
- *  • Otomatik oynatma yoktur; autoplay yalnız kullanıcının kendi tıklamasından
- *    doğan adreste bulunur.
- *  • canPlayInApp false ise oynatıcı HİÇ kurulmaz: sonsuz spinner ya da boş siyah
- *    kutu yerine sebebi yazılır ve resmî kaynağa gitme seçeneği verilir.
- *  • Bölgesel kısıt ayrı bir cümledir: "oynatılamıyor" ile "senin bölgende
- *    oynatılamıyor" aynı şey değildir.
- */
-function VideoPlayerCard({ video, compact = false }: { video: MatchVideoDto; compact?: boolean }) {
-  const [playing, setPlaying] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const label = VIDEO_TYPE_LABEL[video.videoType] ?? video.videoType;
-  const countries = video.availableCountries ?? [];
-
-  if (!video.canPlayInApp) {
-    return (
-      <div className="w-full max-w-full rounded-xl border border-goalai-border/70 bg-black/20 p-3">
-        <p className="line-clamp-2 text-[12px] font-semibold leading-tight text-text-primary">{video.title}</p>
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-text-muted">
-          <SourceBadge publisher={video.publisher} />
-          <span>{label}</span>
-        </p>
-        {/* Dürüstlük: bu video VAR ama uygulama içinde oynatılamıyor. */}
-        <p className="mt-1.5 text-[11px] leading-relaxed text-white/50">
-          Uygulama içinde oynatılamıyor.
-        </p>
-        <ExternalSourceLink url={video.sourcePageUrl} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full max-w-full overflow-hidden rounded-xl border border-goalai-border/70 bg-black/30">
-      {/* 16:9 — sabit piksel yok, 375px'te taşmaz. */}
-      <div className="relative aspect-video w-full max-w-full bg-black">
-        {playing && !failed ? (
-          <iframe
-            src={`${video.embedUrl}?rel=0&modestbranding=1&playsinline=1&autoplay=1`}
-            title={video.title}
-            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-            allowFullScreen
-            onError={() => setFailed(true)}
-            className="absolute inset-0 h-full w-full border-0"
-          />
-        ) : failed ? (
-          // Player hata verdi: SONSUZ SPINNER YOK, dürüst mesaj ve kaynak bağlantısı.
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-            <p className="text-[12px] leading-relaxed text-white/60">
-              Video şu an oynatılamıyor.
-            </p>
-            <ExternalSourceLink url={video.sourcePageUrl} />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setPlaying(true)}
-            aria-label={`${video.title} — oynat`}
-            className="absolute inset-0 flex h-full w-full items-center justify-center"
-          >
-            {video.thumbnailUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={video.thumbnailUrl}
-                alt=""
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-cover opacity-85"
-              />
-            )}
-            <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-black/70 ring-1 ring-goalai-accent/40">
-              <span className="ml-[4px] border-y-[10px] border-l-[17px] border-y-transparent border-l-goalai-accent" />
-            </span>
-            {video.durationSeconds != null && (
-              <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white">
-                {formatDuration(video.durationSeconds)}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1 px-3 py-2.5">
-        {/* Olay klibiyse dakika ve oyuncu/takım — YALNIZ kaynakta varsa. */}
-        {(video.eventMinute != null || video.eventPlayer || video.eventTeam) && (
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
-            {video.eventMinute != null && (
-              <span className="whitespace-nowrap font-bold tabular-nums text-goalai-accent">
-                {video.eventMinute}
-                {video.eventExtraMinute ? `+${video.eventExtraMinute}` : ""}&apos;
-              </span>
-            )}
-            <span className="truncate">
-              {video.eventPlayer ?? ""}
-              {video.eventPlayer && video.eventTeam ? " · " : ""}
-              {video.eventTeam ?? ""}
-            </span>
-          </p>
-        )}
-
-        <p
-          className={`${compact ? "line-clamp-2" : "line-clamp-2"} break-words text-[12px] font-semibold leading-tight text-text-primary`}
-        >
-          {video.title}
-        </p>
-
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-text-muted">
-          <SourceBadge publisher={video.publisher} />
-          <span className="truncate">{label}</span>
-          {video.durationSeconds != null && (
-            <span className="whitespace-nowrap tabular-nums">{formatDuration(video.durationSeconds)}</span>
-          )}
-        </p>
-
-        {/* BÖLGESEL KISIT — sonsuz yükleme yerine açık cümle. Korsan alternatif YOK. */}
-        {video.isRegionRestricted && countries.length > 0 && (
-          <p className="text-[10.5px] leading-relaxed text-white/45">
-            Bu resmî video yalnız {countries.join(", ")} bölgesinde oynatılabilir. Bulunduğunuz
-            bölge dışındaysa oynatılamayabilir.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ExternalSourceLink({ url }: { url: string }) {
-  if (!url) return null;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-2 inline-block rounded-md border border-goalai-border px-2.5 py-1 text-[10px] font-semibold text-text-primary active:opacity-70"
-    >
-      Resmî kaynakta izle
-    </a>
-  );
-}
-
-/** Kaynak adı + "Resmî kaynak" etiketi. Bu etiket yalnız izin listesindeki yayıncıya çıkar. */
-function SourceBadge({ publisher }: { publisher: string }) {
-  return (
-    <span className="flex items-center gap-1">
-      <span className="max-w-[120px] truncate rounded bg-white/[0.06] px-1.5 py-0.5 font-semibold text-text-primary">
-        {publisher}
-      </span>
-      <span className="whitespace-nowrap rounded bg-goalai-accent/15 px-1.5 py-0.5 font-semibold text-goalai-accent">
-        Resmî kaynak
-      </span>
-    </span>
   );
 }
 
@@ -446,7 +258,7 @@ function StatisticsTable({ stats }: { stats: MatchStatisticsDto }) {
 /** Ortak bölüm kabuğu. Yalnız İÇERİĞİ olan bölüm için çağrılır. */
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="w-full max-w-full overflow-hidden rounded-2xl border border-goalai-border bg-goalai-surface-bright">
+    <section className="w-full max-w-full shrink-0 overflow-hidden rounded-2xl border border-goalai-border bg-goalai-surface-bright">
       <h3 className="border-b border-goalai-border/60 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white/60">
         {title}
       </h3>
@@ -456,24 +268,20 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="px-3 py-5 text-center text-[12px] leading-relaxed text-white/50">{text}</p>;
+  // Kontrast: koyu zeminde %50 beyaz mobilde okunmuyordu; durum cümlesi asıl bilgidir.
+  return <p className="px-3 py-5 text-center text-[13px] leading-relaxed text-white/85">{text}</p>;
 }
 
-const EVENT_LABEL: Record<string, string> = {
-  Goal: "Gol",
-  "Own Goal": "Kendi kalesine gol",
-  Penalty: "Penaltı",
-  "Missed Penalty": "Kaçan penaltı",
-  "Yellow Card": "Sarı kart",
-  "Red Card": "Kırmızı kart",
-  Subst: "Oyuncu değişikliği",
-  Var: "VAR kararı",
-  VAR: "VAR kararı",
-};
 
-/** Tek olay satırı — yalnız DOLU alanlar gösterilir, eksik alan uydurulmaz. */
+/**
+ * Tek olay satırı — yalnız DOLU alanlar gösterilir, eksik alan uydurulmaz.
+ *
+ * ETİKET backend'in deterministik Türkçe eşlemesinden (label) gelir; ham sağlayıcı
+ * terimi ("Substitution 1", "Normal Goal") kullanıcıya GÖSTERİLMEZ.
+ * Oyuncu değişikliğinde "Asist" yazılmaz: giren ve çıkan ayrı ayrı gösterilir.
+ */
 function EventRow({ e }: { e: MatchEventDto }) {
-  const label = e.detail ? EVENT_LABEL[e.detail] ?? e.detail : EVENT_LABEL[e.eventType] ?? e.eventType;
+  const isSub = e.kind === "Substitution";
   return (
     <li className="flex items-start gap-2.5 px-3 py-2">
       <span className="w-[38px] shrink-0 whitespace-nowrap pt-[1px] text-right text-[11px] font-bold tabular-nums text-goalai-accent">
@@ -481,22 +289,25 @@ function EventRow({ e }: { e: MatchEventDto }) {
         {e.extraMinute ? `+${e.extraMinute}` : ""}&apos;
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="break-words text-[12px] font-semibold leading-tight text-text-primary">{label}</span>
-        {(e.player || e.team) && (
+        <span className="break-words text-[12px] font-semibold leading-tight text-text-primary">{eventLabel(e)}</span>
+        {isSub ? (
           <span className="truncate text-[11px] text-text-muted">
-            {e.player ?? ""}
-            {e.player && e.team ? " · " : ""}
-            {e.team ?? ""}
+            {e.playerIn ? `Giren: ${e.playerIn}` : ""}
+            {e.playerIn && e.playerOut ? " · " : ""}
+            {e.playerOut ? `Çıkan: ${e.playerOut}` : ""}
+            {e.team ? ` · ${e.team}` : ""}
           </span>
+        ) : (
+          (e.player || e.team) && (
+            <span className="truncate text-[11px] text-text-muted">
+              {e.player ?? ""}
+              {e.player && e.team ? " · " : ""}
+              {e.team ?? ""}
+            </span>
+          )
         )}
-        {e.assist && <span className="truncate text-[10px] text-text-muted">Asist: {e.assist}</span>}
+        {!isSub && e.assist && <span className="truncate text-[10px] text-text-muted">Asist: {e.assist}</span>}
       </div>
     </li>
   );
-}
-
-function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }

@@ -27,10 +27,12 @@ namespace Formax.Infrastructure.PostMatch
     {
         private readonly IHttpClientFactory _httpFactory;
         private readonly ILogger<YouTubeEmbedVerifier> _log;
+        private readonly Telemetry.VideoDiscoveryRequestLog? _requests;
 
-        public YouTubeEmbedVerifier(IHttpClientFactory httpFactory, ILogger<YouTubeEmbedVerifier> log)
+        public YouTubeEmbedVerifier(IHttpClientFactory httpFactory, ILogger<YouTubeEmbedVerifier> log,
+            Telemetry.VideoDiscoveryRequestLog? requests = null)
         {
-            _httpFactory = httpFactory; _log = log;
+            _httpFactory = httpFactory; _log = log; _requests = requests;
         }
 
         public async Task<EmbedVerification> VerifyAsync(
@@ -49,6 +51,8 @@ namespace Formax.Infrastructure.PostMatch
             {
                 var client = _httpFactory.CreateClient("postmatch-video");
                 using var res = await client.GetAsync(oembed, ct).ConfigureAwait(false);
+                _requests?.RecordRequest("YouTubeOEmbed", oembed, candidate.MatchId, candidate.ExternalFixtureId,
+                    ((int)res.StatusCode).ToString(), 0);
 
                 if (res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                     return new EmbedVerification(false, null, null,

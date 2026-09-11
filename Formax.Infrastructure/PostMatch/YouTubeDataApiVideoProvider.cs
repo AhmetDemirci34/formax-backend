@@ -38,11 +38,13 @@ namespace Formax.Infrastructure.PostMatch
         private readonly IHttpClientFactory _httpFactory;
         private readonly IConfiguration _config;
         private readonly ILogger<YouTubeDataApiVideoProvider> _log;
+        private readonly Telemetry.VideoDiscoveryRequestLog? _requests;
 
         public YouTubeDataApiVideoProvider(
-            IHttpClientFactory httpFactory, IConfiguration config, ILogger<YouTubeDataApiVideoProvider> log)
+            IHttpClientFactory httpFactory, IConfiguration config, ILogger<YouTubeDataApiVideoProvider> log,
+            Telemetry.VideoDiscoveryRequestLog? requests = null)
         {
-            _httpFactory = httpFactory; _config = config; _log = log;
+            _httpFactory = httpFactory; _config = config; _log = log; _requests = requests;
         }
 
         public string Name => "YouTubeDataApi";
@@ -81,9 +83,11 @@ namespace Formax.Infrastructure.PostMatch
                 try
                 {
                     results.AddRange(
-                        await SearchChannelAsync(source, key!, end, before, ct).ConfigureAwait(false));
+                        await SearchChannelAsync(source, key!, end, before, fixture, ct).ConfigureAwait(false));
                 }
                 catch (OperationCanceledException) { throw; }
+                // Kota/plan engeli tüm kanalları etkiler: tur ENGELLENDİ olarak zincire bildirilir.
+                catch (VideoProviderUnavailableException) { throw; }
                 catch (Exception ex)
                 {
                     _log.LogWarning(ex, "[POST-MATCH VIDEO] Data API aramasi basarisiz: {Channel}", source.Key);
@@ -94,7 +98,8 @@ namespace Formax.Infrastructure.PostMatch
         }
 
         private async Task<IReadOnlyList<OfficialVideoCandidate>> SearchChannelAsync(
-            OfficialVideoSource source, string apiKey, DateTime after, DateTime before, CancellationToken ct)
+            OfficialVideoSource source, string apiKey, DateTime after, DateTime before,
+            VideoFixtureIdentity fixture, CancellationToken ct)
         {
             var url = SearchEndpoint
                 + "?part=snippet&type=video&order=date"
@@ -106,15 +111,21 @@ namespace Formax.Infrastructure.PostMatch
 
             var client = _httpFactory.CreateClient("postmatch-video");
             using var res = await client.GetAsync(url, ct).ConfigureAwait(false);
+            var code = (int)res.StatusCode;
             if (!res.IsSuccessStatusCode)
             {
-                _log.LogWarning("[POST-MATCH VIDEO] Data API {Status}: {Channel}",
-                    (int)res.StatusCode, source.Key);
+                // Kayda YALNIZ host + yol düşer; anahtar sorgudadır ve yazılmaz.
+                _requests?.RecordRequest(Name, url, fixture.MatchId, fixture.ExternalFixtureId, code.ToString(), 0);
+                _log.LogWarning("[POST-MATCH VIDEO] Data API {Status}: {Channel}", code, source.Key);
+                if (code is 403 or 429)
+                    throw new VideoProviderUnavailableException(Name, $"Data API {code} (kota/plan)", rateLimited: true);
                 return Array.Empty<OfficialVideoCandidate>();
             }
 
             var json = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            return Parse(json, source.YouTubeChannelId!, Name);
+            var parsed = Parse(json, source.YouTubeChannelId!, Name);
+            _requests?.RecordRequest(Name, url, fixture.MatchId, fixture.ExternalFixtureId, code.ToString(), parsed.Count);
+            return parsed;
         }
 
         /// <summary>Data API yanıtını adaylara çevirir. Eksik alan uydurulmaz; kayıt atlanır.</summary>

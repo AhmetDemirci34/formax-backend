@@ -78,6 +78,9 @@ public class FixtureResultWriteTests
         public Task<int> GetFixtureAttemptCountAsync(string id, string purpose, CancellationToken ct = default)
             => Task.FromResult(0);
         public DateTime? GetLastFixtureAttemptUtc(string id, string purpose) => null;
+        public Formax.Application.Services.PostMatch.FixtureAttemptSummary GetFixtureAttemptSummary(string id, string purpose)
+            => Formax.Application.Services.PostMatch.FixtureAttemptSummary.None;
+        public void RecordFixtureAttemptBlocked(string id, string purpose, DateTime nowUtc, string outcome) { }
         public List<Match> GetFutureScheduleRefreshCandidates(
             DateTime nowUtc, DateTime horizonUtc, IReadOnlyCollection<int> leagueIds) => new();
         public void AddTeam(Team t) => Teams[t.ExternalTeamId!] = t;

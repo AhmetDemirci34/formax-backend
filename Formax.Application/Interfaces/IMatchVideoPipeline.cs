@@ -51,6 +51,42 @@ namespace Formax.Application.Interfaces
         public const string Disabled = "Disabled";
     }
 
+    /// <summary>
+    /// KAYNAK ERİŞİLEMEDİ — plan/rate limit engeli, HTTP hatası ya da ağ hatası.
+    ///
+    /// Bu bir "arandı ve bulunamadı" sonucu DEĞİLDİR. Sağlayıcı bu istisnayı atar; zincir
+    /// onu yakalar ve turu "tamamlanmadı" olarak işaretler. İş de bu turu kalıcı defterde
+    /// deneme SAYMAZ — aksi hâlde bir rate limit dalgası kullanıcıyı erken
+    /// "bulunamadı"ya götürürdü.
+    /// </summary>
+    public sealed class VideoProviderUnavailableException : Exception
+    {
+        public VideoProviderUnavailableException(string provider, string reason, bool rateLimited = false)
+            : base(provider + ": " + reason)
+        {
+            Provider = provider; Reason = reason; RateLimited = rateLimited;
+        }
+
+        public string Provider { get; }
+        public string Reason { get; }
+        /// <summary>429 / kota / plan engeli.</summary>
+        public bool RateLimited { get; }
+    }
+
+    /// <summary>
+    /// ZİNCİRİN SON TURU — iş, turu defterde sayıp saymayacağına buradan karar verir.
+    /// </summary>
+    public interface IVideoDiscoveryDiagnostics
+    {
+        IReadOnlyList<VideoProviderOutcome> LastOutcomes { get; }
+
+        /// <summary>
+        /// En az bir yapılandırılmış sağlayıcı aramasını HATASIZ tamamladı mı? false ise
+        /// tur engellenmiştir ve deneme sayılmaz.
+        /// </summary>
+        bool LastRunCompleted { get; }
+    }
+
     /// <summary>Tek bir sağlayıcının bir maç için ne yaptığı — teşhis ve rapor kaydı.</summary>
     public sealed record VideoProviderOutcome(
         string Provider,

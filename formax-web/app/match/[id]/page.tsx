@@ -18,6 +18,7 @@ import { AssistantDashboard } from "@/components/match-center/dashboard/Assistan
 import { AIAnalysisView } from "@/components/match-center/views/AIAnalysisView";
 import { FormStatusView } from "@/components/match-center/views/FormStatusView";
 import { LineupView } from "@/components/match-center/views/LineupView";
+import { LineupPanel } from "@/components/match-center/lineup/LineupPanel";
 import { NewsView } from "@/components/match-center/views/NewsView";
 import { HighlightsOverlay } from "@/components/match-center/overlays/HighlightsOverlay";
 
@@ -119,18 +120,29 @@ export default function MatchCenterPage({ params }: PageProps) {
     return (
       <div className={shell}>
         <MatchCenterHeader onBack={() => router.push("/maclar")} />
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
-          <p className="text-[14px] leading-relaxed text-white/70">
-            Bu maç oynanıyor. FORMAX canlı yayın ve canlı skor göstermez; maç
-            bittiğinde özet burada yayımlanır.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.replace("/maclar")}
-            className="rounded-[12px] border border-goalai-accent/30 bg-goalai-accent/10 px-4 py-2 text-[13px] font-bold text-goalai-accent"
-          >
-            Maçlara dön
-          </button>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-28 pt-4">
+          <div className="flex flex-col items-center gap-3 px-4 text-center">
+            {/* "Bu maç oynanıyor" DENMEZ: sonuç alımı gecikmişse maç çoktan bitmiş
+                olabilir. Saatten canlı durum ÜRETİLMEZ; yalnız doğru olan söylenir. */}
+            <p className="text-[14px] leading-relaxed text-white/85">
+              Bu maçın başlama saati geçti. FORMAX canlı yayın ve canlı skor göstermez;
+              sonuç kesinleştiğinde maç özeti burada yayımlanır.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.replace("/maclar")}
+              className="rounded-[12px] border border-goalai-accent/30 bg-goalai-accent/10 px-4 py-2 text-[13px] font-bold text-goalai-accent"
+            >
+              Maçlara dön
+            </button>
+          </div>
+
+          {/* KADRO — maç başlamış olsa bile DB'deki doğrulanmış kadro kaybolmaz; yoksa
+              "doğrulanmış kadro bulunamadı" açıkça yazılır. Sağlayıcıya istek YOK. */}
+          <section className="w-full rounded-2xl border border-goalai-border bg-goalai-surface-bright/40 p-3">
+            <h2 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-white/85">Kadrolar</h2>
+            <LineupPanel match={match} />
+          </section>
         </div>
       </div>
     );

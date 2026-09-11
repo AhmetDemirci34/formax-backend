@@ -31,7 +31,7 @@ namespace Formax.Infrastructure.PostMatch
     ///
     /// BİR SAĞLAYICININ HATASI ZİNCİRİ DURDURMAZ: kaynak tek tek çöker, ürün çökmez.
     /// </summary>
-    public sealed class CompositeOfficialMatchVideoProvider : IOfficialMatchVideoProvider
+    public sealed class CompositeOfficialMatchVideoProvider : IOfficialMatchVideoProvider, IVideoDiscoveryDiagnostics
     {
         private readonly IReadOnlyList<IOfficialMatchVideoProvider> _providers;
         private readonly ILogger<CompositeOfficialMatchVideoProvider> _log;
@@ -73,11 +73,15 @@ namespace Formax.Infrastructure.PostMatch
         public IReadOnlyList<VideoProviderOutcome> LastOutcomes { get; private set; }
             = Array.Empty<VideoProviderOutcome>();
 
+        /// <inheritdoc />
+        public bool LastRunCompleted { get; private set; }
+
         public async Task<IReadOnlyList<OfficialVideoCandidate>> DiscoverAsync(
             VideoFixtureIdentity fixture, CancellationToken ct = default)
         {
             var outcomes = new List<VideoProviderOutcome>();
             var all = new List<OfficialVideoCandidate>();
+            var anyCompleted = false;
 
             // Aynı video birden çok sağlayıcıdan gelebilir; İLK bulan (yani en yüksek
             // hak sahipliğine sahip yol) kazanır — sonraki kopyalar elenir.
@@ -121,8 +125,17 @@ namespace Formax.Infrastructure.PostMatch
                     outcomes.Add(new VideoProviderOutcome(
                         p.Name, p.Status, p.Priority, fresh,
                         $"{found.Count} aday dondu, {fresh} yeni"));
+                    anyCompleted = true;
                 }
                 catch (OperationCanceledException) { throw; }
+                catch (VideoProviderUnavailableException ux)
+                {
+                    // ENGEL: rate limit / plan / erişilemeyen kaynak. "Bulunamadı" DEĞİLDİR.
+                    outcomes.Add(new VideoProviderOutcome(
+                        p.Name, p.Status, p.Priority, 0,
+                        (ux.RateLimited ? "rate-limit/plan engeli: " : "kaynaga erisilemedi: ") + ux.Reason));
+                    _log.LogWarning("[POST-MATCH VIDEO] saglayici engellendi: {Provider} — {Reason}", p.Name, ux.Reason);
+                }
                 catch (Exception ex)
                 {
                     // Kaynak tek tek çöker, zincir çökmez.
@@ -133,6 +146,7 @@ namespace Formax.Infrastructure.PostMatch
             }
 
             LastOutcomes = outcomes;
+            LastRunCompleted = anyCompleted;
             return all;
         }
 

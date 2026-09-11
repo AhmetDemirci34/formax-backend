@@ -68,6 +68,8 @@ namespace Formax.Application.UseCases.Picks
                     AwayScore = isFinished ? match.AwayScore : null,
                     HalfTimeHomeScore = isFinished ? match.HalfTimeHomeScore : null,
                     HalfTimeAwayScore = isFinished ? match.HalfTimeAwayScore : null,
+                    SecondHalfHomeScore = isFinished ? SecondHalf(match.HomeScore, match.HalfTimeHomeScore) : null,
+                    SecondHalfAwayScore = isFinished ? SecondHalf(match.AwayScore, match.HalfTimeAwayScore) : null,
                     CardStatus = isFinished
                         ? PickSelectionStatuses.Settled
                         : started ? PickSelectionStatuses.Pending : PickSelectionStatuses.Active,
@@ -83,6 +85,10 @@ namespace Formax.Application.UseCases.Picks
                     : c.MatchDateUtc.Ticks)
                 .ToList();
         }
+
+        /// <summary>MS − İY; İY yoksa ya da sonuç negatifse (tutarsız kayıt) null.</summary>
+        private static int? SecondHalf(int fullTime, int? halfTime)
+            => halfTime is int ht && fullTime - ht >= 0 ? fullTime - ht : null;
 
         private static UserPickDto BuildSelection(
             UserPick p, Match match, bool isFinished, bool started)

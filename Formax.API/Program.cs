@@ -900,6 +900,10 @@ internal class Program
 
         // ── Timeline Operations — GERÇEK API istek ölçümü (metering) + senkron telemetrisi ──
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.ApiFootballMetrics>();
+        // İstek başına SIRSIZ kayıt (job, uç, fikstür, cache, bütçe, HTTP sonucu). Video keşfinin
+        // sayacı API-Football'dan tamamen AYRIDIR.
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.ApiFootballRequestLog>();
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.VideoDiscoveryRequestLog>();
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.TimelineSyncTelemetry>();
         builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballMeteringHandler>();
         // Job attribution — pipeline'ın EN İÇİNE eklenir (resilience'tan SONRA), böylece her

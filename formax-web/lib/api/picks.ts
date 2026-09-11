@@ -44,6 +44,9 @@ export interface UserPredictionCardDto {
   awayScore?: number | null;
   halfTimeHomeScore?: number | null;
   halfTimeAwayScore?: number | null;
+  /** 2. yarı = MS − İY; backend hesaplar, yoksa null. */
+  secondHalfHomeScore?: number | null;
+  secondHalfAwayScore?: number | null;
   cardStatus: string;
   selections: UserPickDto[];
 }

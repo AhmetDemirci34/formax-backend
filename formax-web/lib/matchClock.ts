@@ -122,30 +122,3 @@ export function formatMatchDateTR(iso?: string | null): { date: string; time: st
   return { date, time };
 }
 
-/**
- * RESMÎ VİDEO ARAMASININ SON DENEMESİ GEÇTİ Mİ?
- *
- * Backend'in tekrar takvimini (PostMatchEnrichmentJob) yansıtır: son düdükten sonra
- * FT+60dk, FT+3sa, FT+6sa ve FT+24sa olmak üzere DÖRT kez bakılır; dördü de boş
- * dönerse arama BİTER. Son düdük kickoff + 115 dakikadır — backend'deki
- * MatchVideoIdentityValidator.MatchDuration ile aynı sayı.
- *
- * NEDEN BURADA: zaman sözleşmesi tek yerdedir. Ekranlar kendi saat hesabını yapmaz;
- * "şimdi" ile kickoff arasındaki her karar bu dosyadan geçer.
- *
- * NEDEN İKİ AYRI DURUM: "aranıyor" ile "bulunamadı" kullanıcı için aynı şey değildir.
- * Maç biteli 40 dakika olmuşken "bulunamadı" demek yanlıştır — daha hiç bakılmamıştır.
- * Arama bittikten sonra "kontrol ediliyor" demek ise sonu gelmeyen bir bekleyiş
- * vaat etmektir.
- *
- * Tarih okunamıyorsa pencere AÇIK sayılır: erken "bulunamadı" demektense beklemesini
- * söylemek daha dürüsttür.
- */
-export function isVideoSearchWindowOver(kickoffIso?: string | null, now: number = Date.now()): boolean {
-  const kickoff = kickoffMsOf(kickoffIso);
-  if (!kickoff) return false;
-
-  const FULL_TIME_MS = 115 * MINUTE_MS;       // son düdük
-  const LAST_ATTEMPT_MS = 24 * HOUR_MS;       // FT+24sa — son deneme
-  return now > kickoff + FULL_TIME_MS + LAST_ATTEMPT_MS;
-}

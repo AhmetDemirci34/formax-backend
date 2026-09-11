@@ -42,12 +42,17 @@ namespace Formax.Infrastructure.PostMatch
         private readonly IHttpClientFactory _httpFactory;
         private readonly IMemoryCache _cache;
         private readonly ILogger<YouTubeChannelFeedVideoProvider> _log;
+        private readonly Telemetry.VideoDiscoveryRequestLog? _requests;
 
         public YouTubeChannelFeedVideoProvider(
-            IHttpClientFactory httpFactory, IMemoryCache cache, ILogger<YouTubeChannelFeedVideoProvider> log)
+            IHttpClientFactory httpFactory, IMemoryCache cache, ILogger<YouTubeChannelFeedVideoProvider> log,
+            Telemetry.VideoDiscoveryRequestLog? requests = null)
         {
-            _httpFactory = httpFactory; _cache = cache; _log = log;
+            _httpFactory = httpFactory; _cache = cache; _log = log; _requests = requests;
         }
+
+        /// <summary>Tek kanal akışının sonucu — başarısız okuma "boş akış" ile karışmasın.</summary>
+        private sealed record FeedRead(IReadOnlyList<OfficialVideoCandidate> Entries, bool Ok, bool RateLimited);
 
         public string Name => "YouTubeOfficialChannels";
 
@@ -64,14 +69,22 @@ namespace Formax.Infrastructure.PostMatch
             VideoFixtureIdentity fixture, CancellationToken ct = default)
         {
             var all = new List<OfficialVideoCandidate>();
+            int ok = 0, failed = 0;
+            var rateLimited = false;
 
             foreach (var source in OfficialVideoSources.DiscoverableYouTubeChannels(
                          fixture.HomeTeamName, fixture.AwayTeamName))
             {
                 ct.ThrowIfCancellationRequested();
-                var entries = await GetChannelFeedAsync(source.YouTubeChannelId!, ct).ConfigureAwait(false);
-                all.AddRange(entries);
+                var read = await GetChannelFeedAsync(source.YouTubeChannelId!, fixture, ct).ConfigureAwait(false);
+                if (read.Ok) ok++; else failed++;
+                rateLimited |= read.RateLimited;
+                all.AddRange(read.Entries);
             }
+
+            // HİÇBİR kanal okunamadıysa bu bir "bulunamadı" değil, ENGELdir: tur deneme sayılmaz.
+            if (ok == 0 && failed > 0)
+                throw new VideoProviderUnavailableException(Name, $"{failed} kanal akisinin hicbiri okunamadi", rateLimited);
 
             // Kaba zaman süzgeci — kimlik doğrulaması yine validator'da yapılır. Buradaki
             // amaç yalnız açıkça alakasız kayıtları taşımamaktır.
@@ -81,14 +94,20 @@ namespace Formax.Infrastructure.PostMatch
                 .ToList();
         }
 
-        private async Task<IReadOnlyList<OfficialVideoCandidate>> GetChannelFeedAsync(
-            string channelId, CancellationToken ct)
+        private async Task<FeedRead> GetChannelFeedAsync(
+            string channelId, VideoFixtureIdentity fixture, CancellationToken ct)
         {
+            var url = "https://www.youtube.com/feeds/videos.xml?channel_id=" + Uri.EscapeDataString(channelId);
+
+            // Önbellekte YALNIZ başarılı okumalar durur: başarısızlığı 20 dk saklamak, geçici
+            // bir hatayı "akış boş" diye kalıcılaştırıyordu.
             if (_cache.TryGetValue<IReadOnlyList<OfficialVideoCandidate>>(CacheKey(channelId), out var cached)
                 && cached != null)
-                return cached;
+            {
+                _requests?.RecordRequest(Name, url, fixture.MatchId, fixture.ExternalFixtureId, "cache", cached.Count);
+                return new FeedRead(cached, true, false);
+            }
 
-            var url = "https://www.youtube.com/feeds/videos.xml?channel_id=" + Uri.EscapeDataString(channelId);
             try
             {
                 var client = _httpFactory.CreateClient("postmatch-video");
@@ -96,17 +115,21 @@ namespace Formax.Infrastructure.PostMatch
                 if (!res.IsSuccessStatusCode)
                 {
                     _log.LogWarning("[POST-MATCH VIDEO] kanal akisi {Status}: {Channel}", (int)res.StatusCode, channelId);
-                    return Cache(channelId, Array.Empty<OfficialVideoCandidate>());
+                    _requests?.RecordRequest(Name, url, fixture.MatchId, fixture.ExternalFixtureId, ((int)res.StatusCode).ToString(), 0);
+                    return new FeedRead(Array.Empty<OfficialVideoCandidate>(), false, (int)res.StatusCode == 429);
                 }
 
                 var xml = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                return Cache(channelId, Parse(xml, channelId));
+                var parsed = Parse(xml, channelId);
+                _requests?.RecordRequest(Name, url, fixture.MatchId, fixture.ExternalFixtureId, ((int)res.StatusCode).ToString(), parsed.Count);
+                return new FeedRead(Cache(channelId, parsed), true, false);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "[POST-MATCH VIDEO] kanal akisi okunamadi: {Channel}", channelId);
-                return Cache(channelId, Array.Empty<OfficialVideoCandidate>());
+                _requests?.RecordRequest(Name, url, fixture.MatchId, fixture.ExternalFixtureId, ex.GetType().Name, 0);
+                return new FeedRead(Array.Empty<OfficialVideoCandidate>(), false, false);
             }
         }
 

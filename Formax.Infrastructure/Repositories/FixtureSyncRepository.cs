@@ -193,6 +193,39 @@ SELECT {externalMatchId}, {purpose}, {day}, 1, {nowUtc}, N'Reserved'
     }
 
     /// <inheritdoc />
+    public Formax.Application.Services.PostMatch.FixtureAttemptSummary GetFixtureAttemptSummary(
+        string externalMatchId, string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(externalMatchId))
+            return Formax.Application.Services.PostMatch.FixtureAttemptSummary.None;
+
+        var rows = _context.FixtureRefreshAttempts.AsNoTracking()
+            .Where(a => a.ExternalMatchId == externalMatchId && a.Purpose == purpose)
+            .Select(a => new { a.AttemptCount, a.LastAttemptUtc, a.LastOutcome, a.DayUtc })
+            .ToList();
+        if (rows.Count == 0) return Formax.Application.Services.PostMatch.FixtureAttemptSummary.None;
+
+        var latest = rows.OrderByDescending(r => r.LastAttemptUtc).First();
+        return new Formax.Application.Services.PostMatch.FixtureAttemptSummary(
+            Attempts: rows.Sum(r => r.AttemptCount),
+            LastAttemptUtc: latest.LastAttemptUtc,
+            LastOutcome: latest.LastOutcome,
+            ExhaustedRecorded: rows.Any(r => r.LastOutcome == Formax.Domain.Constants.MatchVideoVerificationStatuses.Unavailable));
+    }
+
+    /// <inheritdoc />
+    public void RecordFixtureAttemptBlocked(string externalMatchId, string purpose, DateTime nowUtc, string outcome)
+    {
+        var day = nowUtc.Date;
+        var row = _context.FixtureRefreshAttempts
+            .FirstOrDefault(a => a.ExternalMatchId == externalMatchId && a.Purpose == purpose && a.DayUtc == day);
+        if (row == null) return;
+        // Rezervasyonun saydığı deneme geri alınır; sıfırın altına inilmez.
+        if (row.AttemptCount > 0) row.AttemptCount--;
+        row.LastOutcome = outcome;
+    }
+
+    /// <inheritdoc />
     public DateTime? GetLastFixtureAttemptUtc(string externalMatchId, string purpose)
     {
         if (string.IsNullOrWhiteSpace(externalMatchId)) return null;

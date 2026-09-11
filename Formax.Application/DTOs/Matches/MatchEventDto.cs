@@ -21,8 +21,42 @@ namespace Formax.Application.DTOs.Matches
         public string? Assist { get; init; }
         /// <summary>Goal / Card / Subst / Var … (sağlayıcının ham türü).</summary>
         public string EventType { get; init; } = string.Empty;
-        /// <summary>"Normal Goal", "Yellow Card" … kaynaktaki açıklama.</summary>
+        /// <summary>
+        /// "Normal Goal", "Yellow Card" … kaynaktaki HAM açıklama — yalnız TEŞHİS alanıdır;
+        /// kullanıcıya <see cref="Label"/> gösterilir.
+        /// </summary>
         public string? Detail { get; init; }
+
+        /// <summary>Kullanıcıya gösterilecek Türkçe etiket ("Gol", "Oyuncu Değişikliği"…).</summary>
+        public string Label { get; init; } = Services.Matches.MatchEventLabels.UnknownLabel;
+
+        /// <summary>Biçimlendirme türü (<see cref="Services.Matches.MatchEventLabels.Kinds"/>).</summary>
+        public string Kind { get; init; } = Services.Matches.MatchEventLabels.Kinds.Other;
+
+        /// <summary>
+        /// Oyuncu değişikliğinde oyuna GİREN. Sağlayıcıda değişiklik satırının "assist"
+        /// alanıdır — ölçüldü (11.09.2026): değişiklikten sonra gol/kart olayı olan oyuncu
+        /// 18 kez "assist", 1 kez "player" alanındaydı. Değişiklik dışı olayda null.
+        /// </summary>
+        public string? PlayerIn { get; init; }
+
+        /// <summary>Oyuncu değişikliğinde oyundan ÇIKAN (sağlayıcının "player" alanı).</summary>
+        public string? PlayerOut { get; init; }
+
+        private static MatchEventDto Labelled(MatchEventDto e)
+        {
+            var l = Services.Matches.MatchEventLabels.Resolve(e.EventType, e.Detail);
+            var subst = l.Kind == Services.Matches.MatchEventLabels.Kinds.Substitution;
+            return new MatchEventDto
+            {
+                Minute = e.Minute, ExtraMinute = e.ExtraMinute, Team = e.Team,
+                Player = e.Player, Assist = subst ? null : e.Assist,
+                EventType = e.EventType, Detail = e.Detail,
+                Label = l.Label, Kind = l.Kind,
+                PlayerIn = subst ? e.Assist : null,
+                PlayerOut = subst ? e.Player : null
+            };
+        }
 
         /// <summary>
         /// Depodaki olayları kronolojik, TEKİLLEŞTİRİLMİŞ bir listeye çevirir.
@@ -58,6 +92,7 @@ namespace Formax.Application.DTOs.Matches
                     EventType   = e.EventType,
                     Detail      = e.Detail
                 })
+                .Select(Labelled)
                 .ToList();
         }
 
@@ -86,6 +121,7 @@ namespace Formax.Application.DTOs.Matches
                     EventType = e.EventType ?? string.Empty,
                     Detail    = string.IsNullOrWhiteSpace(e.Detail) ? null : e.Detail
                 })
+                .Select(Labelled)
                 .ToList();
         }
     }

@@ -97,6 +97,24 @@ public interface IFixtureSyncRepository
     DateTime? GetLastFixtureAttemptUtc(string externalMatchId, string purpose);
 
     /// <summary>
+    /// DEFTER ÖZETİ — gerçek deneme sayısı, son an, son sonuç ve "hak bitti" kaydı.
+    /// Maç detayının video arama durumu YALNIZ bundan türetilir; saatten türetilmez.
+    /// Kayıt yoksa <see cref="Formax.Application.Services.PostMatch.FixtureAttemptSummary.None"/>.
+    /// </summary>
+    Formax.Application.Services.PostMatch.FixtureAttemptSummary GetFixtureAttemptSummary(
+        string externalMatchId, string purpose);
+
+    /// <summary>
+    /// ENGELLENEN DENEME — sayılmaz.
+    ///
+    /// Rezervasyon denemeyi baştan sayar. Deneme sağlayıcı plan/rate limit engeli ya da
+    /// erişilemeyen kaynak yüzünden GERÇEKLEŞMEDİYSE bu sayım geri alınır: engel, "aradık
+    /// ve bulamadık" değildir. Son deneme anı KORUNUR (soğuma süresi işler, kaynak dövülmez)
+    /// ve sonuç <paramref name="outcome"/> olarak teşhis için kayda geçer.
+    /// </summary>
+    void RecordFixtureAttemptBlocked(string externalMatchId, string purpose, DateTime nowUtc, string outcome);
+
+    /// <summary>
     /// GELECEK FİKSTÜR TAKVİM DOĞRULAMA ADAYLARI — kickoff'u geçici olan, başlamamış,
     /// kilitli kapsamdaki ve UI'ın yakın penceresine düşebilecek maçlar.
     ///

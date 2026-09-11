@@ -21,7 +21,13 @@ namespace Formax.Tests;
 /// </summary>
 public class PostMatchScreenContractTests
 {
-    private static string Screen() => Read("formax-web/components/match-center/views/FinishedMatchSummary.tsx");
+    // EKRAN = bitmiş maç özeti + ayrı video kartı + saf video kuralları (11.09.2026: video kartı
+    // ve arama kuralları ayrı dosyalara taşındı; sözleşme aynı kalır, okunan kaynak genişler).
+    private static string Screen() =>
+        Read("formax-web/components/match-center/views/FinishedMatchSummary.tsx") + Environment.NewLine +
+        Read("formax-web/components/match-center/views/VideoPlayerCard.tsx") + Environment.NewLine +
+        Read("formax-web/lib/video/videoSearch.ts") + Environment.NewLine +
+        Read("formax-web/lib/video/youtubePlayback.ts");
     private static string Types() => Read("formax-web/types/api.ts");
     private static string MatchPage() => Read("formax-web/app/match/[id]/page.tsx");
     private static string PredictionCard() => Read("formax-web/components/predictions/PredictionCard.tsx");
@@ -149,8 +155,10 @@ public class PostMatchScreenContractTests
         Assert.Contains(searching, screen, StringComparison.Ordinal);
         Assert.Contains(exhausted, screen, StringComparison.Ordinal);
 
-        // Hangi metnin çıkacağı ZAMAN SÖZLEŞMESİNDEN gelir; ekran kendi hesabını yapmaz.
-        Assert.Contains("isVideoSearchWindowOver(match.matchDate)", screen, StringComparison.Ordinal);
+        // Hangi metnin çıkacağı backend'in KALICI DEFTERİNDEN gelir; ekran saat hesabı yapmaz.
+        // 11.09.2026: karar SAATTEN değil KALICI DEFTERDEN (backend videoSearch) gelir.
+        Assert.Contains("videoEmptyStateText(match.videoSearch)", screen, StringComparison.Ordinal);
+        Assert.DoesNotContain("isVideoSearchWindowOver", screen, StringComparison.Ordinal);
 
         // <Empty …/> yalnız İKİ yerde: video boş durumu ve backend'in puan durumu metni.
         Assert.Equal(2, Regex.Matches(screen, @"<Empty\b").Count);
@@ -184,11 +192,11 @@ public class PostMatchScreenContractTests
     {
         var screen = Screen();
 
-        Assert.Contains("{playing && !failed ? (", screen, StringComparison.Ordinal);
-        Assert.Contains("onClick={() => setPlaying(true)}", screen, StringComparison.Ordinal);
+        Assert.Contains("state !== \"idle\" && video.embedUrl ? (", screen, StringComparison.Ordinal);
+        Assert.Contains("onClick={() => setState(\"loading\")}", screen, StringComparison.Ordinal);
 
         var iframeIndex = screen.IndexOf("<iframe", StringComparison.Ordinal);
-        var playingIndex = screen.IndexOf("{playing && !failed ? (", StringComparison.Ordinal);
+        var playingIndex = screen.IndexOf("state !== \"idle\" && video.embedUrl ? (", StringComparison.Ordinal);
         Assert.True(playingIndex >= 0 && iframeIndex > playingIndex,
             "iframe, playing kontrolünden SONRA kurulmalı");
     }

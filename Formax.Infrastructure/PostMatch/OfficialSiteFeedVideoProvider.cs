@@ -15,63 +15,70 @@ using Microsoft.Extensions.Logging;
 namespace Formax.Infrastructure.PostMatch
 {
     /// <summary>
-    /// RESMÎ SİTE AKIŞLARINDAN KEŞİF — federasyon / lig / yayıncı kendi yayımladığı
-    /// RSS-Atom akışından okunur.
+    /// RESMÎ SİTE AKIŞLARINDAN KEŞİF — federasyon / lig / yayıncı / kulübün KENDİ
+    /// yayımladığı makine okunur akıştan okunur: RSS 2.0, Atom ya da Google video sitemap.
     ///
-    /// NEDEN AKIŞ, NEDEN SAYFA KAZIMA DEĞİL: akış, sitenin KENDİ yayımladığı makine
-    /// okunur uçtur; okumak için izin gerekmez, sayfa yapısına bağımlı değildir ve
-    /// istek sayısı akış sayısı kadardır. Sayfa kazıma, tarayıcı sürme ve arama motoru
-    /// döngüsü bu sınıfta YOKTUR ve eklenmeyecektir.
+    /// NEDEN AKIŞ, NEDEN SAYFA KAZIMA DEĞİL: akış, sitenin arama motorlarına ve okuyuculara
+    /// KENDİSİNİN sunduğu uçtur; sayfa yapısına bağımlı değildir ve istek sayısı akış sayısı
+    /// kadardır. Sayfa kazıma, tarayıcı sürme, bot korumasını (ör. Cloudflare) aşma ve arama
+    /// motoru döngüsü bu sınıfta YOKTUR.
+    ///
+    /// ÖLÇÜLDÜ (11.09.2026, robots.txt → sitemap zinciri):
+    ///  • trtspor.com.tr/sitemap_video.xml — 200, 200 video girişi, maç özetleri dahil.
+    ///  • fenerbahce.org — Cloudflare bot sınaması; AŞILMAZ, yapılandırılmaz.
+    ///  • uefa.com — bağlantı kurulamadı; yapılandırılmaz.
+    ///  • beinsports.com.tr/server-sitemap.xml — 500; yapılandırılmaz.
+    ///
+    /// YAYIN ZAMANI TUZAĞI (aynı ölçüm): TRT SPOR sitemap'indeki <c>publication_date</c>
+    /// maçtan SAATLER önce (ör. Real Madrid–Inter: 12:30Z, maç 19:00Z) — sayfa maç
+    /// öncesinde açılıyor. Bu alan video yayın anı DEĞİLDİR ve kimlik kapısı bu yüzden
+    /// adayı REDDEDER. Bu sınıf tarihi "düzeltmez": ön süzgeç adayı yalnız kaba pencereyle
+    /// taşır, kararı ve gerekçesini doğrulayıcı verir.
     ///
     /// YAPILANDIRILMAMIŞSA SESSİZ: <c>PostMatch:Video:OfficialFeeds</c> boşsa durum
-    /// <see cref="VideoProviderStatuses.NotConfigured"/>'dır ve zincir yapılandırılmış
-    /// sağlayıcılarla devam eder. Bir federasyonun akışını "bulmak" için tahmin
-    /// üretilmez — adres verilmemişse o kaynak bu kurulumda yoktur.
-    ///
-    /// KAYNAK YİNE İZİN LİSTESİNDEN GEÇER: buradan çıkan aday da
-    /// <see cref="MatchVideoIdentityValidator"/> kapısına girer; akışta görünmek
-    /// "resmî" saymak için yeterli DEĞİLDİR — <c>SourceKey</c> izin listesindeki bir
-    /// kayda karşılık gelmek zorundadır.
-    ///
-    /// ÖRNEK YAPILANDIRMA (appsettings):
-    /// <code>
-    /// "PostMatch": { "Video": { "OfficialFeeds": [
-    ///   { "SourceKey": "uefa.com", "Url": "https://www.uefa.com/rssfeed/video/rss.xml" }
-    /// ] } }
-    /// </code>
+    /// <see cref="VideoProviderStatuses.NotConfigured"/>'dır ve zincir devam eder.
+    /// Kaynak anahtarı izin listesinde (<see cref="OfficialVideoSources"/>) yoksa akış
+    /// ATLANIR — adresi yapılandırmaya yazmak kaynağı resmî yapmaz.
     /// </summary>
     public sealed class OfficialSiteFeedVideoProvider : IOfficialMatchVideoProvider
     {
         private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
         private static readonly XNamespace Media = "http://search.yahoo.com/mrss/";
+        private static readonly XNamespace SitemapNs = "http://www.sitemaps.org/schemas/sitemap/0.9";
+        private static readonly XNamespace VideoNs = "http://www.google.com/schemas/sitemap-video/1.1";
 
         /// <summary>Aynı akış aynı turda birden çok maç için tekrar tekrar çekilmez.</summary>
         private static readonly TimeSpan FeedCache = TimeSpan.FromMinutes(20);
+
+        /// <summary>
+        /// Ön süzgecin kickoff'tan GERİYE bakışı. Kimlik kararı burada verilmez; bu pencere
+        /// yalnız açıkça ilgisiz (günler önceki) girişleri taşımamak içindir.
+        /// </summary>
+        public static readonly TimeSpan PreKickoffWindow = TimeSpan.FromHours(24);
 
         private readonly IHttpClientFactory _httpFactory;
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _config;
         private readonly ILogger<OfficialSiteFeedVideoProvider> _log;
+        private readonly Telemetry.VideoDiscoveryRequestLog? _requests;
 
         public OfficialSiteFeedVideoProvider(
             IHttpClientFactory httpFactory, IMemoryCache cache,
-            IConfiguration config, ILogger<OfficialSiteFeedVideoProvider> log)
+            IConfiguration config, ILogger<OfficialSiteFeedVideoProvider> log,
+            Telemetry.VideoDiscoveryRequestLog? requests = null)
         {
-            _httpFactory = httpFactory; _cache = cache; _config = config; _log = log;
+            _httpFactory = httpFactory; _cache = cache; _config = config; _log = log; _requests = requests;
         }
 
         public string Name => "OfficialSiteFeeds";
 
-        /// <summary>Hak sahibi kaynaklar — zincirin EN BAŞI.</summary>
+        /// <summary>Hak sahibi siteler — zincirin EN BAŞI.</summary>
         public int Priority => OfficialVideoSourceTiers.Federation;
 
         /// <summary>Yapılandırılmış akış tanımı.</summary>
         public sealed record FeedConfig(string SourceKey, string Url);
 
-        /// <summary>
-        /// Yapılandırılmış akışlar. Kaynak anahtarı izin listesinde YOKSA kayıt
-        /// atlanır: adresi yapılandırmaya yazmak, kaynağı resmî yapmaz.
-        /// </summary>
+        /// <summary>Yapılandırılmış ve izin listesinde karşılığı olan akışlar.</summary>
         public IReadOnlyList<FeedConfig> Feeds
         {
             get
@@ -108,52 +115,81 @@ namespace Formax.Infrastructure.PostMatch
             if (feeds.Count == 0) return Array.Empty<OfficialVideoCandidate>();
 
             var all = new List<OfficialVideoCandidate>();
+            int ok = 0, failed = 0;
+            var rateLimited = false;
+
             foreach (var feed in feeds)
             {
                 ct.ThrowIfCancellationRequested();
-                all.AddRange(await GetFeedAsync(feed, ct).ConfigureAwait(false));
+                var read = await GetFeedAsync(feed, fixture, ct).ConfigureAwait(false);
+                if (read.Ok) ok++; else failed++;
+                rateLimited |= read.RateLimited;
+                all.AddRange(read.Entries);
             }
 
-            // Kaba zaman süzgeci — kimlik doğrulaması yine validator'da yapılır.
-            var end = MatchVideoIdentityValidator.EndOf(fixture.MatchDateUtc);
-            return all
-                .Where(c => c.PublishedUtc >= end
-                         && c.PublishedUtc <= end + MatchVideoIdentityValidator.PublishTail)
-                .ToList();
+            if (ok == 0 && failed > 0)
+                throw new VideoProviderUnavailableException(Name, $"{failed} resmi site akisinin hicbiri okunamadi", rateLimited);
+
+            return Prefilter(all, fixture);
         }
 
-        private async Task<IReadOnlyList<OfficialVideoCandidate>> GetFeedAsync(
-            FeedConfig feed, CancellationToken ct)
+        /// <summary>
+        /// KABA PENCERE — kickoff'tan 24 saat önce ile yayın kuyruğunun sonu arası.
+        /// Kimlik (yön, ayak, yayın anı, tür) doğrulayıcıdadır; burası yalnız açıkça ilgisiz
+        /// girişleri taşımamak içindir. Pencere bilerek GENİŞ: maç öncesi tarihlenmiş bir
+        /// sayfanın ret gerekçesi ("maç bitmeden yayımlanmış") görünür kalsın.
+        /// </summary>
+        public static IReadOnlyList<OfficialVideoCandidate> Prefilter(
+            IEnumerable<OfficialVideoCandidate> entries, VideoFixtureIdentity fixture)
+        {
+            var from = fixture.MatchDateUtc - PreKickoffWindow;
+            var to = MatchVideoIdentityValidator.EndOf(fixture.MatchDateUtc) + MatchVideoIdentityValidator.PublishTail;
+            return entries.Where(c => c.PublishedUtc >= from && c.PublishedUtc <= to).ToList();
+        }
+
+        private sealed record FeedRead(IReadOnlyList<OfficialVideoCandidate> Entries, bool Ok, bool RateLimited);
+
+        private async Task<FeedRead> GetFeedAsync(FeedConfig feed, VideoFixtureIdentity fixture, CancellationToken ct)
         {
             var cacheKey = "postmatch:sitefeed:" + feed.SourceKey;
-            if (_cache.TryGetValue<IReadOnlyList<OfficialVideoCandidate>>(cacheKey, out var cached)
-                && cached != null)
-                return cached;
+            if (_cache.TryGetValue<IReadOnlyList<OfficialVideoCandidate>>(cacheKey, out var cached) && cached != null)
+            {
+                _requests?.RecordRequest(Name, feed.Url, fixture.MatchId, fixture.ExternalFixtureId, "cache", cached.Count);
+                return new FeedRead(cached, true, false);
+            }
 
             try
             {
                 var client = _httpFactory.CreateClient("postmatch-video");
                 using var res = await client.GetAsync(feed.Url, ct).ConfigureAwait(false);
+                var code = (int)res.StatusCode;
                 if (!res.IsSuccessStatusCode)
                 {
-                    _log.LogWarning("[POST-MATCH VIDEO] resmi site akisi {Status}: {Key}",
-                        (int)res.StatusCode, feed.SourceKey);
-                    return Cache(cacheKey, Array.Empty<OfficialVideoCandidate>());
+                    _log.LogWarning("[POST-MATCH VIDEO] resmi site akisi {Status}: {Key}", code, feed.SourceKey);
+                    _requests?.RecordRequest(Name, feed.Url, fixture.MatchId, fixture.ExternalFixtureId, code.ToString(), 0);
+                    return new FeedRead(Array.Empty<OfficialVideoCandidate>(), false, code == 429);
                 }
 
                 var xml = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                return Cache(cacheKey, Parse(xml, feed.SourceKey, Name));
+                var parsed = Parse(xml, feed.SourceKey, Name);
+                _requests?.RecordRequest(Name, feed.Url, fixture.MatchId, fixture.ExternalFixtureId, code.ToString(), parsed.Count);
+
+                // Yalnız başarılı okuma önbelleğe girer.
+                _cache.Set(cacheKey, parsed, FeedCache);
+                return new FeedRead(parsed, true, false);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "[POST-MATCH VIDEO] resmi site akisi okunamadi: {Key}", feed.SourceKey);
-                return Cache(cacheKey, Array.Empty<OfficialVideoCandidate>());
+                _requests?.RecordRequest(Name, feed.Url, fixture.MatchId, fixture.ExternalFixtureId, ex.GetType().Name, 0);
+                return new FeedRead(Array.Empty<OfficialVideoCandidate>(), false, false);
             }
         }
 
         /// <summary>
-        /// RSS 2.0 ve Atom akışlarını adaylara çevirir. Eksik alan uydurulmaz; kayıt atlanır.
+        /// RSS 2.0, Atom ve Google video sitemap girişlerini adaylara çevirir.
+        /// Eksik alan UYDURULMAZ; başlığı, adresi ya da tarihi olmayan giriş atlanır.
         /// </summary>
         public static IReadOnlyList<OfficialVideoCandidate> Parse(
             string xml, string sourceKey, string providerName)
@@ -163,17 +199,32 @@ namespace Formax.Infrastructure.PostMatch
             try { doc = XDocument.Parse(xml); }
             catch (System.Xml.XmlException) { return list; }
 
+            // Google video sitemap — <url><loc/><video:video>…</video:video></url>
+            foreach (var url in doc.Descendants(SitemapNs + "url"))
+            {
+                var video = url.Element(VideoNs + "video");
+                if (video == null) continue;
+
+                var loc = Clean((string?)url.Element(SitemapNs + "loc"));
+                var title = Clean((string?)video.Element(VideoNs + "title"));
+                var pubRaw = (string?)video.Element(VideoNs + "publication_date");
+                if (loc == null || title == null || !TryParseDate(pubRaw, out var published)) continue;
+
+                list.Add(Build(sourceKey, providerName, loc, title,
+                    Clean((string?)video.Element(VideoNs + "description")), published,
+                    Clean((string?)video.Element(VideoNs + "thumbnail_loc"))));
+            }
+
             // RSS 2.0
             foreach (var item in doc.Descendants("item"))
             {
-                var link = (string?)item.Element("link");
-                var title = (string?)item.Element("title");
-                var pubRaw = (string?)item.Element("pubDate");
-                if (string.IsNullOrWhiteSpace(link) || string.IsNullOrWhiteSpace(title)) continue;
-                if (!TryParseDate(pubRaw, out var published)) continue;
+                var link = Clean((string?)item.Element("link"));
+                var title = Clean((string?)item.Element("title"));
+                if (link == null || title == null || !TryParseDate((string?)item.Element("pubDate"), out var published))
+                    continue;
 
-                list.Add(Build(sourceKey, providerName, link!, title!,
-                    (string?)item.Element("description"), published,
+                list.Add(Build(sourceKey, providerName, link, title,
+                    Clean((string?)item.Element("description")), published,
                     (string?)item.Element(Media + "thumbnail")?.Attribute("url")));
             }
 
@@ -183,14 +234,13 @@ namespace Formax.Infrastructure.PostMatch
                 var link = entry.Elements(Atom + "link")
                                 .Select(l => (string?)l.Attribute("href"))
                                 .FirstOrDefault(h => !string.IsNullOrWhiteSpace(h));
-                var title = (string?)entry.Element(Atom + "title");
-                var pubRaw = (string?)entry.Element(Atom + "published")
-                             ?? (string?)entry.Element(Atom + "updated");
-                if (string.IsNullOrWhiteSpace(link) || string.IsNullOrWhiteSpace(title)) continue;
-                if (!TryParseDate(pubRaw, out var published)) continue;
+                var title = Clean((string?)entry.Element(Atom + "title"));
+                var pubRaw = (string?)entry.Element(Atom + "published") ?? (string?)entry.Element(Atom + "updated");
+                if (string.IsNullOrWhiteSpace(link) || title == null || !TryParseDate(pubRaw, out var published))
+                    continue;
 
-                list.Add(Build(sourceKey, providerName, link!, title!,
-                    (string?)entry.Element(Atom + "summary"), published,
+                list.Add(Build(sourceKey, providerName, link!, title,
+                    Clean((string?)entry.Element(Atom + "summary")), published,
                     (string?)entry.Element(Media + "thumbnail")?.Attribute("url")));
             }
 
@@ -204,7 +254,7 @@ namespace Formax.Infrastructure.PostMatch
                 Platform: "Web",
                 // Web kaynaklarında KİMLİK, izin listesindeki anahtardır — sayfa adresi değil.
                 SourceIdentifier: sourceKey,
-                // Sayfa adresi kaynağın kendi kalıcı kimliğidir; yeniden yüklemede değişmez.
+                // Sayfa adresi kaynağın kendi kalıcı kimliğidir.
                 ExternalVideoId: link,
                 Title: title,
                 Description: description,
@@ -214,15 +264,15 @@ namespace Formax.Infrastructure.PostMatch
                 DurationSeconds: null,
                 ProviderName: providerName);
 
-        private static bool TryParseDate(string? raw, out DateTime utc)
-            => DateTime.TryParse(raw, CultureInfo.InvariantCulture,
-                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out utc);
-
-        private IReadOnlyList<OfficialVideoCandidate> Cache(
-            string key, IReadOnlyList<OfficialVideoCandidate> value)
+        /// <summary>CDATA etrafındaki boşlukları atar; boşsa null.</summary>
+        private static string? Clean(string? raw)
         {
-            _cache.Set(key, value, FeedCache);
-            return value;
+            var s = raw?.Trim();
+            return string.IsNullOrEmpty(s) ? null : s;
         }
+
+        private static bool TryParseDate(string? raw, out DateTime utc)
+            => DateTime.TryParse(raw?.Trim(), CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out utc);
     }
 }

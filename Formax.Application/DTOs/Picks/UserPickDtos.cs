@@ -102,6 +102,13 @@ namespace Formax.Application.DTOs.Picks
         public int? HalfTimeHomeScore { get; set; }
         public int? HalfTimeAwayScore { get; set; }
 
+        /// <summary>
+        /// 2. yarı skoru = MS − İY. YALNIZ ikisi de gerçekten varsa ve sonuç negatif
+        /// değilse dolar; frontend bu çıkarmayı yapmaz.
+        /// </summary>
+        public int? SecondHalfHomeScore { get; set; }
+        public int? SecondHalfAwayScore { get; set; }
+
         /// <summary>Kartın durumu: "Active" | "Pending" | "Settled" — seçimlerin özeti.</summary>
         public string CardStatus { get; set; } = PickSelectionStatuses.Active;
 

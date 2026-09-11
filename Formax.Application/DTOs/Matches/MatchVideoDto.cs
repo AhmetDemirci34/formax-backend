@@ -56,3 +56,23 @@ namespace Formax.Application.DTOs.Matches
         public string? EventTeam { get; init; }
     }
 }
+
+namespace Formax.Application.DTOs.Matches
+{
+    /// <summary>
+    /// RESMÎ ÖZET ARAMASI — ekranın "kontrol ediliyor" / "bulunamadı" kararının tek girdisi.
+    /// Değerler <see cref="Formax.Application.Services.PostMatch.PostMatchVideoSearchStatus"/>.
+    /// </summary>
+    public sealed class VideoSearchDto
+    {
+        /// <summary>"Found" | "Checking" | "NotFound".</summary>
+        public string Status { get; init; } = Formax.Application.Services.PostMatch.PostMatchVideoSearchStatus.Checking;
+
+        /// <summary>Kalıcı defterdeki GERÇEK deneme sayısı (engellenen turlar sayılmaz).</summary>
+        public int AttemptsMade { get; init; }
+
+        public int MaxAttempts { get; init; }
+
+        public System.DateTime? LastAttemptUtc { get; init; }
+    }
+}

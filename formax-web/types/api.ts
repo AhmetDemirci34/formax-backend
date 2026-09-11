@@ -762,8 +762,28 @@ export interface MatchEventDto {
   team?: string | null;
   player?: string | null;
   assist?: string | null;
+  /** Sağlayıcının HAM türü — yalnız teşhis; kullanıcıya `label` gösterilir. */
   eventType: string;
+  /** Sağlayıcının HAM açıklaması — yalnız teşhis. */
   detail?: string | null;
+  /** Kullanıcıya gösterilecek Türkçe etiket — backend'in deterministik eşlemesi. */
+  label?: string;
+  /** "Goal" | "OwnGoal" | "PenaltyGoal" | "MissedPenalty" | "Substitution" | "YellowCard" | "SecondYellow" | "RedCard" | "Var" | "Other" */
+  kind?: string;
+  /** Oyuncu değişikliğinde oyuna giren / çıkan. */
+  playerIn?: string | null;
+  playerOut?: string | null;
+}
+
+/**
+ * RESMÎ ÖZET ARAMASI — kalıcı defterden. "Found" | "Checking" | "NotFound".
+ * Ekran "bulunamadı" kararını YALNIZ bundan verir; saatten türetmez.
+ */
+export interface VideoSearchDto {
+  status: "Found" | "Checking" | "NotFound" | string;
+  attemptsMade: number;
+  maxAttempts: number;
+  lastAttemptUtc?: string | null;
 }
 
 /**
@@ -824,6 +844,8 @@ export interface MatchStatisticsDto {
 
 export interface MatchDetailDto {
   videos?: MatchVideoDto[];
+  /** Resmî özet aramasının kalıcı defterdeki durumu (yalnız bitmiş maçta). */
+  videoSearch?: VideoSearchDto | null;
   scoreBreakdown?: MatchScoreBreakdownDto | null;
   events?: MatchEventDto[];
   /** Yalnız gerçek veri varsa dolu; aksi hâlde null ve bölüm hiç render edilmez. */

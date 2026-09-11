@@ -116,7 +116,7 @@ export function SearchResults({ results, isSearching, onOpen }: Props) {
  * Böylece iki sekme için ikinci bir sıralama kuralı yazılmasına gerek kalmaz ve
  * arayüz backend sözleşmesiyle ayrışamaz.
  */
-function groupByDateAndLeague(results: MatchResultItemDto[]): DateGroup[] {
+export function groupByDateAndLeague(results: MatchResultItemDto[]): DateGroup[] {
   const dateMap = new Map<string, Map<number, MatchResultItemDto[]>>();
 
   for (const m of results) {

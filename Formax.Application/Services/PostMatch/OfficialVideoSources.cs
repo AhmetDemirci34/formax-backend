@@ -40,6 +40,9 @@ namespace Formax.Application.Services.PostMatch
         /// <summary>UEFA'nın kendi sitesi — maçın hak sahibi, ekranda ANA otorite.</summary>
         public const string UefaWeb = "uefa.com";
 
+        /// <summary>TRT SPOR resmî sitesi — maçın Türkiye resmî yayıncısı.</summary>
+        public const string TrtSporWeb = "trtspor.com.tr";
+
         public static readonly IReadOnlyList<OfficialVideoSource> All = new[]
         {
             // Öncelik 1 — UEFA. Resmî özet VARDIR ama uygulama içinde OYNATILAMAZ:
@@ -73,6 +76,14 @@ namespace Formax.Application.Services.PostMatch
             new OfficialVideoSource("trt-spor", "TRT SPOR", "YouTube",
                 "UCfYNqluOf8EbQkL44otydMw", true,
                 "TRT SPOR — macin Turkiye resmi yayincisinin kanali.",
+                OfficialVideoSourceTiers.Broadcaster),
+
+            // TRT SPOR resmî sitesi — video sitemap'i yayımlar (sitemap_video.xml).
+            // GÖMMEYE KAPALI: video sayfaları "X-Frame-Options: SAMEORIGIN" gönderir
+            // (ölçüldü 11.09.2026). HLS akışını doğrudan oynatmak yayıncının oynatıcısını
+            // ve kısıtlarını dolanmak olur — YAPILMAZ. Kayıt en fazla "resmî kaynakta izle".
+            new OfficialVideoSource(TrtSporWeb, "TRT SPOR", "Web", null, false,
+                "trtspor.com.tr X-Frame-Options SAMEORIGIN — gomme reddedilir.",
                 OfficialVideoSourceTiers.Broadcaster),
         };
 

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Formax.Infrastructure.Http;
@@ -24,6 +25,29 @@ namespace Formax.API.Controllers.Admin
             ApiFootballMetrics metrics, ApiFootballHttpCacheStore store, IConfiguration config)
         {
             _metrics = metrics; _store = store; _config = config;
+        }
+
+        /// <summary>
+        /// İSTEK BAŞINA DÖKÜM — SALT OKUNUR, sıfır dış istek. Her satır: zaman, çağıran job,
+        /// uç, güvenli sorgu, fikstür, cache (L1/L2/Miss), bütçe kararı, HTTP ve sağlayıcı
+        /// sonucu. Sır/anahtar içermez. <c>?realOnly=true</c> yalnız gerçek HTTP'yi döker.
+        /// </summary>
+        [HttpGet("requests")]
+        public IActionResult Requests([FromServices] ApiFootballRequestLog log, [FromQuery] bool realOnly = false)
+        {
+            var rows = log.Snapshot();
+            var shown = realOnly ? rows.Where(r => r.RealRequest).ToList() : rows.ToList();
+            return Ok(new
+            {
+                totalRecordedSinceStart = log.Total,
+                realRequests = rows.Count(r => r.RealRequest),
+                byCallerAndEndpoint = rows.Where(r => r.RealRequest)
+                    .GroupBy(r => r.Caller + "|" + r.Endpoint)
+                    .ToDictionary(g => g.Key, g => g.Count()),
+                byCache = rows.GroupBy(r => r.Cache).ToDictionary(g => g.Key, g => g.Count()),
+                byBudget = rows.GroupBy(r => r.Budget).ToDictionary(g => g.Key, g => g.Count()),
+                requests = shown
+            });
         }
 
         [HttpGet("usage")]

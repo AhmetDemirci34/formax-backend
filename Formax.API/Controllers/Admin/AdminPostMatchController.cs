@@ -71,6 +71,87 @@ namespace Formax.API.Controllers.Admin
             });
         }
 
+        /// <summary>
+        /// VİDEO İSTEK VE KARAR DÖKÜMÜ — SALT OKUNUR. API-Football sayacından tamamen ayrıdır.
+        /// Sorgu dizesi kayda hiç girmez (Data API anahtarı sorguda taşınır).
+        /// </summary>
+        [HttpGet("video/requests")]
+        public IActionResult VideoRequests([FromServices] Formax.Infrastructure.Telemetry.VideoDiscoveryRequestLog log)
+        {
+            var requests = log.RequestSnapshot();
+            var verdicts = log.VerdictSnapshot();
+            return Ok(new
+            {
+                totalRequestsSinceStart = log.TotalRequests,
+                // "cache" satırı gerçek HTTP DEĞİLDİR; host sayımı yalnız ağa çıkanları sayar.
+                byProviderAndHost = requests
+                    .Where(r => r.Result != "cache")
+                    .GroupBy(r => r.Provider + "|" + r.Host)
+                    .ToDictionary(g => g.Key, g => g.Count()),
+                cacheServed = requests.Count(r => r.Result == "cache"),
+                requests,
+                verdicts
+            });
+        }
+
+        /// <summary>
+        /// KONTROLLÜ KEŞİF — tek maç için zinciri ŞİMDİ çalıştırır ve her adayın kararını
+        /// döker. Aday yine kimlik + embed kapısından (<see cref="IMatchVideoRegistrar"/>)
+        /// geçer: kabul edilirse kaydedilir, edilmezse gerekçesiyle reddedilir.
+        ///
+        /// KALICI DEFTERE DOKUNMAZ: bu elle tetiklenen bir teşhistir, arka plan işinin
+        /// deneme hakkını harcamaz.
+        /// </summary>
+        [HttpPost("video/{matchId:int}/discover")]
+        public async Task<IActionResult> Discover(
+            int matchId,
+            [FromServices] IOfficialMatchVideoProvider provider,
+            [FromServices] Formax.Infrastructure.Telemetry.VideoDiscoveryRequestLog log,
+            CancellationToken ct)
+        {
+            var identity = await _registrar.BuildIdentityAsync(matchId, ct);
+            if (identity == null) return NotFound(new { matchId, error = "mac veya fikstur kimligi yok" });
+
+            var before = log.TotalRequests;
+            var found = await provider.DiscoverAsync(identity, ct);
+
+            var verdicts = new List<object>();
+            foreach (var c in found)
+            {
+                var r = await _registrar.RegisterAsync(matchId, c, ct);
+                log.RecordVerdict(new Formax.Infrastructure.Telemetry.VideoDiscoveryRequestLog.VerdictEntry(
+                    DateTime.UtcNow, c.ProviderName, matchId, identity.ExternalFixtureId,
+                    c.SourceIdentifier, c.ExternalVideoId, c.Title, r.Stored, r.Status, r.Reason));
+                verdicts.Add(new
+                {
+                    provider = c.ProviderName,
+                    source = c.SourceIdentifier,
+                    c.ExternalVideoId,
+                    c.Title,
+                    c.PublishedUtc,
+                    c.SourcePageUrl,
+                    accepted = r.Stored,
+                    r.Status,
+                    r.Reason
+                });
+            }
+
+            var diag = provider as IVideoDiscoveryDiagnostics;
+            return Ok(new
+            {
+                matchId,
+                identity.ExternalFixtureId,
+                home = identity.HomeTeamName,
+                away = identity.AwayTeamName,
+                kickoffUtc = identity.MatchDateUtc,
+                chainCompleted = diag?.LastRunCompleted,
+                providers = diag?.LastOutcomes,
+                requestsMade = log.TotalRequests - before,
+                candidates = found.Count,
+                verdicts
+            });
+        }
+
         /// <summary>Bir tur çalıştırır (bitmiş + kilitli kapsam + tekrar takvimi).</summary>
         [HttpPost("video/run")]
         public async Task<IActionResult> Run(CancellationToken ct)
