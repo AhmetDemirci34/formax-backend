@@ -56,10 +56,8 @@ namespace Formax.Infrastructure.Providers
         // ── Cache TTLs ────────────────────────────────────────────────────────
         private static readonly TimeSpan TtlFixtures    = TimeSpan.FromMinutes(15);
         private static readonly TimeSpan TtlLineup      = TimeSpan.FromHours(1);
-        // NEGATİF CACHE: kadro henüz açıklanmamış fikstür. Boş yanıt cache'lenmediği için
-        // LineupIngestionJob (5 dk döngü, 150 dk pencere) aynı maçı ~30 kez soruyordu.
-        // Kısa TTL: kadro açıklandığında en fazla bu kadar gecikmeyle görülür.
-        private static readonly TimeSpan TtlLineupEmpty = TimeSpan.FromMinutes(15);
+        // Boş kadro cevabı artık NEGATİF CACHE'LENMEZ (11.09.2026): istek freni kalıcı
+        // slot defteridir (LineupPollSchedule, slot başına en fazla bir istek).
         private static readonly TimeSpan TtlInjuries    = TimeSpan.FromHours(4);
         // NEGATİF CACHE: sağlayıcı GEÇİCİ olarak gövde döndürmediğinde (response.Response == null)
         // aynı fixture kısa süre yeniden sorulmaz. Boş LİSTE zaten normal TTL ile cache'lenir;
@@ -489,61 +487,83 @@ namespace Formax.Infrastructure.Providers
                 return cachedLineup;
             }
 
-            // Kadro açıklanmadığı bilinen fikstür — TTL dolana dek API'ye gidilmez (kota koruması).
-            // Sonuç yine null'dır: sahte/boş kadro ÜRETİLMEZ, DB'ye hiçbir şey yazılmaz.
-            var emptyCacheKey = $"lineup:empty:{matchExternalId}";
-            if (_cache.TryGetValue(emptyCacheKey, out bool _))
-            {
-                _metrics.RecordCacheHit();
-                return null;
-            }
-
+            // BOŞ CEVAP NEGATİF CACHE'LENMEZ (11.09.2026): 15 dakikalık "kadro yok" işareti
+            // T−15/T−10/T−5 slotlarını birbirine bağlıyor, ilk boş cevaptan sonraki denemeleri
+            // sağlayıcıya hiç ulaştırmıyordu. İstek freni artık kalıcı slot defteridir
+            // (LineupPollSchedule): slot başına EN FAZLA bir istek.
+            //
+            // ÜÇ SONUÇ AYRI TUTULUR:
+            //  • kadro       → SportsLineupResult
+            //  • gerçek boş  → null (sağlayıcı geçerli cevap verdi, kadro henüz yok)
+            //  • hata/engel  → istisna (bütçe/plan/rate-limit/ağ) — "boş" SAYILMAZ; eskiden
+            //    bütçe kapısının boş gövdesi "kadro yok" diye negatif cache'e giriyordu.
+            ApiFootballLineupResponse? response;
             try
             {
-                var response = await _http.GetFromJsonAsync<ApiFootballLineupResponse>(
+                response = await _http.GetFromJsonAsync<ApiFootballLineupResponse>(
                     $"fixtures/lineups?fixture={matchExternalId}",
                     ct);
-
-                if (response?.Response == null || response.Response.Count == 0)
-                {
-                    _cache.Set(emptyCacheKey, true, TtlLineupEmpty);
-                    return null;
-                }
-
-                // Two team entries: index 0 = home, index 1 = away (per api-football spec)
-                var home = response.Response.ElementAtOrDefault(0);
-                var away = response.Response.ElementAtOrDefault(1);
-
-                if (home == null && away == null)
-                {
-                    _cache.Set(emptyCacheKey, true, TtlLineupEmpty);
-                    return null;
-                }
-
-                var result = new SportsLineupResult
-                {
-                    LineupsAnnounced = home?.StartXI?.Count > 0 || away?.StartXI?.Count > 0,
-                    // Diziliş her takım için AYRI taşınır — biri diğerine kopyalanmaz.
-                    HomeFormation = home?.Formation,
-                    AwayFormation = away?.Formation,
-                    HomeStarters = MapPlayers(home?.StartXI),
-                    HomeBench = MapPlayers(home?.Substitutes),
-                    AwayStarters = MapPlayers(away?.StartXI),
-                    AwayBench = MapPlayers(away?.Substitutes)
-                };
-
-                // Kadro geldi → "boş" işareti artık geçersiz.
-                _cache.Remove(emptyCacheKey);
-                _cache.Set(cacheKey, result, TtlLineup);
-                return result;
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
-                // Hata negatif cache'lenMEZ: geçici arıza/rate-limit sonrası tekrar denenmelidir.
-                _logger.LogError(ex, "[SPORTS] Lineup fetch failed for fixture {FixtureId}", matchExternalId);
-                return null;
+                throw new ApiFootballUnavailableException(
+                    $"fixtures/lineups?fixture={matchExternalId} — istek başarısız ({ex.GetType().Name}).", ex);
             }
+
+            if (response == null)
+                throw new ApiFootballUnavailableException(
+                    $"fixtures/lineups?fixture={matchExternalId} — gövde yok.");
+
+            if (HasProviderError(response.Errors))
+            {
+                var detail = DescribeProviderError(response.Errors);
+                if (IsFormaxGate(response.Errors))
+                    throw new ApiFootballBudgetBlockedException(
+                        $"fixtures/lineups?fixture={matchExternalId} — FORMAX bütçe kapısı: {detail}");
+                throw new ApiFootballUnavailableException(
+                    $"fixtures/lineups?fixture={matchExternalId} — sağlayıcı hatası: {detail}");
+            }
+
+            if (response.Response == null || response.Response.Count == 0)
+                return null;
+
+            // Satır sırası sözleşme DEĞİLDİR; taraf, takım kimliğiyle LineupNormalizer.Orient'te
+            // doğrulanır. Burada sağlayıcının sırası ve kimlikleri olduğu gibi taşınır.
+            var first = response.Response.ElementAtOrDefault(0);
+            var second = response.Response.ElementAtOrDefault(1);
+
+            var result = new SportsLineupResult
+            {
+                LineupsAnnounced = first?.StartXI?.Count > 0 || second?.StartXI?.Count > 0,
+                // Diziliş her takım için AYRI taşınır — biri diğerine kopyalanmaz.
+                HomeFormation = first?.Formation,
+                AwayFormation = second?.Formation,
+                HomeStarters = MapPlayers(first?.StartXI),
+                HomeBench = MapPlayers(first?.Substitutes),
+                AwayStarters = MapPlayers(second?.StartXI),
+                AwayBench = MapPlayers(second?.Substitutes),
+                HomeTeamExternalId = first?.Team?.Id,
+                AwayTeamExternalId = second?.Team?.Id,
+                HomeCoach = string.IsNullOrWhiteSpace(first?.Coach?.Name) ? null : first!.Coach!.Name,
+                AwayCoach = string.IsNullOrWhiteSpace(second?.Coach?.Name) ? null : second!.Coach!.Name
+            };
+
+            // Yalnız GERÇEK kadro bellekte tutulur; kadrosuz satır (ör. yalnız takım bilgisi)
+            // bir sonraki slotu engellememek için cache'lenmez.
+            if (result.LineupsAnnounced)
+                _cache.Set(cacheKey, result, TtlLineup);
+            return result;
         }
+
+        /// <summary>
+        /// Gövde hatası FORMAX'ın kendi kapısından mı (bütçe / cache-only)? Bu durumda
+        /// sağlayıcıya HİÇ istek gitmemiştir.
+        /// </summary>
+        private static bool IsFormaxGate(System.Text.Json.JsonElement? errors)
+            => errors is System.Text.Json.JsonElement e
+               && e.ValueKind == System.Text.Json.JsonValueKind.Object
+               && (e.TryGetProperty("formax_budget", out _) || e.TryGetProperty("formax_cache_only", out _));
 
         // ──────────────────────────────────────────────────────────────────────
         // Player statuses (injuries / suspensions)
@@ -1502,10 +1522,19 @@ namespace Formax.Infrastructure.Providers
         /// sonucunu kalıcı kaydeder. Bu istisna, yalnız Football Intelligence yolunda (players/injuries)
         /// atılır ve çağıranın YAZMADAN atlamasını sağlar.
         /// </summary>
-        public sealed class ApiFootballUnavailableException : Exception
+        public class ApiFootballUnavailableException : Exception
         {
             public ApiFootballUnavailableException(string message, Exception? inner = null)
                 : base(message, inner) { }
+        }
+
+        /// <summary>
+        /// FORMAX'ın kendi bütçe/cache-only kapısı isteği durdurdu — sağlayıcıya HİÇ gidilmedi.
+        /// Plan/rate-limit gibi sağlayıcı hatasından ayrılır: bu tur kota harcamamıştır.
+        /// </summary>
+        public sealed class ApiFootballBudgetBlockedException : ApiFootballUnavailableException
+        {
+            public ApiFootballBudgetBlockedException(string message) : base(message) { }
         }
 
         /// <summary>
@@ -2072,12 +2101,28 @@ namespace Formax.Infrastructure.Providers
 
         private class ApiFootballLineupResponse
         {
+            [JsonPropertyName("errors")] public System.Text.Json.JsonElement? Errors { get; set; }
+
             [JsonPropertyName("response")]
             public List<ApiFootballTeamLineup> Response { get; set; } = new();
         }
 
+        private class ApiFootballLineupTeamRef
+        {
+            [JsonPropertyName("id")] public int? Id { get; set; }
+            [JsonPropertyName("name")] public string? Name { get; set; }
+        }
+
         private class ApiFootballTeamLineup
         {
+            /// <summary>Satırın takımı — taraf eşlemesi bununla doğrulanır.</summary>
+            [JsonPropertyName("team")]
+            public ApiFootballLineupTeamRef? Team { get; set; }
+
+            /// <summary>Teknik direktör (sağlayıcı verirse).</summary>
+            [JsonPropertyName("coach")]
+            public ApiFootballLineupTeamRef? Coach { get; set; }
+
             /// <summary>Açıklanan diziliş — "4-4-2", "4-2-3-1"… Sağlayıcı veriyor, TAHMİN EDİLMEZ.</summary>
             [JsonPropertyName("formation")]
             public string? Formation { get; set; }

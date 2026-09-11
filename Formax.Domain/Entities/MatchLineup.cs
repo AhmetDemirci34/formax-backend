@@ -26,6 +26,29 @@ namespace Formax.Domain.Entities
         /// <summary>UTC time of the most recent fetch from the provider.</summary>
         public DateTime FetchedAt { get; set; }
 
+        // ── KAYNAK KİMLİĞİ (11.09.2026 · additive) ─────────────────────────────────
+
+        /// <summary>Sağlayıcı fikstür kimliği (api-football fixture id).</summary>
+        public string? ExternalFixtureId { get; set; }
+
+        /// <summary>Sağlayıcının kadro satırındaki takım kimlikleri — taraf eşlemesinin kanıtı.</summary>
+        public int? HomeTeamExternalId { get; set; }
+        public int? AwayTeamExternalId { get; set; }
+
+        /// <summary>Sağlayıcı verdiyse teknik direktör adı; vermediyse null (uydurulmaz).</summary>
+        public string? HomeCoach { get; set; }
+        public string? AwayCoach { get; set; }
+
+        /// <summary>Verinin geldiği lisanslı sağlayıcı ("api-football").</summary>
+        public string? Provider { get; set; }
+
+        /// <summary>
+        /// SON GERÇEK KONTROL (UTC) — sağlayıcı GEÇERLİ bir cevap verdiğinde (kadro ya da boş)
+        /// yazılır. Bütçe/plan engeli burada iz bırakmaz: slot takvimi bu alana bakar ve
+        /// engellenen tur, sıradaki slotu harcamış sayılmaz.
+        /// </summary>
+        public DateTime? LastCheckedAtUtc { get; set; }
+
         // Navigation
         public Match? Match { get; set; }
     }

@@ -1,14 +1,19 @@
 // FORMAX · Kadro bekleme durumu — saf fonksiyonlar (test edilir).
 //
 // VAAT DEĞİL, DURUM: ekran saat sözü vermez ("1 saat önce açıklanacak" metni
-// 06.09.2026'da kaldırıldı ve hiçbir durumda geri gelmez). Üç alanın kaynağı backend'dir:
-// lineup.pollingWindowOpen (kickoff'a ≤ 90 dk), lineup.kickoffPassed, lineup.lastCheckedUtc.
+// 06.09.2026'da kaldırıldı ve hiçbir durumda geri gelmez). Kaynak backend'dir:
+// lineup.status (Released | SourceDelayed | Waiting | NotFound), lineup.pollingWindowOpen,
+// lineup.kickoffPassed, lineup.lastCheckedUtc.
+//
+// "KADRO YAYIMLANMADI" DENMEZ (11.09.2026): Venezia–Fiorentina'da kadro dünyada T−13'te
+// yayımlıyken ekran "henüz veri sağlayıcısında yayımlanmadı" diyordu. FORMAX yalnız kendi
+// lisanslı kaynağının ne ilettiğini bilir; cümle bunu söyler.
 
 import type { LineupSectionDto } from "@/types/api";
 
 export const LINEUP_TEXT_NOT_FOUND = "Bu maç için doğrulanmış kadro verisi bulunamadı.";
-export const LINEUP_TEXT_PROVIDER_PENDING =
-  "Resmî kadrolar henüz veri sağlayıcısında yayımlanmadı. Yayımlandığında burada gösterilecek.";
+export const LINEUP_TEXT_SOURCE_DELAYED =
+  "FORMAX veri kaynağı resmî kadroyu henüz iletmedi. Kontroller sürüyor.";
 export const LINEUP_TEXT_WAITING = "Resmî kadrolar maç saatine yaklaşıldığında burada gösterilecek.";
 
 /** Doğrulanmış kadro gerçekten var mı? (açıklandı + en az bir ilk 11 oyuncusu) */
@@ -17,10 +22,19 @@ export function hasVerifiedLineup(l?: Partial<LineupSectionDto> | null): boolean
   return (l.homeStartingXI?.length ?? 0) > 0 || (l.awayStartingXI?.length ?? 0) > 0;
 }
 
-/** Kadro yokken gösterilecek tek cümle. */
+/** Kadro yokken gösterilecek tek cümle. Backend durumu önceliklidir. */
 export function lineupWaitingText(l?: Partial<LineupSectionDto> | null): string {
+  switch (l?.status) {
+    case "SourceDelayed":
+      return LINEUP_TEXT_SOURCE_DELAYED;
+    case "NotFound":
+      return LINEUP_TEXT_NOT_FOUND;
+    case "Waiting":
+      return LINEUP_TEXT_WAITING;
+  }
+  // Eski yanıt (status alanı yok): bayraklardan türet.
   if (l?.kickoffPassed === true) return LINEUP_TEXT_NOT_FOUND;
-  if (l?.pollingWindowOpen === true) return LINEUP_TEXT_PROVIDER_PENDING;
+  if (l?.pollingWindowOpen === true) return LINEUP_TEXT_SOURCE_DELAYED;
   return LINEUP_TEXT_WAITING;
 }
 

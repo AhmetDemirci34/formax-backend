@@ -341,6 +341,11 @@ export interface LineupSectionDto {
   kickoffPassed?: boolean;
   /** Sağlayıcıya en son ne zaman soruldu (UTC ISO). Hiç sorulmadıysa null. */
   lastCheckedUtc?: string | null;
+  /**
+   * Backend kadro durumu: "Released" | "SourceDelayed" | "Waiting" | "NotFound".
+   * SourceDelayed = kontroller sürüyor, lisanslı veri kaynağı kadroyu henüz iletmedi.
+   */
+  status?: string | null;
   /** Açıklanan diziliş ("4-4-2"). Takım başına AYRI; yoksa null (tahmin edilmez). */
   homeFormation?: string | null;
   awayFormation?: string | null;

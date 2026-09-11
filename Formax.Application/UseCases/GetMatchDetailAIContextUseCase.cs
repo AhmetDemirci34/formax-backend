@@ -1135,21 +1135,19 @@ namespace Formax.Application.UseCases
             // Bu üç alan salt DB'den okunur; sayfa açılışı sağlayıcıya ÇIKMAZ.
             var nowUtc   = DateTime.UtcNow;
             var remaining = kickoffUtc - nowUtc;
+            var ledger = string.IsNullOrWhiteSpace(externalMatchId)
+                ? Services.PostMatch.FixtureAttemptSummary.None
+                : _fixtureSync.GetFixtureAttemptSummary(externalMatchId!, FixtureRefreshPurposes.Lineup);
 
             var waitState = new
             {
                 WindowOpen    = remaining <= Services.Matches.LineupPollSchedule.WindowOpen,
                 KickoffPassed = remaining <= TimeSpan.Zero,
-                // SON KONTROL: önce gerçek veri satırı, o yoksa KALICI DEFTER.
-                //
-                // Kadro yayımlanmadığında başlık satırı hiç yazılmaz; "en son ne zaman
-                // bakıldı" bilgisi yalnız deftere düşer. Tek kaynağa bağlı kalmak, tam da
-                // kullanıcının en çok merak ettiği durumda satırı boş bırakıyordu.
-                LastChecked   = header?.FetchedAt
-                                ?? (string.IsNullOrWhiteSpace(externalMatchId)
-                                        ? null
-                                        : _fixtureSync.GetLastFixtureAttemptUtc(
-                                              externalMatchId!, FixtureRefreshPurposes.Lineup))
+                // SON KONTROL: sağlayıcının GERÇEKTEN cevap verdiği son an — kural
+                // LineupAvailability.LastRealCheck'te (engellenen rezervasyon sayılmaz).
+                LastChecked   = Services.Matches.LineupAvailability.LastRealCheck(
+                                    header?.LastCheckedAtUtc, header?.FetchedAt,
+                                    ledger.LastAttemptUtc, ledger.LastOutcome)
             };
 
             if (header == null || players.Count == 0)
@@ -1158,7 +1156,8 @@ namespace Formax.Application.UseCases
                     LineupsAnnounced  = false,
                     PollingWindowOpen = waitState.WindowOpen,
                     KickoffPassed     = waitState.KickoffPassed,
-                    LastCheckedUtc    = waitState.LastChecked
+                    LastCheckedUtc    = waitState.LastChecked,
+                    Status            = Services.Matches.LineupAvailability.Resolve(false, kickoffUtc, nowUtc)
                 };
 
             static LineupPlayerDto Map(MatchLineupPlayer p) => new()
@@ -1182,7 +1181,10 @@ namespace Formax.Application.UseCases
                 AwayBench        = players.Where(p => p.Side == "Away" && p.Role == "Bench")  .OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
                 PollingWindowOpen = waitState.WindowOpen,
                 KickoffPassed     = waitState.KickoffPassed,
-                LastCheckedUtc    = waitState.LastChecked
+                LastCheckedUtc    = waitState.LastChecked,
+                // DB'de doğrulanmış kadro varsa maç başlamış/bitmiş olsa da gösterilir.
+                Status            = Services.Matches.LineupAvailability.Resolve(
+                                        header.HomeLineupsReleased || header.AwayLineupsReleased, kickoffUtc, nowUtc)
             };
         }
 

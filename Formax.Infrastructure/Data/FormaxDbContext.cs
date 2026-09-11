@@ -1018,6 +1018,12 @@ namespace Formax.Infrastructure.Data
                       .WithMany()
                       .HasForeignKey(x => x.MatchId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                // Kaynak kimliği (11.09.2026 · additive, hepsi null olabilir).
+                entity.Property(x => x.ExternalFixtureId).HasMaxLength(32);
+                entity.Property(x => x.HomeCoach).HasMaxLength(128);
+                entity.Property(x => x.AwayCoach).HasMaxLength(128);
+                entity.Property(x => x.Provider).HasMaxLength(32);
             });
 
             // MatchLineupPlayer — Guid PK, index on MatchId for fast reads

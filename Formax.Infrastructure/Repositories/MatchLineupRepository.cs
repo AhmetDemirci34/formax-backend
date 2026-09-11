@@ -44,8 +44,42 @@ namespace Formax.Infrastructure.Repositories
                 existing.AwayFormation = lineup.AwayFormation;
                 existing.ReleasedAt ??= lineup.ReleasedAt;   // only set first time
                 existing.FetchedAt = lineup.FetchedAt;
+                existing.ExternalFixtureId = lineup.ExternalFixtureId ?? existing.ExternalFixtureId;
+                existing.HomeTeamExternalId = lineup.HomeTeamExternalId ?? existing.HomeTeamExternalId;
+                existing.AwayTeamExternalId = lineup.AwayTeamExternalId ?? existing.AwayTeamExternalId;
+                existing.HomeCoach = lineup.HomeCoach ?? existing.HomeCoach;
+                existing.AwayCoach = lineup.AwayCoach ?? existing.AwayCoach;
+                existing.Provider = lineup.Provider ?? existing.Provider;
+                existing.LastCheckedAtUtc = lineup.LastCheckedAtUtc ?? existing.LastCheckedAtUtc;
                 _context.MatchLineups.Update(existing);
             }
+        }
+
+        public async Task MarkCheckedAsync(int matchId, string? externalFixtureId, string provider,
+            DateTime checkedAtUtc, CancellationToken ct = default)
+        {
+            var existing = await _context.MatchLineups
+                .FirstOrDefaultAsync(x => x.MatchId == matchId, ct);
+
+            if (existing == null)
+            {
+                _context.MatchLineups.Add(new MatchLineup
+                {
+                    MatchId = matchId,
+                    HomeLineupsReleased = false,
+                    AwayLineupsReleased = false,
+                    FetchedAt = checkedAtUtc,
+                    ExternalFixtureId = externalFixtureId,
+                    Provider = provider,
+                    LastCheckedAtUtc = checkedAtUtc
+                });
+                return;
+            }
+
+            // Kadro/oyuncu/diziliş DEĞİŞMEZ — boş cevap var olan veriyi silmez.
+            existing.LastCheckedAtUtc = checkedAtUtc;
+            existing.ExternalFixtureId ??= externalFixtureId;
+            existing.Provider ??= provider;
         }
 
         public async Task ReplacePlayersAsync(

@@ -16,6 +16,18 @@ namespace Formax.Application.DTOs.Lineup
 
         public List<SportsLineupPlayer> AwayStarters { get; set; } = new();
         public List<SportsLineupPlayer> AwayBench { get; set; } = new();
+
+        /// <summary>
+        /// Sağlayıcının her kadro satırında verdiği takım kimliği. "Home*" alanları
+        /// sağlayıcının İLK satırıdır; gerçek ev sahibi yönü maçın takım kimlikleriyle
+        /// <c>LineupNormalizer.Orient</c> tarafından doğrulanır (sıra bir sözleşme değildir).
+        /// </summary>
+        public int? HomeTeamExternalId { get; set; }
+        public int? AwayTeamExternalId { get; set; }
+
+        /// <summary>Sağlayıcı verdiyse teknik direktör; yoksa null.</summary>
+        public string? HomeCoach { get; set; }
+        public string? AwayCoach { get; set; }
     }
 
     public class SportsLineupPlayer
@@ -115,9 +127,16 @@ namespace Formax.Application.DTOs.Lineup
         /// <summary>
         /// Sağlayıcıya EN SON ne zaman soruldu (UTC)? Hiç sorulmadıysa null.
         /// Arayüz bunu küçük bir "Son kontrol: 18:42" satırı olarak gösterebilir.
-        /// Değer <c>MatchLineups.FetchedAt</c>'tir — uydurulmaz.
+        /// Değer kalıcı kayıttan gelir (kadro başlığı / yoklama defteri) — uydurulmaz.
         /// </summary>
         public DateTime? LastCheckedUtc { get; set; }
+
+        /// <summary>
+        /// Kadro durumu (<see cref="Services.Matches.LineupAvailability"/>):
+        /// "Released" | "SourceDelayed" | "Waiting" | "NotFound".
+        /// SourceDelayed = yoklama sürüyor ama lisanslı veri kaynağı kadroyu henüz iletmedi.
+        /// </summary>
+        public string Status { get; set; } = "Waiting";
     }
 
     public class PlayerStatusSectionDto

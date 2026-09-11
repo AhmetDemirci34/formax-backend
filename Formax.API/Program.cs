@@ -939,6 +939,8 @@ internal class Program
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballJobAttributionHandler>();
         builder.Services.AddScoped<IMatchLineupRepository, MatchLineupRepository>();
         builder.Services.AddScoped<IMatchPlayerStatusRepository, MatchPlayerStatusRepository>();
+        // Kadro slot kararı + kalıcı defter + DB yazımı (job ve admin ucu aynı yolu kullanır).
+        builder.Services.AddScoped<Formax.Infrastructure.Lineups.LineupIngestionService>();
         // Singleton + hosted: admin teşhis ucu (POST /admin/lineup/sync) AYNI örneği
         // çözüp tek maç için ingestion tetikleyebilsin diye (Odds ile aynı desen).
         builder.Services.AddSingleton<LineupIngestionJob>();

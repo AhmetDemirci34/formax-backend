@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { postSwipe } from "@/lib/api/swipe";
 import { useMatchDetail } from "@/hooks/useMatchDetail";
+import { useLineupAutoRefresh } from "@/hooks/useLineupAutoRefresh";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { archivoNarrow } from "@/components/match-center/fonts";
@@ -37,6 +38,9 @@ export default function MatchCenterPage({ params }: PageProps) {
   const matchId = parseInt(id, 10);
   const router = useRouter();
   const { data: match, isLoading, isError, refetch } = useMatchDetail(matchId);
+  // Kadro yokken (T−90…kickoff+10) açık ekran 30 sn'de bir backend'i (DB) yeniden okur;
+  // kadro gelince durur. Sağlayıcıya istek atmaz.
+  useLineupAutoRefresh(match, refetch);
 
   const [activeView, setActiveView] = useState<ActiveView>("dashboard");
   const [showHighlights, setShowHighlights] = useState(false);

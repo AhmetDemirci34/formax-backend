@@ -289,11 +289,13 @@ namespace Formax.Infrastructure.Http
                         return (true, TimeSpan.FromHours(6), count);
 
                     case "fixtures/lineups":
-                        // Resmi kadro yayımlandıysa DEĞİŞMEZ → 7 gün. Henüz yayımlanmadıysa
-                        // 20 dakikadan önce tekrar sorulmaz (5 dakikalık döngü bu ucu dövüyordu).
+                        // Resmi kadro yayımlandıysa DEĞİŞMEZ → 7 gün.
+                        // BOŞ CEVAP CACHE'LENMEZ (11.09.2026): 20 dakikalık boş kayıt T−15/T−10/T−5
+                        // slotlarını sağlayıcıya ulaştırmıyordu. Fren artık kalıcı slot defteridir
+                        // (LineupPollSchedule): slot başına en fazla bir gerçek istek.
                         return count > 0
                             ? (true, TimeSpan.FromDays(7), count)
-                            : (true, TimeSpan.FromMinutes(20), count);
+                            : (false, TimeSpan.Zero, count);
 
                     // Sakatlık listesi gün içinde nadiren değişir; 6 saatlik TTL her fikstür için
                     // günde 4 istek demekti (LineupIngestionJob 5 dakikada bir tarıyor).

@@ -1,100 +1,100 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Formax.Application.Services.Matches
 {
     /// <summary>
     /// RESMÎ KADRO YOKLAMA TAKVİMİ — saf karar, ağ ve veritabanı olmadan sınanabilir.
     ///
-    /// ÖLÇÜLEN HATA (06.09.2026): pencere <c>[kickoff−45dk, kickoff+10dk]</c> idi ve
-    /// arayüz "Kadrolar maçtan 1 saat önce açıklanacak" diye KESİN bir söz veriyordu.
-    /// İkisi birbiriyle çelişiyordu: maça 50 dakika kalmışken sistem henüz hiç
-    /// sormamış oluyor, kullanıcı ise "1 saat önce açıklanır" yazısını okuyup boş
-    /// ekrana bakıyordu. Kadro her zaman tam 1 saat önce yayımlanmaz — yayıncıya ve
-    /// lige göre T−90 ile T−20 arasında değişir.
+    /// SLOTLAR: T−90, T−60, T−30, T−15, T−10, T−5 (kickoff'a kalan dakika).
     ///
-    /// YENİ PENCERE: T−90 → T−5. Dört slot: T−90, T−60, T−30, T−10.
+    /// ÖLÇÜLEN HATA (11.09.2026, Venezia–Fiorentina, fikstür 1550126): eski takvim dört
+    /// slottu (T−90/60/30/10), pencere T−5'te kesin kapanıyordu ve fikstür başına 20 dk
+    /// soğuma vardı. T−28,5'teki boş cevaptan sonra 5 dakikalık döngü T−9,6'da T−10
+    /// slotuna denk geldi ama soğuma (T−8,5'e kadar) rezervasyonu reddetti; bir sonraki
+    /// tur T−4,6'daydı ve pencere kapanmıştı. Kadro dünyada T−13'te yayımlıyken FORMAX
+    /// son 28 dakikada sağlayıcıya HİÇ sormadı.
     ///
-    /// SLOT MANTIĞI (neden "her turda bir kez" değil): iş 5 dakikada bir dönüyor.
-    /// Sınır yalnız soğumaya bırakılsaydı, kadrosu hiç yayımlanmayan bir maç
-    /// pencerede 18 kez yoklanırdı. Slotlar, kickoff'a kalan süreyi dört kovaya
-    /// böler; her kovadan EN FAZLA BİR gerçek istek çıkar. Hangi kovanın harcandığı
-    /// KALICI deftere yazılır — restart, harcanmış slotu geri getirmez.
+    /// KARAR KURALI — "zamanı gelmiş en yakın denenmemiş slot":
+    ///  • Zamanı gelmiş en geç slot <see cref="DueSlot"/>'tur (ör. T−12'de T−15).
+    ///  • Son GERÇEK kontrol hangi slota düştüyse (<see cref="SlotOfCheck"/>) o slot ve
+    ///    öncesi harcanmıştır. Daha geç bir slotun zamanı geldiyse TEK istek yapılır.
+    ///  • Kaçırılan slotlar birikmez: iş T−35'ten T−12'ye kadar çalışmadıysa T−12'de
+    ///    tek istek çıkar (T−30 ve T−15 için iki ayrı istek DEĞİL).
+    ///  • Aynı slotta ikinci istek çıkmaz; son kontrol anı KALICIDIR (restart sıfırlamaz).
+    ///  • Son slot (T−5) zamanında çalışamadıysa kickoff'tan sonra <see cref="CatchUpGrace"/>
+    ///    boyunca yakalanabilir; ondan sonra kadro yoklaması biter.
+    ///
+    /// "Son gerçek kontrol" yalnız sağlayıcı GEÇERLİ cevap verdiğinde (kadro ya da boş)
+    /// yazılır. Bütçe/plan/rate-limit engeli kontrol SAYILMAZ: slot açık kalır.
     /// </summary>
     public static class LineupPollSchedule
     {
         /// <summary>Yoklamanın başladığı an: kickoff'a kalan süre bunun altına düştüğünde.</summary>
         public static readonly TimeSpan WindowOpen = TimeSpan.FromMinutes(90);
 
-        /// <summary>Yoklamanın bittiği an: kickoff'a bundan az kaldıysa artık sorulmaz.</summary>
-        public static readonly TimeSpan WindowClose = TimeSpan.FromMinutes(5);
+        /// <summary>
+        /// Son slot kaçırıldıysa kickoff'tan sonra yakalanabileceği en geç süre.
+        /// Frontend'in açık ekran yoklaması da kickoff+10'da durur.
+        /// </summary>
+        public static readonly TimeSpan CatchUpGrace = TimeSpan.FromMinutes(10);
+
+        /// <summary>Slot anları — kickoff'a kalan DAKİKA, genişten dara.</summary>
+        public static readonly IReadOnlyList<int> SlotMinutesBeforeKickoff = new[] { 90, 60, 30, 15, 10, 5 };
+
+        /// <summary>Toplam slot = bir maç için geçerli cevaplı en fazla gerçek kontrol.</summary>
+        public static int SlotCount => SlotMinutesBeforeKickoff.Count;
 
         /// <summary>
-        /// Slot sınırları — kickoff'a kalan DAKİKA cinsinden, genişten dara.
-        /// Kalan süre 90..61 → slot 0, 60..31 → slot 1, 30..11 → slot 2, 10..5 → slot 3.
+        /// <paramref name="atUtc"/> anına kadar ZAMANI GELMİŞ en geç slotun indeksi;
+        /// T−90'dan önce -1.
         /// </summary>
-        public static readonly IReadOnlyList<int> SlotBoundariesMinutes = new[] { 90, 60, 30, 10 };
-
-        /// <summary>Toplam slot sayısı = bir maç için üretilebilecek en fazla gerçek istek.</summary>
-        public static int SlotCount => SlotBoundariesMinutes.Count;
+        public static int SlotOfCheck(DateTime kickoffUtc, DateTime atUtc)
+        {
+            var remaining = (kickoffUtc - atUtc).TotalMinutes;
+            var index = -1;
+            for (var i = 0; i < SlotMinutesBeforeKickoff.Count; i++)
+                if (remaining <= SlotMinutesBeforeKickoff[i]) index = i;
+            return index;
+        }
 
         /// <summary>
-        /// Kickoff'a <paramref name="nowUtc"/> anında kalan süre penceredeyse, o anın
-        /// düştüğü slot indeksini döndürür; pencere dışındaysa null.
+        /// Şu an çalıştırılabilecek slot (zamanı gelmiş en geç slot); pencere dışında null.
+        /// Pencere: T−90 … kickoff + <see cref="CatchUpGrace"/>.
         /// </summary>
-        public static int? SlotFor(DateTime kickoffUtc, DateTime nowUtc)
+        public static int? DueSlot(DateTime kickoffUtc, DateTime nowUtc)
         {
             var remaining = kickoffUtc - nowUtc;
-
-            // T−90'dan ERKEN: hiçbir sağlayıcı kadroyu bu kadar önce yayımlamaz.
             if (remaining > WindowOpen) return null;
-
-            // Kickoff'a 5 dakikadan az kaldıysa / kickoff geçtiyse: kadro yoklaması biter.
-            if (remaining < WindowClose) return null;
-
-            var minutes = remaining.TotalMinutes;
-            for (var i = 0; i < SlotBoundariesMinutes.Count; i++)
-            {
-                var upper = SlotBoundariesMinutes[i];
-                var lower = i + 1 < SlotBoundariesMinutes.Count
-                    ? SlotBoundariesMinutes[i + 1]
-                    : (int)WindowClose.TotalMinutes;
-
-                if (minutes <= upper && minutes > lower) return i;
-                // Son slotta alt sınır DAHİLDİR (tam 5 dk kala hâlâ sorulabilir).
-                if (i == SlotBoundariesMinutes.Count - 1 && minutes <= upper && minutes >= lower) return i;
-            }
-            return null;
+            if (remaining < -CatchUpGrace) return null;
+            var slot = SlotOfCheck(kickoffUtc, nowUtc);
+            return slot < 0 ? null : slot;
         }
 
         /// <summary>
         /// GERÇEK İSTEK YAPILMALI MI?
-        ///
-        /// Üç koşul birlikte aranır:
-        ///  • kickoff'a kalan süre penceredeyse (bir slota düşüyorsa),
-        ///  • kadro DB'de HENÜZ TAM DEĞİLSE (başarılı kadro bir daha istenmez),
-        ///  • bu maç için harcanmış slot sayısı, içinde bulunulan slotun indeksinden
-        ///    küçükse veya eşitse — yani bu slot henüz kullanılmamışsa.
-        ///
-        /// <paramref name="attemptsSoFar"/> KALICI defterden okunur; süreç belleğinden
-        /// değil. Restart bu sayıyı sıfırlamaz.
         /// </summary>
+        /// <param name="lastRealCheckUtc">
+        /// Sağlayıcının GEÇERLİ cevap verdiği son an (kalıcı kayıttan). Engellenen tur
+        /// buraya yazılmaz; hiç kontrol yoksa null.
+        /// </param>
         public static bool ShouldPoll(
             DateTime kickoffUtc,
             DateTime nowUtc,
             bool lineupAlreadyComplete,
-            int attemptsSoFar)
+            DateTime? lastRealCheckUtc)
         {
+            // Başarılı kadro bir daha istenmez.
             if (lineupAlreadyComplete) return false;
-            if (attemptsSoFar >= SlotCount) return false;
 
-            var slot = SlotFor(kickoffUtc, nowUtc);
-            if (slot == null) return false;
+            var due = DueSlot(kickoffUtc, nowUtc);
+            if (due == null) return false;
 
-            // Slot atlanmışsa (iş o aralıkta çalışmadıysa) hak yanmaz: bu slotta
-            // yapılan istek, harcanan slot sayısını mevcut slota kadar ilerletir.
-            return attemptsSoFar <= slot.Value;
+            // Hiç kontrol yoksa zamanı gelmiş slot çalışır.
+            if (lastRealCheckUtc is not DateTime last) return true;
+
+            // Son kontrol bu slotta ya da sonrasında yapıldıysa slot harcanmıştır.
+            return SlotOfCheck(kickoffUtc, last) < due.Value;
         }
     }
 }
