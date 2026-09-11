@@ -29,6 +29,8 @@ export interface UserPickDto {
   /** true = doğru, false = yanlış, null = hesaplanamadı (uydurma settlement YOK). */
   isCorrect?: boolean | null;
   settlementNote?: string | null;
+  /** Sonucun kalıcı yazıldığı an (UTC, DB'den). Sonuçlanmadıysa null. */
+  settledAtUtc?: string | null;
 }
 
 export interface UserPredictionCardDto {

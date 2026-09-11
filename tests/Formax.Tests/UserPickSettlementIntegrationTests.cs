@@ -161,21 +161,47 @@ public class UserPickSettlementIntegrationTests : IAsyncLifetime
     }
 
     [SkippableFact]
-    public async Task TahminlerimDtosu_TamamlandiVeDogruYanlisGosterir()
+    public async Task TahminlerimDtosu_KaliciSonucuOkur_GetHesaplamazVeYazmaz()
     {
         Skip.IfNot(_available, "SQL Server (localhost\\SQLEXPRESS/FormaxDB) erisilebilir degil.");
 
+        // GERÇEK repository uygulamaları — test için sahte okuyucu YAZILMADI.
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        GetUserPredictionsUseCase UseCase(FormaxDbContext db) => new(
+            new UserPickRepository(db),
+            new Formax.Infrastructure.Repositories.MatchReadRepository(db, config));
+
+        // ── (1) SONUÇLANDIRMA ÖNCESİ: maç bitmiş ama iş geçmedi → "Bekleyen",
+        //        GET sonucu hesaplamaz ve DB'ye hiçbir şey yazmaz.
+        using (var before = new FormaxDbContext(Options()))
+        {
+            var pending = (await UseCase(before).ExecuteAsync(_testUserId, DateTime.UtcNow))
+                .Single(c => c.MatchId == _matchId);
+            Assert.Equal(PickSelectionStatuses.Pending, pending.CardStatus);
+            Assert.All(pending.Selections, s =>
+            {
+                Assert.Equal(PickSelectionStatuses.Pending, s.SelectionStatus);
+                Assert.Null(s.IsCorrect);
+                Assert.Null(s.SettledAtUtc);
+            });
+            Assert.Empty(before.ChangeTracker.Entries());
+        }
+        using (var check = new FormaxDbContext(Options()))
+        {
+            Assert.All(await check.UserPicks.AsNoTracking().Where(p => p.UserId == _testUserId).ToListAsync(),
+                p => { Assert.Null(p.SettledAtUtc); Assert.Equal(PickStatus.Pending, p.Status); });
+        }
+
+        // ── (2) SONUÇLANDIRMA — tek yazıcı, DB'ye kalıcı yazar.
         await new UserPickSettlementService(_db!, NullLogger<UserPickSettlementService>.Instance)
             .RunCycleAsync(_matchId);
 
         using var fresh = new FormaxDbContext(Options());
-        // GERÇEK repository uygulamaları — test için sahte okuyucu YAZILMADI.
-        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
-        var useCase = new GetUserPredictionsUseCase(
-            new UserPickRepository(fresh),
-            new Formax.Infrastructure.Repositories.MatchReadRepository(fresh, config));
+        var persisted = await fresh.UserPicks.AsNoTracking()
+            .Where(p => p.UserId == _testUserId).ToListAsync();
 
-        var cards = await useCase.ExecuteAsync(_testUserId, DateTime.UtcNow);
+        // ── (3) SONRAKİ TAHMİNLERİM SORGUSU — kalıcı sonucu AYNEN okur.
+        var cards = await UseCase(fresh).ExecuteAsync(_testUserId, DateTime.UtcNow);
         var card = cards.Single(c => c.MatchId == _matchId);
 
         Assert.Equal(PickSelectionStatuses.Settled, card.CardStatus);   // "Tamamlandı"
@@ -183,16 +209,39 @@ public class UserPickSettlementIntegrationTests : IAsyncLifetime
         Assert.Equal(1, card.AwayScore);
 
         var ms1 = card.Selections.Single(s => s.MarketKey == OddsMarketKeys.Ms1);
+        var ms1Row = persisted.Single(p => p.MarketKey == OddsMarketKeys.Ms1);
         Assert.Equal(PickSelectionStatuses.Settled, ms1.SelectionStatus);
         Assert.True(ms1.IsCorrect);
+        Assert.Equal(ms1Row.SettledAtUtc, ms1.SettledAtUtc);            // DB'den, "şimdi"den değil
+        Assert.Equal(ms1Row.SettlementNote, ms1.SettlementNote);
 
         var under = card.Selections.Single(s => s.MarketKey == OddsMarketKeys.Under25);
         Assert.False(under.IsCorrect);
+        Assert.Equal(persisted.Single(p => p.MarketKey == OddsMarketKeys.Under25).SettledAtUtc, under.SettledAtUtc);
 
         // Hesaplanamayan seçim doğru/yanlış İDDİA ETMEZ.
         var firstGoal = card.Selections.Single(s => s.MarketKey == "first_goal_home");
         Assert.Equal(PickSelectionStatuses.Unsettleable, firstGoal.SelectionStatus);
         Assert.Null(firstGoal.IsCorrect);
+        Assert.Null(firstGoal.SettledAtUtc);
+
+        // ── (4) İKİNCİ OKUMA aynı sonucu verir ve satırları değiştirmez.
+        using var again = new FormaxDbContext(Options());
+        var second = (await UseCase(again).ExecuteAsync(_testUserId, DateTime.UtcNow))
+            .Single(c => c.MatchId == _matchId);
+        Assert.Equal(
+            System.Text.Json.JsonSerializer.Serialize(card),
+            System.Text.Json.JsonSerializer.Serialize(second));
+
+        var after = await again.UserPicks.AsNoTracking().Where(p => p.UserId == _testUserId).ToListAsync();
+        foreach (var row in persisted)
+        {
+            var now = after.Single(p => p.Id == row.Id);
+            Assert.Equal(row.Status, now.Status);
+            Assert.Equal(row.SettledAtUtc, now.SettledAtUtc);
+            Assert.Equal(row.SelectionStatus, now.SelectionStatus);
+            Assert.Equal(row.SettlementNote, now.SettlementNote);
+        }
     }
 
     /// <summary>

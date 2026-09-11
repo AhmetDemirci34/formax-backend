@@ -27,6 +27,10 @@ namespace Formax.Infrastructure.Picks
     /// saf fonksiyonundan gelir. Bu servis o kararı yalnız KALICI hâle getirir —
     /// kendi kuralını yazmaz, aksi hâlde iki yerde iki farklı sonuç doğardı.
     ///
+    /// TEK YAZICI, TEK KAYNAK (11.09.2026): Tahminlerim okuma yolu artık sonucu yeniden
+    /// HESAPLAMAZ; bu servisin yazdığı Status/SettledAtUtc/SettlementNote/SelectionStatus
+    /// alanlarını olduğu gibi okur. Sonuçlandırma yalnız burada, bir kez olur.
+    ///
     /// UYDURMA YOK: desteklenmeyen markette (<c>Unsettleable</c>) hiçbir doğru/yanlış
     /// yazılmaz. Seçim <c>Pending</c> kalır ve ekran "hesaplanamadı" der; sessizce
     /// "kaybetti" saymak kullanıcının istatistiğini bozardı.

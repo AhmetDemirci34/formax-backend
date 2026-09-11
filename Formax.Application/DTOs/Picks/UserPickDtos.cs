@@ -75,6 +75,9 @@ namespace Formax.Application.DTOs.Picks
 
         /// <summary>Sonucun dayanağı ("MS 1-2"). Hesaplanamadıysa null.</summary>
         public string? SettlementNote { get; set; }
+
+        /// <summary>Sonucun kalıcı yazıldığı an (UTC) — DB'den olduğu gibi. Sonuçlanmadıysa null.</summary>
+        public DateTime? SettledAtUtc { get; set; }
     }
 
     /// <summary>

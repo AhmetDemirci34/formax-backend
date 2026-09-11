@@ -5,9 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Formax.Application.DTOs.Picks;
 using Formax.Application.Interfaces;
-using Formax.Application.Services.Picks;
 using Formax.Domain.Constants;
 using Formax.Domain.Entities;
+using Formax.Domain.Enums;
 
 namespace Formax.Application.UseCases.Picks
 {
@@ -17,9 +17,17 @@ namespace Formax.Application.UseCases.Picks
     /// KAYNAK: <c>UserPicks</c> tablosu + maçın GERÇEK durumu. localStorage YOKTUR;
     /// seçim hangi cihazdan yapıldıysa diğerinde de görünür.
     ///
-    /// SETTLEMENT DÜRÜSTLÜĞÜ: sonuç yalnız hesaplanabilen marketlerde yazılır
-    /// (bkz. <see cref="PickSettlement"/>). Hesaplanamayan seçim "yanlış" SAYILMAZ;
-    /// <see cref="UserPickDto.IsCorrect"/> null kalır ve arayüz sonuç göstermez.
+    /// SALT OKUMA — SONUÇ BURADA HESAPLANMAZ (11.09.2026): doğru/yanlış kararı YALNIZ
+    /// sonuçlandırma işi (<c>UserPickSettlementService</c>) tarafından bir kez verilir ve
+    /// <see cref="UserPick.Status"/> / <see cref="UserPick.SettledAtUtc"/> /
+    /// <see cref="UserPick.SettlementNote"/> alanlarına yazılır. Bu sorgu o kalıcı alanları
+    /// OLDUĞU GİBİ okur. Önceden her GET'te <c>PickSettlement.Settle</c> yeniden çağrılıyordu:
+    /// kalıcı kayıt hiç okunmuyor, kural değişirse tamamlanmış seçimin sonucu sessizce
+    /// değişebiliyordu.
+    ///
+    /// Henüz sonuçlandırılmamış seçim (maç bitmiş olsa bile iş henüz geçmediyse)
+    /// "Bekleyen" görünür; okuma yolu sonucu tahmin edip doldurmaz.
+    /// Hesaplanamayan seçim "yanlış" SAYILMAZ; <see cref="UserPickDto.IsCorrect"/> null kalır.
     /// </summary>
     public sealed class GetUserPredictionsUseCase
     {
@@ -51,7 +59,14 @@ namespace Formax.Application.UseCases.Picks
 
                 var selections = new List<UserPickDto>();
                 foreach (var p in group.OrderBy(p => p.CreatedAt))
-                    selections.Add(BuildSelection(p, match, isFinished, started));
+                    selections.Add(BuildSelection(p, match, begun: started || isFinished));
+
+                // KART "TAMAMLANDI" yalnız maç bitmiş VE her seçimin kalıcı son durumu
+                // yazılmışsa (sonuçlandı ya da hesaplanamadı). İş henüz geçmediyse kart
+                // "Bekleyen" kalır.
+                var allClosed = selections.All(s =>
+                    s.SelectionStatus == PickSelectionStatuses.Settled ||
+                    s.SelectionStatus == PickSelectionStatuses.Unsettleable);
 
                 cards.Add(new UserPredictionCardDto
                 {
@@ -70,9 +85,9 @@ namespace Formax.Application.UseCases.Picks
                     HalfTimeAwayScore = isFinished ? match.HalfTimeAwayScore : null,
                     SecondHalfHomeScore = isFinished ? SecondHalf(match.HomeScore, match.HalfTimeHomeScore) : null,
                     SecondHalfAwayScore = isFinished ? SecondHalf(match.AwayScore, match.HalfTimeAwayScore) : null,
-                    CardStatus = isFinished
+                    CardStatus = isFinished && allClosed
                         ? PickSelectionStatuses.Settled
-                        : started ? PickSelectionStatuses.Pending : PickSelectionStatuses.Active,
+                        : started || isFinished ? PickSelectionStatuses.Pending : PickSelectionStatuses.Active,
                     Selections = selections
                 });
             }
@@ -90,8 +105,11 @@ namespace Formax.Application.UseCases.Picks
         private static int? SecondHalf(int fullTime, int? halfTime)
             => halfTime is int ht && fullTime - ht >= 0 ? fullTime - ht : null;
 
-        private static UserPickDto BuildSelection(
-            UserPick p, Match match, bool isFinished, bool started)
+        /// <summary>
+        /// Seçimin görünümü — YALNIZ kalıcı alanlardan. Hiçbir sonuç burada hesaplanmaz.
+        /// </summary>
+        /// <param name="begun">Maç başladı ya da bitti (seçim artık "Aktif" değil).</param>
+        private static UserPickDto BuildSelection(UserPick p, Match match, bool begun)
         {
             var dto = new UserPickDto
             {
@@ -106,31 +124,27 @@ namespace Formax.Application.UseCases.Picks
                 MatchKickoffUtc = p.MatchKickoffUtc ?? match.MatchDate
             };
 
-            if (!isFinished)
+            // SONUÇLANDI: sonuçlandırma işinin yazdığı karar olduğu gibi döner.
+            // Status Win/Lose dışında bir değerle SettledAtUtc dolu bir satır tutarsızdır;
+            // böyle bir satıra doğru/yanlış iddiası UYDURULMAZ, "Bekleyen" kalır.
+            if (p.SettledAtUtc.HasValue && p.Status is PickStatus.Win or PickStatus.Lose)
             {
-                dto.SelectionStatus = started
-                    ? PickSelectionStatuses.Pending
-                    : PickSelectionStatuses.Active;
+                dto.SelectionStatus = PickSelectionStatuses.Settled;
+                dto.IsCorrect = p.Status == PickStatus.Win;
+                dto.SettlementNote = p.SettlementNote;
+                dto.SettledAtUtc = p.SettledAtUtc;
                 return dto;
             }
 
-            var score = new PickSettlement.FinalScore(
-                match.HomeScore, match.AwayScore,
-                match.HalfTimeHomeScore, match.HalfTimeAwayScore);
-
-            var outcome = PickSettlement.Settle(p.MarketKey, score);
-            if (outcome == PickSettlement.PickSettlementOutcome.Unsettleable)
+            // HESAPLANAMADI: iş bu marketi sonuçlandıramadığını kalıcı yazdı. Doğru/yanlış
+            // YOK; arayüz "Sonuç hesaplanamadı" der, sessizce "yanlış" saymaz.
+            if (p.SelectionStatus == PickSelectionStatuses.Unsettleable)
             {
-                // HESAPLANAMIYOR — doğru/yanlış YAZILMAZ. Arayüz bunu "sonuç
-                // hesaplanamadı" olarak gösterir; sessizce "yanlış" saymak,
-                // kullanıcının istatistiğini bozardı.
                 dto.SelectionStatus = PickSelectionStatuses.Unsettleable;
                 return dto;
             }
 
-            dto.SelectionStatus = PickSelectionStatuses.Settled;
-            dto.IsCorrect = outcome == PickSettlement.PickSettlementOutcome.Won;
-            dto.SettlementNote = $"MS {match.HomeScore}-{match.AwayScore}";
+            dto.SelectionStatus = begun ? PickSelectionStatuses.Pending : PickSelectionStatuses.Active;
             return dto;
         }
     }
