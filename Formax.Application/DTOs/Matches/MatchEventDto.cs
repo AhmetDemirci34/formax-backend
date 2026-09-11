@@ -31,6 +31,36 @@ namespace Formax.Application.DTOs.Matches
         /// kez görünür. Canlı alım tekrarları (aynı olayın iki turda yazılması) zaman
         /// çizelgesinde çift satır üretmemelidir.
         /// </summary>
+        /// <summary>
+        /// KANONİK MAÇ SONRASI OLAYLARI — bitmiş maç ekranının ÖNCELİKLİ kaynağı.
+        ///
+        /// <see cref="MatchEventRecord"/> arka plan işi tarafından <c>fixtures/events</c>
+        /// çekilerek yazılır; canlı akıştan bağımsızdır ve canlı veri kapalıyken de dolar.
+        /// Tekilleştirme yazma anında (ProviderEventId + benzersiz indeks) yapıldığı için
+        /// burada tekrar gruplamaya gerek yoktur; sıra dakika + uzatma dakikasıdır.
+        /// </summary>
+        public static List<MatchEventDto> FromRecords(IEnumerable<MatchEventRecord>? records)
+        {
+            if (records == null) return new List<MatchEventDto>();
+
+            return records
+                .Where(e => e != null)
+                .OrderBy(e => e.Minute)
+                .ThenBy(e => e.ExtraMinute ?? 0)
+                .ThenBy(e => e.EventType, StringComparer.Ordinal)
+                .Select(e => new MatchEventDto
+                {
+                    Minute      = e.Minute,
+                    ExtraMinute = e.ExtraMinute,
+                    Team        = e.TeamName,
+                    Player      = e.PlayerName,
+                    Assist      = e.AssistName,
+                    EventType   = e.EventType,
+                    Detail      = e.Detail
+                })
+                .ToList();
+        }
+
         public static List<MatchEventDto> FromEvents(IEnumerable<MatchLiveEvent>? events)
         {
             if (events == null) return new List<MatchEventDto>();

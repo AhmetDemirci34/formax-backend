@@ -1,4 +1,17 @@
-// Takım arması — logoUrl varsa görsel, yoksa isimden monogram. (Uydurma veri yok.)
+"use client";
+
+// FORMAX · Takım arması — TEK ortak component (Maçlar, Takip, Maç Detayı hepsi bunu kullanır).
+//
+// KAYNAK: yalnız backend'in gönderdiği `logoUrl` (Teams.LogoUrl → MatchListItemDto).
+// Statik takım-logo eşlemesi YOK, ada göre internetten arama YOK, uydurma URL YOK.
+//
+// FALLBACK ZİNCİRİ:
+//   1) logoUrl varsa görsel (oran korunur: object-contain, kare kutu)
+//   2) görsel yüklenemezse (404/CORS/ağ) → takım kısaltması (monogram)
+//   3) logoUrl hiç yoksa → doğrudan monogram
+
+import { useEffect, useState } from "react";
+
 interface Props {
   name: string;
   logoUrl?: string | null;
@@ -6,7 +19,14 @@ interface Props {
 }
 
 export function TeamCrest({ name, logoUrl, size = 88 }: Props) {
-  if (logoUrl) {
+  const [broken, setBroken] = useState(false);
+
+  // Aynı slot farklı takıma yeniden kullanıldığında hatalı "kırık" durumu taşınmasın.
+  useEffect(() => {
+    setBroken(false);
+  }, [logoUrl]);
+
+  if (logoUrl && !broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -14,7 +34,9 @@ export function TeamCrest({ name, logoUrl, size = 88 }: Props) {
         alt={name}
         width={size}
         height={size}
-        className="rounded-full object-contain bg-white/95 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+        loading="lazy"
+        onError={() => setBroken(true)}
+        className="shrink-0 rounded-full bg-white/95 object-contain shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
         style={{ width: size, height: size }}
       />
     );
@@ -25,8 +47,10 @@ export function TeamCrest({ name, logoUrl, size = 88 }: Props) {
 
   return (
     <div
-      className="rounded-full bg-white/95 shadow-[0_4px_16px_rgba(0,0,0,0.45)] flex items-center justify-center"
+      className="flex shrink-0 items-center justify-center rounded-full bg-white/95 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
       style={{ width: size, height: size }}
+      aria-label={name}
+      role="img"
     >
       <span className="font-black text-[#0a0e16]" style={{ fontSize: size * 0.28 }}>
         {initials}

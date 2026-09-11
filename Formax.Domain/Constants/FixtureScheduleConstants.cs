@@ -18,6 +18,30 @@ namespace Formax.Domain.Constants
         /// biri digerini ac birakir.
         /// </summary>
         public const string PostMatchVideo = "PostMatchVideo";
+
+        /// <summary>
+        /// MAÇ ÖNCESİ RESMÎ KADRO (<c>fixtures/lineups</c>).
+        ///
+        /// NEDEN KALICI DEFTERE TAŞINDI (06.09.2026): kadro denemeleri süreç belleğinde
+        /// bir sözlükte (matchId → günlük sayaç) tutuluyordu. Backend her yeniden
+        /// başladığında sayaç sıfırlanıyor ve aynı fikstür aynı gün yeniden yoklanıyordu.
+        /// Kadro penceresi T−90'a genişletildiği için bu kaçak daha da pahalıya gelirdi.
+        /// Restart, günlük hakkı SIFIRLAMAZ.
+        /// </summary>
+        public const string Lineup = "Lineup";
+
+        /// <summary>
+        /// BİTMİŞ MAÇ OLAYLARI (<c>fixtures/events</c>) — kendi günlük bütçesi.
+        ///
+        /// İstatistikten AYRI havuzdur: biri diğerinin hakkını yiyemez. Olay çekimi
+        /// başarılı olup istatistik başarısız olduğunda kısmi başarı korunur.
+        /// </summary>
+        public const string PostMatchEvents = "PostMatchEvents";
+
+        /// <summary>
+        /// BİTMİŞ MAÇ İSTATİSTİKLERİ (<c>fixtures/statistics</c>) — kendi günlük bütçesi.
+        /// </summary>
+        public const string PostMatchStatistics = "PostMatchStatistics";
     }
 
     /// <summary>

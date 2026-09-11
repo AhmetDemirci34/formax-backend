@@ -1,3 +1,5 @@
+import type { MatchScoreBreakdownDto } from '@/types/api';
+
 // FORMAX · Tahminlerim ekranı UI tipleri.
 // Kaynak: localStorage `formax_predictions` (SavedPrediction) + gerçek maç
 // durumu `GET /api/matches/{id}/detail` ile zenginleştirilir. Mock/fake yok.
@@ -25,6 +27,11 @@ export interface UiPrediction {
   score: string | null; // "2-1" (canlı/bitmiş)
   kickoff: string | null; // ISO (başlamamış)
   createdAt: string; // tahminin oluşturulma zamanı
+  /**
+   * İY / 2Y / MS kırılımı — BACKEND'den gelir (secondHalf backend'de hesaplanır).
+   * Eksik alan null kalır; ekran '—' gösterir, 0-0 UYDURMAZ.
+   */
+  scoreBreakdown?: MatchScoreBreakdownDto | null;
 }
 
 export interface PredictionCounts {

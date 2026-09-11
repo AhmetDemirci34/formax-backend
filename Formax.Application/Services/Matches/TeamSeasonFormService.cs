@@ -34,7 +34,8 @@ namespace Formax.Application.Services.Matches
             LeagueSeasonScope scope,
             DateTime windowEndUtc,
             IReadOnlyList<Match> settledMatches,
-            Standings.SeasonDataCompleteness.Result? completeness = null)
+            Standings.SeasonDataCompleteness.Result? completeness = null,
+            IReadOnlyList<int>? teamMissingResultMatchIds = null)
         {
             var dto = new TeamSeasonFormDto
             {
@@ -47,12 +48,16 @@ namespace Formax.Application.Services.Matches
                 SeasonStartUtc = scope.StartUtc,
                 WindowEndUtc = windowEndUtc,
 
-                // Ligin bu sezonki verisi tam mı? Eksikse aşağıda GENEL DEĞERLENDİRME
-                // yapılmaz; cümle yalnız elimizdeki doğrulanmış maç sayısını söyler.
+                // LİG tamlığı TEŞHİS olarak taşınır — form cümlesinin kapısı DEĞİLDİR
+                // (06.09.2026 kararı; bkz. TeamFormSampleQuality).
                 SeasonExpectedFixtures = completeness?.Expected ?? 0,
                 SeasonMissingFixtures = completeness?.Missing ?? 0,
-                IsSeasonDataComplete = completeness?.IsComplete ?? true
+                IsSeasonDataComplete = completeness?.IsComplete ?? true,
+
+                // TAKIMI ETKİLEYEN eksik sonuç — değerlendirmeyi sınırlar, kapatmaz.
+                TeamMissingResultMatchIds = (teamMissingResultMatchIds ?? Array.Empty<int>()).ToList()
             };
+            dto.TeamMissingResultCount = dto.TeamMissingResultMatchIds.Count;
 
             // En yeni → en eski (kaynak sorgu da böyle sıralar; yine de garanti altına alınır).
             var ordered = settledMatches
@@ -90,6 +95,7 @@ namespace Formax.Application.Services.Matches
 
             dto.ResultSequence = string.Join(" ", sequence);
             dto.Sentence = ComposeSentence(dto, ordered);
+            dto.LimitationNote = LimitationNote(dto);
             return dto;
         }
 
@@ -114,23 +120,20 @@ namespace Formax.Application.Services.Matches
         {
             var lig = LeagueLocative(dto.LeagueName);
 
-            // VERİ EKSİKSE GENELLEME YOK (30.08.2026 kararı). Ligin bu sezonki sonuçlarının
-            // bir kısmı depoda kesinleşmemişken "form" cümlesi kurmak, eksik veriden
-            // başarı/başarısızlık üretmek olurdu. Elimizdeki doğrulanmış maç sayısı söylenir,
-            // değerlendirme YAPILMAZ.
-            if (!dto.IsSeasonDataComplete)
-            {
-                return dto.Played == 0
-                    ? $"FORMAX veritabanında {dto.TeamName} için bu sezon doğrulanmış lig maçı bulunmuyor. " +
-                      "Sezon verileri henüz tamamlanmadığı için genel form değerlendirmesi yapılmıyor."
-                    : $"FORMAX veritabanında bu sezon için doğrulanmış {dto.Played} lig maçı bulunuyor. " +
-                      "Sezon verileri henüz tamamlanmadığı için genel form değerlendirmesi yapılmıyor.";
-            }
+            // ÖRNEKLEM KALİTESİNE GÖRE DİL (06.09.2026 kararı).
+            //
+            // Kapı artık LİG verisinin tamlığı DEĞİL, bu takımın kendi örneklemidir.
+            // Ligdeki ilgisiz bir maçın eksik sonucu, bu takımın oynayıp bitirdiği
+            // maçların gerçekliğini değiştirmez ve o maçları gizleyemez.
+            //
+            // Hiçbir dalda teknik sistem terimi geçmez: "IsComplete", "settle window",
+            // "AllowsGeneralization", "N lig maçı bekliyor" kullanıcı metnine GİRMEZ.
 
+            // 0 MAÇ — genelleme yok, sıfır performans da yok: bilgisizlik.
             if (dto.Played == 0)
-                return $"{dto.TeamName} bu sezon {lig} henüz tamamlanmış bir maç oynamadı.";
+                return $"{dto.TeamName} için bu sezon {lig} tamamlanmış lig maçı bulunmuyor.";
 
-            // 5+ maç varsa anlatı SON 5'i konuşur (ifade ancak o zaman doğrudur).
+            // 5+ MAÇ — anlatı SON 5'i konuşabilir (ifade ancak o zaman doğrudur).
             if (dto.Played >= LastFiveWindow)
             {
                 var last5 = ordered.Take(LastFiveWindow).ToList();
@@ -138,9 +141,42 @@ namespace Formax.Application.Services.Matches
                 return $"{dto.TeamName} bu sezon {lig} son {LastFiveWindow} maçında {Breakdown(w, d, l)} aldı.";
             }
 
-            var kapsam = dto.Played == 1 ? "tamamlanan 1 maçta" : $"tamamlanan {dto.Played} maçta";
-            return $"{dto.TeamName} bu sezon {lig} {kapsam} {Breakdown(dto.Won, dto.Drawn, dto.Lost)} aldı.";
+            // 3–4 MAÇ — sınırlılık AÇIKÇA söylenir, ölçülü değerlendirme yapılır.
+            //
+            // İLGİ HÂLİ EKİ KULLANILMAZ (ölçüldü 06.09.2026, gerçek /detail çıktısı).
+            // Kalıp önce "Trabzonspor'un …" biçimindeydi ve ek kurala göre üretiliyordu.
+            // Türkçe adlarda doğru çalıştı, ama depo Türkçe adlardan ibaret değil:
+            //   • "Gençlerbirliği S.K."  → "S.K.'in"        (kısaltma harf harf okunur)
+            //   • "Manchester City"      → "City'in"        (okunuşu ünlüyle biter → 'nin)
+            //   • "Manchester United"    → "United'in"      (okunuşa göre 'ın)
+            // Yabancı adlarda ek YAZILIŞA değil OKUNUŞA bağlıdır; harf temelli hiçbir
+            // kural bunu güvenilir üretemez ve her yanlış ek kullanıcının gördüğü metni
+            // bozar. Bu yüzden ek GEREKTİRMEYEN tek bir kalıp kullanılır: her ad için
+            // dilbilgisel olarak doğrudur ve spec'in istediği iki şeyi aynen söyler —
+            // örneklemin SINIRLI olduğunu ve GERÇEK sayıları.
+            if (dto.Played >= LimitedSampleThreshold)
+                return $"{dto.TeamName} bu sezon tamamlanan {dto.Played} lig maçlık sınırlı örneklemde " +
+                       $"{Breakdown(dto.Won, dto.Drawn, dto.Lost)} elde etti.";
+
+            // 1–2 MAÇ — YALNIZ gerçek sayılar. "Formda / düşüşte / favori / üstün /
+            // momentum" türü hiçbir genelleme kurulmaz.
+            var kapsam = dto.Played == 1 ? "tamamlanan 1 lig maçında" : $"tamamlanan {dto.Played} lig maçında";
+            return $"{dto.TeamName} bu sezon {kapsam} {Breakdown(dto.Won, dto.Drawn, dto.Lost)} aldı.";
         }
+
+        /// <summary>
+        /// TAKIMI ETKİLEYEN EKSİK SONUÇ NOTU — kullanıcı diliyle, teknik terim yok.
+        ///
+        /// Yalnız incelenen takımın kendi maçlarından biri kesinleşmemişse döner;
+        /// ligin geri kalanı için HİÇBİR not üretilmez. Not, form değerlendirmesini
+        /// KAPATMAZ, yalnız kapsamının neden sınırlı olduğunu söyler.
+        /// Boşsa arayüz hiçbir şey göstermez.
+        /// </summary>
+        public static string LimitationNote(TeamSeasonFormDto dto)
+            => dto is { TeamMissingResultCount: > 0 }
+                ? "Takımın yakın tarihli bir maç sonucu henüz doğrulanmadığı için " +
+                  "değerlendirme mevcut kesinleşmiş maçlarla sınırlandırıldı."
+                : string.Empty;
 
         private static (int W, int D, int L) Tally(int teamId, IReadOnlyList<Match> matches)
         {

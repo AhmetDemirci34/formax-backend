@@ -39,6 +39,10 @@ namespace Formax.Application.UseCases
         private readonly ILeagueStandingRepository _leagueStandingRepository;
         private readonly ICompetitionContextRepository _competitionContextRepository;
         private readonly IMatchLiveStatsRepository _matchLiveStatsRepository;
+        /// <summary>Bitmiş maçın KANONİK olay/istatistik kaydı — salt DB, sağlayıcıya çıkmaz.</summary>
+        private readonly IPostMatchDataReader _postMatchData;
+        /// <summary>Kalıcı deneme defteri — "en son ne zaman bakıldı" sorusunun kaynağı.</summary>
+        private readonly IFixtureSyncRepository _fixtureSync;
         private readonly IMatchMomentumRepository _matchMomentumRepository;
         private readonly IMatchLiveEventIngestionRepository _matchLiveEventRepository;
         private readonly IMatchVideoReader _videoReader;
@@ -80,6 +84,8 @@ namespace Formax.Application.UseCases
             ILeagueStandingRepository leagueStandingRepository,
             ICompetitionContextRepository competitionContextRepository,
             IMatchLiveStatsRepository matchLiveStatsRepository,
+            IPostMatchDataReader postMatchData,
+            IFixtureSyncRepository fixtureSync,
             IMatchMomentumRepository matchMomentumRepository,
             IMatchLiveEventIngestionRepository matchLiveEventRepository,
             IMatchVideoReader videoReader,
@@ -116,6 +122,8 @@ namespace Formax.Application.UseCases
             _leagueStandingRepository = leagueStandingRepository;
             _competitionContextRepository = competitionContextRepository;
             _matchLiveStatsRepository = matchLiveStatsRepository;
+            _postMatchData = postMatchData;
+            _fixtureSync = fixtureSync;
             _matchMomentumRepository = matchMomentumRepository;
             _matchLiveEventRepository = matchLiveEventRepository;
             _videoReader = videoReader;
@@ -241,7 +249,7 @@ namespace Formax.Application.UseCases
             }
 
             // ── Sprint 1: Lineup & player status ─────────────────────────────────
-            var lineupSection       = BuildLineupSection(match.Id);
+            var lineupSection       = BuildLineupSection(match.Id, match.MatchDate, match.ExternalMatchId);
             var playerStatusSection = BuildPlayerStatusSection(match.Id);
 
             // ── AI intelligence — Radar v2.2 dinamik senaryo sıralaması ────────────
@@ -319,17 +327,27 @@ namespace Formax.Application.UseCases
                 ScoreBreakdown = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
                     ? MatchScoreBreakdownDto.From(match, resultIsFinal: true)
                     : null,
+                // OLAYLAR — ÖNCE KANONİK KAYIT, sonra eski canlı tablo.
+                //
+                // Kanonik kayıt (MatchEventRecords) arka plan işinin fixtures/events
+                // çekerek yazdığı veridir ve canlı akıştan BAĞIMSIZDIR; canlı veri
+                // kapalıyken (LiveMatchData:Enabled=false) tek dolu kaynak odur.
+                // Geriye uyum için, kanonik kayıt henüz gelmemiş maçlarda eski
+                // MatchLiveEvents okunmaya devam eder — hiçbir maç veri kaybetmez.
                 Events       = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
-                    ? MatchEventDto.FromEvents(_matchLiveEventRepository.GetByMatchId(match.Id))
+                    ? BuildEvents(match.Id)
                     : new List<MatchEventDto>(),
                 // Maç videoları SALT DB'den okunur — arka planda önceden doğrulanmıştır.
                 // Bu okuma hiçbir sağlayıcıya, arama motoruna veya YouTube'a çıkmaz.
                 Videos       = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
                     ? _videoReader.GetVideos(match.Id)
                     : new List<MatchVideoDto>(),
-                // İstatistik: depodaki satır TAMAMEN sıfırsa null döner (veri yok).
+                // İSTATİSTİK — ÖNCE KANONİK KAYIT (nullable ölçümler), sonra eski tablo.
+                // Kanonik satırda sağlayıcının vermediği ölçüm null kalır ve o satır hiç
+                // gösterilmez; eski tabloda her alan int olduğu için "veri yok" ile
+                // "gerçekten sıfır" ayırt edilemiyordu.
                 Statistics   = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
-                    ? MatchStatisticsDto.From(_matchLiveStatsRepository.GetByMatchId(match.Id))
+                    ? BuildStatistics(match.Id)
                     : null,
                 League       = match.League,
                 // Sağlayıcının HAM tur adı (teşhis/geri-uyum) ve ondan türeyen Türkçe maç türü.
@@ -632,19 +650,34 @@ namespace Formax.Application.UseCases
             var settled = _matchReadRepository.GetSeasonLeagueMatchesForTeam(
                 teamId, scopeLeagueId.Value, scope.StartUtc, match.MatchDate);
 
-            // VERİ TAMLIĞI — ligin bu sezonki sonuçlarının tamamı depoda kesinleşti mi?
-            // Eksikse anlatı genel form değerlendirmesi YAPMAZ (bkz. TeamSeasonFormService).
+            // ── İKİ AYRI KAVRAM (06.09.2026) ────────────────────────────────────
+            //
+            // 1) LeagueDataCompleteness — LİGİN bu sezonki verisi tam mı? TEŞHİS'tir;
+            //    puan durumu tablosunun güncelliğini anlatır.
+            // 2) TeamFormSampleQuality — BU TAKIMIN örneklemi ne kadar sağlam? Form
+            //    anlatısının tek kapısı budur.
+            //
+            // Eskiden (1) doğrudan (2)'nin kapısıydı: Süper Lig'de sonucu kesinleşmemiş
+            // TEK maç (Başakşehir–Galatasaray, 04.09) yüzünden Trabzonspor ile
+            // Gençlerbirliği'nin 4'er maçlık TAM formu gizleniyor, yerine teknik bir
+            // uyarı basılıyordu. Artık ligin tamlığı yalnız teşhis olarak taşınır;
+            // sınırlama YALNIZ incelenen takımın kendi eksik sonucundan doğar.
             var nowUtc = DateTime.UtcNow;
+            var seasonFixtures = _matchReadRepository.GetSeasonLeagueFixturesBefore(
+                scopeLeagueId.Value, scope.StartUtc, scope.EndUtc, nowUtc);
+
             var completeness = Formax.Application.Services.Standings.SeasonDataCompleteness.Evaluate(
-                _matchReadRepository.GetSeasonLeagueFixturesBefore(
-                    scopeLeagueId.Value, scope.StartUtc, scope.EndUtc, nowUtc),
-                nowUtc);
+                seasonFixtures, nowUtc);
+
+            var teamMissing = TeamFormSampleQuality.MissingResultMatchIdsFor(
+                teamId, seasonFixtures, nowUtc);
 
             // Görüntülenen maç kendi form listesine giremez (aynı tarihli kayıt tekrarı).
             settled = settled.Where(m => m.Id != match.Id).ToList();
 
             var summary = TeamSeasonFormService.Build(
-                teamId, teamName, leagueName, scope, match.MatchDate, settled, completeness);
+                teamId, teamName, leagueName, scope, match.MatchDate, settled,
+                completeness, teamMissing);
 
             var lastMatches = new List<LastMatchDto>(settled.Count);
             foreach (var m in settled)
@@ -1040,13 +1073,68 @@ namespace Formax.Application.UseCases
         // Sprint 1: Lineup builders
         // ────────────────────────────────────────────────────────────────────────
 
-        private LineupSectionDto BuildLineupSection(int matchId)
+        /// <summary>
+        /// BİTMİŞ MAÇ OLAYLARI — kanonik kayıt öncelikli, eski canlı tablo yedek.
+        /// İki kaynak KARIŞTIRILMAZ: kanonik kayıt varsa yalnız o kullanılır, aksi hâlde
+        /// yalnız eski tablo. Karıştırmak aynı golü iki farklı imzayla iki kez gösterirdi.
+        /// </summary>
+        private List<MatchEventDto> BuildEvents(int matchId)
+        {
+            var canonical = _postMatchData.GetEvents(matchId);
+            return canonical.Count > 0
+                ? MatchEventDto.FromRecords(canonical)
+                : MatchEventDto.FromEvents(_matchLiveEventRepository.GetByMatchId(matchId));
+        }
+
+        /// <summary>
+        /// BİTMİŞ MAÇ İSTATİSTİKLERİ — kanonik kayıt öncelikli, eski canlı tablo yedek.
+        /// Kanonik satırlarda GERÇEK ölçüm yoksa (hepsi null) yedeğe düşülür; boş bir
+        /// tablo "0-0 istatistik" olarak GÖSTERİLMEZ.
+        /// </summary>
+        private MatchStatisticsDto? BuildStatistics(int matchId)
+        {
+            var rows = _postMatchData.GetTeamStatistics(matchId);
+            var home = rows.FirstOrDefault(r => r.Side == "Home");
+            var away = rows.FirstOrDefault(r => r.Side == "Away");
+
+            var canonical = MatchStatisticsDto.FromTeamRows(home, away);
+            return canonical ?? MatchStatisticsDto.From(_matchLiveStatsRepository.GetByMatchId(matchId));
+        }
+
+        private LineupSectionDto BuildLineupSection(int matchId, DateTime kickoffUtc, string? externalMatchId)
         {
             var header  = _matchLineupRepository.GetByMatchId(matchId);
             var players = _matchLineupRepository.GetPlayersByMatchId(matchId);
 
+            // BEKLEME DURUMU — arayüz sabit bir saat SÖZÜ vermesin diye taşınır.
+            // Bu üç alan salt DB'den okunur; sayfa açılışı sağlayıcıya ÇIKMAZ.
+            var nowUtc   = DateTime.UtcNow;
+            var remaining = kickoffUtc - nowUtc;
+
+            var waitState = new
+            {
+                WindowOpen    = remaining <= Services.Matches.LineupPollSchedule.WindowOpen,
+                KickoffPassed = remaining <= TimeSpan.Zero,
+                // SON KONTROL: önce gerçek veri satırı, o yoksa KALICI DEFTER.
+                //
+                // Kadro yayımlanmadığında başlık satırı hiç yazılmaz; "en son ne zaman
+                // bakıldı" bilgisi yalnız deftere düşer. Tek kaynağa bağlı kalmak, tam da
+                // kullanıcının en çok merak ettiği durumda satırı boş bırakıyordu.
+                LastChecked   = header?.FetchedAt
+                                ?? (string.IsNullOrWhiteSpace(externalMatchId)
+                                        ? null
+                                        : _fixtureSync.GetLastFixtureAttemptUtc(
+                                              externalMatchId!, FixtureRefreshPurposes.Lineup))
+            };
+
             if (header == null || players.Count == 0)
-                return new LineupSectionDto { LineupsAnnounced = false };
+                return new LineupSectionDto
+                {
+                    LineupsAnnounced  = false,
+                    PollingWindowOpen = waitState.WindowOpen,
+                    KickoffPassed     = waitState.KickoffPassed,
+                    LastCheckedUtc    = waitState.LastChecked
+                };
 
             static LineupPlayerDto Map(MatchLineupPlayer p) => new()
             {
@@ -1066,7 +1154,10 @@ namespace Formax.Application.UseCases
                 HomeStartingXI   = players.Where(p => p.Side == "Home" && p.Role == "Starter").OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
                 HomeBench        = players.Where(p => p.Side == "Home" && p.Role == "Bench")  .OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
                 AwayStartingXI   = players.Where(p => p.Side == "Away" && p.Role == "Starter").OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
-                AwayBench        = players.Where(p => p.Side == "Away" && p.Role == "Bench")  .OrderBy(p => p.ShirtNumber).Select(Map).ToList()
+                AwayBench        = players.Where(p => p.Side == "Away" && p.Role == "Bench")  .OrderBy(p => p.ShirtNumber).Select(Map).ToList(),
+                PollingWindowOpen = waitState.WindowOpen,
+                KickoffPassed     = waitState.KickoffPassed,
+                LastCheckedUtc    = waitState.LastChecked
             };
         }
 

@@ -254,9 +254,49 @@ namespace Formax.Application.AI.Radar.Reasoning
             /// <summary>
             /// GÜNCEL FORM SAYILIR MI? false → bu takım için zamansal kesinlik içeren hiçbir
             /// ifade kurulamaz (hasret, uzun süredir, son dönemde, seri, yükselişte…).
-            /// Karar backend'in; model bu bayrağı yorumlamaz, uygular.
+            /// Karar backend in; model bu bayrağı yorumlamaz, uygular.
             /// </summary>
             [JsonPropertyName("GuncelFormSayilir")] public bool AllowsTrendClaim { get; set; }
+
+            // ── MEVCUT SEZON KAPSAMI (30.08.2026) ──────────────────────────────
+            // Form dökümü artık YALNIZ bu sezonun lig maçlarından kurulur. Aşağıdaki
+            // alanlar anlatının hangi sezonu, hangi ligi ve kaç maçı konuştuğunu
+            // AÇIKÇA söyler; model bunları yeniden hesaplamaz.
+
+            /// <summary>"2026/27".</summary>
+            [JsonPropertyName("Sezon")] public string? SeasonLabel { get; set; }
+
+            /// <summary>Form dökümünün alındığı lig adı.</summary>
+            [JsonPropertyName("Lig")] public string? LeagueName { get; set; }
+
+            /// <summary>Bu sezon TAMAMLANMIŞ lig maçı sayısı.</summary>
+            [JsonPropertyName("BuSezonTamamlananMac")] public int SeasonPlayed { get; set; }
+
+            [JsonPropertyName("Galibiyet")] public int Wins { get; set; }
+            [JsonPropertyName("Beraberlik")] public int Draws { get; set; }
+            [JsonPropertyName("Maglubiyet")] public int Losses { get; set; }
+
+            /// <summary>3ten az maç → anlatı "veri sınırlı" demek ZORUNDA.</summary>
+            [JsonPropertyName("VeriSinirli")] public bool LimitedSample { get; set; }
+
+            /// <summary>"Son 5 maç" ifadesi bu takım için kullanılabilir mi.</summary>
+            [JsonPropertyName("SonBesIfadesiKullanilabilir")] public bool AllowsLastFivePhrase { get; set; }
+
+            /// <summary>
+            /// BU TAKIMIN sonucu kesinleşmemiş maçı var mı?
+            ///
+            /// KALDIRILAN ALANLAR (06.09.2026): pakette daha önce LİG düzeyindeki
+            /// <c>SezonVerisiTam</c> ve <c>EksikMacSayisi</c> vardı. Model bu iki teknik
+            /// alanı Türkçeye çeviriyordu — ölçülen gerçek çıktı (Manchester United–
+            /// Manchester City): "Sezon verilerinin henüz tamamlanmadığı bu erken
+            /// dönemde…". Sayı ligin BAŞKA bir maçına aitti ve anlatılan iki takımla
+            /// ilgisizdi; yine de kullanıcının okuduğu metne giriyordu.
+            ///
+            /// Modelin bilmesi gereken tek şey, ANLATILAN TAKIMIN kendi kaydında bir
+            /// boşluk olup olmadığıdır. Ligin geri kalanı anlatının konusu değildir ve
+            /// artık pakete hiç girmez.
+            /// </summary>
+            [JsonPropertyName("TakiminEksikSonucuVar")] public bool TeamHasMissingResult { get; set; }
         }
 
         public sealed class AvailabilityBlock

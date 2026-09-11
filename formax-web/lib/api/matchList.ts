@@ -9,6 +9,9 @@ export interface MatchListItemDto {
   startTime: string;
   /** Scheduled | Live | Finished (backend türetir). */
   status: string;
+  /** Takım armaları — backend Teams.LogoUrl. Yoksa null; istemci monogram gösterir. */
+  homeTeamLogoUrl?: string | null;
+  awayTeamLogoUrl?: string | null;
   /** Canlı dakika — yalnız canlı maçta doludur (MatchLiveStats). */
   minute: number | null;
   score: { home: number; away: number } | null;

@@ -335,6 +335,12 @@ export interface LineupPlayerDto {
 
 export interface LineupSectionDto {
   lineupsAnnounced: boolean;
+  /** Kickoff'a 90 dk veya daha az kaldı mı? false iken ekran SAAT SÖZÜ VERMEZ. */
+  pollingWindowOpen?: boolean;
+  /** Kickoff geçti mi? Geçtiyse ve veri yoksa ekran bunu açıkça söyler. */
+  kickoffPassed?: boolean;
+  /** Sağlayıcıya en son ne zaman soruldu (UTC ISO). Hiç sorulmadıysa null. */
+  lastCheckedUtc?: string | null;
   /** Açıklanan diziliş ("4-4-2"). Takım başına AYRI; yoksa null (tahmin edilmez). */
   homeFormation?: string | null;
   awayFormation?: string | null;
@@ -420,18 +426,29 @@ export interface TeamSeasonFormDto {
   hasNoData: boolean;
   /** "Son 5 maç" ifadesi yalnız true iken kullanılabilir. */
   allowsLastFivePhrase: boolean;
-  /** Ligin bu sezondaki beklenen tamamlanmış maç sayısı. */
+  /** TEŞHİS — ligin bu sezondaki beklenen tamamlanmış maç sayısı. UI OKUMAZ. */
   seasonExpectedFixtures: number;
-  /** Sonucu hâlâ gelmemiş lig maçı sayısı. */
+  /** TEŞHİS — LİG genelinde sonucu gelmemiş maç sayısı. UI OKUMAZ (06.09.2026). */
   seasonMissingFixtures: number;
-  /** false → sezon verisi eksik; genel form değerlendirmesi YAPILMAZ. */
+  /** TEŞHİS — ligin verisi eksiksiz mi? Form kapısı DEĞİLDİR; UI OKUMAZ. */
   isSeasonDataComplete: boolean;
-  /** Genel form yorumu izni (veri tam + örneklem yeterli). */
+  /** BU TAKIMIN sonucu kesinleşmemiş maç sayısı (ligin geri kalanı sayılmaz). */
+  teamMissingResultCount: number;
+  /** Sınırlamanın sebebi olan maç id leri (teşhis). */
+  teamMissingResultMatchIds: number[];
+  /** "None" | "Minimal" | "Limited" | "Sufficient" — anlatı dilinin kapısı. */
+  sampleQuality: string;
+  /** Genel form yorumu izni — YALNIZ takımın kendi örneklemine bakar. */
   allowsGeneralization: boolean;
   /** Backend in yazdığı deterministik form cümlesi. */
   sentence: string;
   /** G/B/M dizisi (en yeni önce). */
   resultSequence: string;
+  /**
+   * Kullanıcıya gösterilebilir sınırlama notu — teknik terim İÇERMEZ ve yalnız
+   * BU TAKIMIN kendi maç sonucu kesinleşmediyse dolar. Boşsa uyarı gösterilmez.
+   */
+  limitationNote: string;
 }
 
 export interface StandingSectionDto {

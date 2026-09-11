@@ -36,7 +36,16 @@ namespace Formax.Application.Services.PostMatch
         int? EventMinute = null,
         int? EventExtraMinute = null,
         string? EventPlayer = null,
-        string? EventTeam = null);
+        string? EventTeam = null,
+        /// <summary>
+        /// Adayı BULAN sağlayıcının adı (kaynağın kendisi değil): aynı video birden çok
+        /// yoldan keşfedilebilir; hangi yolun getirdiği teşhis için taşınır.
+        /// </summary>
+        string? ProviderName = null,
+        /// <summary>Kanonik Match.Id — sağlayıcı sonucunda da açıkça taşınır.</summary>
+        int? MatchId = null,
+        /// <summary>Sağlayıcı fikstür kimliği — sağlayıcı sonucunda da açıkça taşınır.</summary>
+        string? ExternalFixtureId = null);
 
     /// <summary>
     /// MAÇIN KİMLİĞİ — bir videonun bu maça ait OLDUĞUNUN kanıt kümesi.

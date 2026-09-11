@@ -35,7 +35,8 @@ export const MATCH_ACTIONS: MatchAction[] = [
   { key: "analysis", label: "AI Maç Analizi", view: "analysis", slot: "primary" },
   { key: "stats", label: "Form Durumları", view: "stats", slot: "grid" },
   { key: "lineup", label: "Kadro Bilgisi", view: "lineup", slot: "grid" },
-  { key: "live", label: "Canlı Takip", view: "live", slot: "grid" },
+  // "Canlı Takip" KALDIRILDI (kilitli ürün kararı): FORMAX canlı maç göstermez.
+  // Detay ekranı yalnız maç öncesi analiz sunar; canlı skor/dakika/olay yoktur.
   { key: "news", label: "Son Dakika", view: "news", slot: "grid" },
   { key: "video", label: "ÖNEMLİ ANLARI İZLE", view: null, slot: "video" },
 ];

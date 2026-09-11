@@ -78,7 +78,11 @@ namespace Formax.Application.AI.Radar
                     // yalnız oynanmış ve kapsam içi maçlardan kurulur, dolayısıyla sayı,
                     // tarih ve turnuva bilgisi anlatılan maçlarla birebir aynıdır.
                     HomeEvidence = FormEvidencePolicy.FromLastMatches(detail.HomeTeamLastMatches),
-                    AwayEvidence = FormEvidencePolicy.FromLastMatches(detail.AwayTeamLastMatches)
+                    AwayEvidence = FormEvidencePolicy.FromLastMatches(detail.AwayTeamLastMatches),
+
+                    // MEVCUT SEZON ÖZETİ — backend hesabı, birebir taşınır.
+                    HomeSeason = detail.HomeSeasonForm,
+                    AwaySeason = detail.AwaySeasonForm
                 },
 
                 Stats = new MatchIntelligenceContext.StatsBlock

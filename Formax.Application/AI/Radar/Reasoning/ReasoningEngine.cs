@@ -104,14 +104,18 @@ namespace Formax.Application.AI.Radar.Reasoning
                 {
                     // Aynı döküm, yalnız takım adıyla birlikte hazır cümle olarak taşınır.
                     Lines = Son5Satirlari(ctx),
-                    HomeSummary = Son5Ozet(ctx.Form.HomeRecent),
-                    AwaySummary = Son5Ozet(ctx.Form.AwayRecent),
-                    HomeWins = Count(ctx.Form.HomeRecent, 'G'),
-                    HomeDraws = Count(ctx.Form.HomeRecent, 'B'),
-                    HomeLosses = Count(ctx.Form.HomeRecent, 'M'),
-                    AwayWins = Count(ctx.Form.AwayRecent, 'G'),
-                    AwayDraws = Count(ctx.Form.AwayRecent, 'B'),
-                    AwayLosses = Count(ctx.Form.AwayRecent, 'M'),
+                    // SAYILAR DA SEZON KAPSAMINDAN: çıkış guard'ı (EnforceDataBoundaries)
+                    // bu değerleri "izinli sayı" kabul eder. Sezon özeti varken eski
+                    // (sezonlar-arası) sayıları taşımak, doğru cümleyi guard'a yanlış
+                    // gösterirdi.
+                    HomeSummary = ctx.Form.HomeSeason?.Sentence ?? Son5Ozet(ctx.Form.HomeRecent),
+                    AwaySummary = ctx.Form.AwaySeason?.Sentence ?? Son5Ozet(ctx.Form.AwayRecent),
+                    HomeWins = ctx.Form.HomeSeason?.Won ?? Count(ctx.Form.HomeRecent, 'G'),
+                    HomeDraws = ctx.Form.HomeSeason?.Drawn ?? Count(ctx.Form.HomeRecent, 'B'),
+                    HomeLosses = ctx.Form.HomeSeason?.Lost ?? Count(ctx.Form.HomeRecent, 'M'),
+                    AwayWins = ctx.Form.AwaySeason?.Won ?? Count(ctx.Form.AwayRecent, 'G'),
+                    AwayDraws = ctx.Form.AwaySeason?.Drawn ?? Count(ctx.Form.AwayRecent, 'B'),
+                    AwayLosses = ctx.Form.AwaySeason?.Lost ?? Count(ctx.Form.AwayRecent, 'M'),
                     HomeFormScore = ctx.Form.HomeFormScore,
                     AwayFormScore = ctx.Form.AwayFormScore,
 
@@ -268,8 +272,41 @@ namespace Formax.Application.AI.Radar.Reasoning
         /// </summary>
         private static IntelligencePack.FormBasisSide? FormBasisOf(MatchIntelligenceContext ctx)
         {
-            static IntelligencePack.FormBasis? Map(Services.Matches.FormEvidence e)
-                => !e.HasData
+            static IntelligencePack.FormBasis? Map(
+                Services.Matches.FormEvidence e,
+                DTOs.Matches.TeamSeasonFormDto? season)
+            {
+                // SEZON ÖNCELİKLİ: kapsam artık "bu sezon o ligde tamamlanan maçlar".
+                // Sezon özeti varsa dayanak ondan kurulur; hiç maç yoksa blok GÖNDERİLMEZ
+                // (model o takımın formu hakkında hiçbir şey söyleyemez).
+                if (season != null)
+                {
+                    if (season.Played == 0) return null;
+                    return new IntelligencePack.FormBasis
+                    {
+                        SampleCount = season.Played,
+                        AgeDays = e.AgeDays,
+                        Competitions = string.IsNullOrWhiteSpace(season.LeagueName)
+                            ? null
+                            : new System.Collections.Generic.List<string> { season.LeagueName },
+                        // Veri eksikse veya örneklem yetersizse ZAMANSAL/GENEL iddia izni YOK.
+                        AllowsTrendClaim = e.AllowsTrendClaim && season.AllowsGeneralization,
+                        SeasonLabel = season.SeasonLabel,
+                        LeagueName = season.LeagueName,
+                        SeasonPlayed = season.Played,
+                        Wins = season.Won,
+                        Draws = season.Drawn,
+                        Losses = season.Lost,
+                        LimitedSample = season.IsLimitedSample,
+                        AllowsLastFivePhrase = season.AllowsLastFivePhrase,
+                        // LİG tamlığı pakete GİRMEZ (06.09.2026): model onu Türkçeye
+                        // çevirip kullanıcının okuduğu metne taşıyordu. Yalnız ANLATILAN
+                        // TAKIMIN kendi eksik sonucu taşınır.
+                        TeamHasMissingResult = season.TeamMissingResultCount > 0
+                    };
+                }
+
+                return !e.HasData
                     ? null
                     : new IntelligencePack.FormBasis
                     {
@@ -278,17 +315,37 @@ namespace Formax.Application.AI.Radar.Reasoning
                         Competitions = e.Competitions.Count > 0 ? e.Competitions.ToList() : null,
                         AllowsTrendClaim = e.AllowsTrendClaim
                     };
+            }
 
-            var h = Map(ctx.Form.HomeEvidence);
-            var a = Map(ctx.Form.AwayEvidence);
+            var h = Map(ctx.Form.HomeEvidence, ctx.Form.HomeSeason);
+            var a = Map(ctx.Form.AwayEvidence, ctx.Form.AwaySeason);
             if (h == null && a == null) return null;
 
             return new IntelligencePack.FormBasisSide { Home = h, Away = a };
         }
 
+        /// <summary>
+        /// FORM SATIRLARI — kaynak öncelikle MEVCUT SEZON ÖZETİdir (backend cümlesi).
+        ///
+        /// Ölçüldü (30.08.2026, Barcelona–Rayo): eski satırlar "son 5 maç" diyordu ama
+        /// beşin dördü GEÇEN SEZONDANDI. Artık cümleyi backend kuruyor ve içinde sezon,
+        /// lig ve gerçek maç sayısı geçiyor: "Barcelona bu sezon La Liga'da tamamlanan
+        /// 1 maçta 1 galibiyet aldı." Sezon özeti yoksa (kapsam çözülemedi) eski davranış.
+        /// </summary>
         private static List<string> Son5Satirlari(MatchIntelligenceContext ctx)
         {
             var lines = new List<string>();
+
+            var hs = ctx.Form.HomeSeason;
+            var as_ = ctx.Form.AwaySeason;
+
+            if (hs != null || as_ != null)
+            {
+                if (hs != null && hs.Sentence.Length > 0) lines.Add(hs.Sentence);
+                if (as_ != null && as_.Sentence.Length > 0) lines.Add(as_.Sentence);
+                return lines;
+            }
+
             var h = Son5Ozet(ctx.Form.HomeRecent);
             var a = Son5Ozet(ctx.Form.AwayRecent);
             if (h.Length > 0) lines.Add($"{ctx.HomeTeam} {h}.");

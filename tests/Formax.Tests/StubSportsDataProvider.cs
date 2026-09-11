@@ -8,6 +8,7 @@ using Formax.Application.DTOs.Lineup;
 using Formax.Application.DTOs.Live;
 using Formax.Application.DTOs.Odds;
 using Formax.Application.DTOs.Players;
+using Formax.Application.DTOs.PostMatch;
 using Formax.Application.DTOs.Predictions;
 using Formax.Application.DTOs.Standings;
 using Formax.Application.Interfaces;
@@ -87,4 +88,11 @@ internal abstract class StubSportsDataProvider : ISportsDataProvider
 
     public virtual Task<SportsOddsPage> GetOddsByDateAsync(
         DateTime date, int page, CancellationToken ct = default) => No<SportsOddsPage>();
+
+    // ── Maç sonrası olay + istatistik ─────────────────────────────────────────
+    public virtual Task<SportsMatchEventsResult> GetFinishedMatchEventsAsync(
+        string externalFixtureId, CancellationToken ct = default) => No<SportsMatchEventsResult>();
+
+    public virtual Task<SportsMatchStatisticsResult> GetFinishedMatchStatisticsAsync(
+        string externalFixtureId, CancellationToken ct = default) => No<SportsMatchStatisticsResult>();
 }

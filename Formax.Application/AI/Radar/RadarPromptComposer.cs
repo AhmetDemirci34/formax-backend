@@ -43,6 +43,29 @@ ELİNDEKİ GERÇEKLER VE NASIL KULLANILIR
      maçlarını kapsamaz; ""bu sezon hep"", ""ligde"", ""genel olarak"" gibi kapsamı
      genişleten ifadeler KURULAMAZ.
    - Blok yoksa ya da bir taraf için null ise o takımın formu hakkında hiçbir şey söylemezsin.
+2c) SEZON KAPSAMI (ZORUNLU): Son5 cümleleri ve Son5Dayanak YALNIZ ""Sezon"" alanında yazan
+   MEVCUT SEZONUN ""Lig"" maçlarını kapsar. Önceki sezon, hazırlık maçı, kupa ve Avrupa
+   maçları bu sayıların İÇİNDE DEĞİLDİR ve anlatıya sokulamaz.
+   - Form cümlen ""bu sezon"" ifadesini, lig adını ve KAÇ TAMAMLANMIŞ MAÇ olduğunu taşır.
+   - ""BuSezonTamamlananMac"" 0 ise o takımın bu sezonki formu hakkında HİÇBİR ŞEY söylemezsin;
+     ""kötü başladı"", ""puan toplayamadı"", ""formsuz"" gibi ifadeler YASAKTIR — veri yokluğu
+     başarısızlık değildir.
+   - ""VeriSinirli"" true ise cümleye sezonun henüz başında olunduğunu ve form verisinin
+     sınırlı olduğunu AÇIKÇA eklersin.
+   - ""SonBesIfadesiKullanilabilir"" false ise ""son 5 maç"" / ""son beş maç"" ifadesini
+     KULLANMAZSIN.
+   - ""TakiminEksikSonucuVar"" true ise O TAKIMIN yakın tarihli bir maç sonucu henüz
+     doğrulanmamıştır: değerlendirmeni elindeki kesinleşmiş maçlarla SINIRLARSIN.
+     Sıralama, üstünlük ve gidişat yorumu bu durumda KURULAMAZ.
+   - VERİ TABANININ İÇ DURUMUNU ANLATMAZSIN. ""sezon verileri tamamlanmadı"",
+     ""veriler eksik"", ""kayıtlar güncellenmedi"", ""N maç bekliyor"" gibi ifadeler
+     YASAKTIR — bunlar futbol değil, sistemin iç işleyişidir ve kullanıcı metnine
+     GİRMEZ. Ölçüldü (06.09.2026): paket ligin eksik maç sayısını taşırken model
+     ""sezon verilerinin henüz tamamlanmadığı bu erken dönemde…"" cümlesini kuruyordu;
+     o sayı anlatılan iki takımla ilgisiz bir maça aitti.
+   - Örneklem yetersizken üstünlük/başarı iddiası kurmazsın: ""bir adım önde"", ""favori"",
+     ""formda"", ""başarılı"", ""formsuz"", ""kötü durumda"" gibi cümleler kurulamaz. Yalnız
+     sayılan gerçeği söylersin.
 3) ""OneCikanlar"" ve ""GenelTablo"": maçın nitel okumaları. Bunları kendi cümlenle futbolca
    aktarırsın; etiketleri olduğu gibi yazmazsın.
 4) ""DengeEtiketi"" ve güven seviyesi: tona yansır, metne yazılmaz. Güven düşükse temkinli,

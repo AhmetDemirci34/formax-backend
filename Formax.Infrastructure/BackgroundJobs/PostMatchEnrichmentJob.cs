@@ -41,14 +41,29 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
     private static readonly TimeSpan StartupDelay = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan LoopDelay = TimeSpan.FromMinutes(30);
 
-    /// <summary>Maç bitişinden ilk bakışa kadar geçen süre.</summary>
-    public static readonly TimeSpan FirstCheckAfterFullTime = TimeSpan.FromMinutes(75);
+    /// <summary>
+    /// Maç bitişinden ilk bakışa kadar geçen süre.
+    ///
+    /// 75 dk → 60 dk (06.09.2026, ürün takvimi): resmî özet çoğu yayıncıda son
+    /// düdükten ~30-40 dk sonra yayımlanıyor; ilk bakışı 75 dakikaya çekmek, hazır
+    /// olan videoyu gereksiz yere geciktiriyordu.
+    /// </summary>
+    public static readonly TimeSpan FirstCheckAfterFullTime = TimeSpan.FromMinutes(60);
 
-    /// <summary>İlk bakış boş dönerse sırasıyla beklenecek süreler.</summary>
+    /// <summary>
+    /// İlk bakış boş dönerse sırasıyla beklenecek süreler. Toplam takvim:
+    /// FT+60dk → FT+3sa → FT+6sa → FT+24sa. Dördüncü deneme de boş dönerse arama
+    /// BİTER ve sonuç dürüstçe "Unavailable" yazılır — sonsuza dek yoklamak,
+    /// bulunmayan videoyu var etmez.
+    ///
+    /// Aralıklar bir öncekinin ÜZERİNE eklenir: 60dk + 2sa = FT+3sa, + 3sa = FT+6sa,
+    /// + 18sa = FT+24sa.
+    /// </summary>
     public static readonly IReadOnlyList<TimeSpan> RetryBackoff = new[]
     {
-        TimeSpan.FromHours(6),
-        TimeSpan.FromHours(24)
+        TimeSpan.FromHours(2),
+        TimeSpan.FromHours(3),
+        TimeSpan.FromHours(18)
     };
 
     /// <summary>Toplam deneme hakkı: ilk bakış + iki tekrar.</summary>
@@ -104,6 +119,40 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
         var provider = sp.GetRequiredService<IOfficialMatchVideoProvider>();
         var repo = sp.GetRequiredService<IFixtureSyncRepository>();
 
+        // ── AŞAMA 1: OLAY + İSTATİSTİK ────────────────────────────────────────
+        //
+        // AYRI BİR JOB YIĞINI KURULMADI (ürün kararı 06.09.2026): veri toplama, zaten
+        // var olan bu turun bir aşamasıdır. Kendi bütçesi, kendi kalıcı defteri ve
+        // kendi aday kuralları vardır; video aşamasından bağımsız çalışır ve birinin
+        // hatası diğerini durdurmaz.
+        try
+        {
+            await sp.GetRequiredService<PostMatch.PostMatchDataIngestionService>()
+                .RunCycleAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[POST-MATCH DATA] veri toplama asamasi basarisiz.");
+        }
+
+        // ── AŞAMA 1B: KULLANICI SEÇİMİ SONUÇLANDIRMA ──────────────────────────
+        //
+        // Aynı turun bir aşamasıdır (video ve veri aşamalarıyla aynı gerekçe): bitmiş
+        // maçın seçimleri KALICI olarak sonuçlanır. Sıfır dış istek; yalnız depo.
+        // Hatası diğer aşamaları durdurmaz.
+        try
+        {
+            await sp.GetRequiredService<Picks.UserPickSettlementService>()
+                .RunCycleAsync(null, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[PICK SETTLEMENT] sonuclandirma asamasi basarisiz.");
+        }
+
+        // ── AŞAMA 2: RESMÎ VİDEO ──────────────────────────────────────────────
         if (!config.GetValue("PostMatch:Video:Enabled", true)) return 0;
 
         var maxMatches = Math.Max(0, config.GetValue("PostMatch:Video:MaxMatchesPerCycle", 10));

@@ -914,7 +914,13 @@ namespace Formax.Application.AI.Radar
             + @"bir\s*türlü|hâlâ\s|hala\s|serisi\w*\s*(sürüyor|devam)|serisini\s*(sürdür|koru)|"
             + @"yükselişte|düşüşte|formda|formsuz|form\s*(grafiği|çizgisi)|"
             + @"kazanamıyor|kazanamamakta|galibiyet\s*(özlemi|bekliyor)|"
-            + @"art\s*arda|üst\s*üste|ivme|momentum)",
+            + @"art\s*arda|üst\s*üste|ivme|momentum|"
+            // SEZON BAŞI ÜSTÜNLÜK İDDİALARI (30.08.2026): örneklem 1-2 maçken model
+            // "bir adım önde", "favori", "başarılı" gibi cümleler kuruyordu. Bunlar da form
+            // iddiasıdır ve AYNI izin kapısına bağlanır — veri desteklemiyorsa cümle düşer.
+            + @"bir\s*adım\s*önde|favori|üstünlü\w*|avantajl\w*|başarılı|başarısız|"
+            + @"kötü\s*(durumda|başlang\w*)|iyi\s*(durumda|başlang\w*)|"
+            + @"güçlü\s*bir\s*(başlangıç|form))",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase |
             System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 

@@ -1488,6 +1488,81 @@ namespace Formax.Infrastructure.Migrations
                     b.ToTable("MatchDiscoveryNodes");
                 });
 
+            modelBuilder.Entity("Formax.Domain.Entities.MatchEventRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AssistName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Comments")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ExternalFixtureId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("ExtraMinute")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FetchedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Minute")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlayerName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("ProviderEventId")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("TeamExternalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TeamName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "Minute")
+                        .HasDatabaseName("IX_MatchEventRecords_Match_Minute");
+
+                    b.HasIndex("MatchId", "ProviderEventId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_MatchEventRecords_Match_Event");
+
+                    b.ToTable("MatchEventRecords");
+                });
+
             modelBuilder.Entity("Formax.Domain.Entities.MatchEvidenceRecord", b =>
                 {
                     b.Property<int>("Id")
@@ -2480,6 +2555,93 @@ namespace Formax.Infrastructure.Migrations
                     b.HasIndex("FormaxMatchId");
 
                     b.ToTable("MatchStatistics");
+                });
+
+            modelBuilder.Entity("Formax.Domain.Entities.MatchTeamStatistic", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("AccuratePasses")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BallPossession")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BlockedShots")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Corners")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExternalFixtureId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("FetchedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Fouls")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("GoalkeeperSaves")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Offsides")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PassAccuracy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RedCards")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ShotsOffTarget")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ShotsOnTarget")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Side")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("TeamExternalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TeamName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int?>("TotalPasses")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TotalShots")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("YellowCards")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "Side")
+                        .IsUnique()
+                        .HasDatabaseName("UX_MatchTeamStatistics_Match_Side");
+
+                    b.ToTable("MatchTeamStatistics");
                 });
 
             modelBuilder.Entity("Formax.Domain.Entities.MatchTrendStat", b =>
@@ -4480,12 +4642,49 @@ namespace Formax.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("MarketGroup")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("MarketKey")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<int>("MatchId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("MatchKickoffUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ModelFingerprint")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ModelVersions")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("OddAtSelection")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
 
                     b.Property<string>("PickLabel")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ProbabilityPercent")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SelectionStatus")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTime?>("SettledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SettlementNote")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -4496,8 +4695,13 @@ namespace Formax.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "MatchId")
-                        .IsUnique();
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_UserPicks_User");
+
+                    b.HasIndex("UserId", "MatchId", "MarketKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_UserPicks_User_Match_Market")
+                        .HasFilter("[MarketKey] IS NOT NULL");
 
                     b.ToTable("UserPicks");
                 });

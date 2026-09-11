@@ -46,7 +46,9 @@ public class TeamSeasonFormTests
 
         Assert.Equal(3, dto.Played);
         Assert.DoesNotContain("son 5", dto.Sentence);
-        Assert.Contains("tamamlanan 3 maçta", dto.Sentence);
+        // 06.09.2026: 3–4 maçlık örneklemde dil "sınırlı örneklem"e çevrildi. Kural
+        // aynı kaldı — "son 5" ifadesi kurulmaz, gerçek kapsam ve gerçek sayı söylenir.
+        Assert.Contains("3 lig maçlık sınırlı örneklemde", dto.Sentence);
     }
 
     [Fact]
@@ -63,8 +65,22 @@ public class TeamSeasonFormTests
         Assert.Contains("son 5 maçında", dto.Sentence);
     }
 
+    /// <summary>
+    /// KURAL DEĞİŞTİ (06.09.2026) — LİG verisinin eksikliği artık TAKIM formunu KAPATMAZ.
+    ///
+    /// Eski davranış: ligde sonucu kesinleşmemiş herhangi bir maç varsa, o ligdeki
+    /// BÜTÜN takımların form cümlesi "genel form değerlendirmesi yapılmıyor" ile
+    /// değiştiriliyordu. Ölçüldü: Süper Lig'de tek bir ilgisiz maç (Başakşehir–
+    /// Galatasaray) yüzünden Trabzonspor ile Gençlerbirliği'nin 4'er maçlık TAM formu
+    /// gizleniyordu. Ligin başka bir maçı, bu takımın oynayıp bitirdiği maçları
+    /// değiştirmez — dolayısıyla onları gizleyemez de.
+    ///
+    /// Yeni davranış: lig tamlığı TEŞHİS alanı olarak DURUR (silinmedi), kapı ise
+    /// takımın kendi örneklemidir. Sınırlama yalnız takımın KENDİ maç sonucu
+    /// kesinleşmediğinde doğar (bkz. <see cref="TeamFormSampleQualityTests"/>).
+    /// </summary>
     [Fact]
-    public void SezonVerisiEksikse_GenelDegerlendirmeYapilmaz()
+    public void LigVerisiEksikOlsaBile_TakimFormuGosterilir()
     {
         var matches = new List<Match>();
         for (var i = 1; i <= 6; i++)
@@ -73,9 +89,18 @@ public class TeamSeasonFormTests
         var dto = TeamSeasonFormService.Build(
             10, "Takim10", "Eredivisie", Scope(), TestData.Now, matches, Incomplete());
 
+        // Teşhis alanı korunur…
         Assert.False(dto.IsSeasonDataComplete);
-        Assert.Contains("genel form değerlendirmesi yapılmıyor", dto.Sentence);
-        Assert.DoesNotContain("son 5 maçında", dto.Sentence);
+        Assert.Equal(3, dto.SeasonMissingFixtures);
+
+        // …ama kullanıcı metnine GİRMEZ ve form değerlendirmesini kapatmaz.
+        Assert.DoesNotContain("genel form değerlendirmesi yapılmıyor", dto.Sentence);
+        Assert.DoesNotContain("Sezon verileri", dto.Sentence);
+        Assert.Contains("son 5 maçında", dto.Sentence);
+        Assert.True(dto.AllowsGeneralization);
+
+        // Eksik sonuçların hiçbiri BU takıma ait olmadığı için not da üretilmez.
+        Assert.Equal(string.Empty, dto.LimitationNote);
     }
 
     [Fact]

@@ -11,6 +11,15 @@ import { PredictionStatusBadge } from "./PredictionStatusBadge";
  * detayına gider (Match Detail). Veri gerçek /detail zenginleştirmesinden gelir.
  * Not: Backend'de gerçek "oran" alanı olmadığından sağdaki değer AI olasılık %'sidir.
  */
+/**
+ * Skor gösterimi. Alan yoksa "—" döner — eksik veride 0-0 UYDURULMAZ.
+ * Hesap yapılmaz: değerler backend'den olduğu gibi gelir.
+ */
+function fmtScore(s?: { home: number; away: number } | null): string {
+  if (!s) return "—";
+  return `${s.home}-${s.away}`;
+}
+
 export function PredictionCard({ p }: { p: UiPrediction }) {
   const router = useRouter();
   const live = p.status === "live";
@@ -26,11 +35,26 @@ export function PredictionCard({ p }: { p: UiPrediction }) {
     >
       {/* Sol: durum / tarih-saat */}
       <div className="flex w-[52px] shrink-0 flex-col justify-center gap-0.5 border-r border-white/[0.06] pr-2">
-        {live || finished ? (
+        {finished ? (
+          /* BİTMİŞ MAÇ: İY / 2Y / MS. Eksik alan "—" gösterilir, 0-0 UYDURULMAZ.
+             İkinci yarı backend'de hesaplanır (MS − İY); burada çıkarma yapılmaz. */
           <>
-            <span className={`text-[9px] font-bold uppercase ${live ? "text-goalai-accent" : "text-text-muted"}`}>
-              {live ? "Canlı" : "Bitti"}
-            </span>
+            <span className="text-[9px] font-bold uppercase text-text-muted">Bitti</span>
+            <div className="flex flex-col gap-[1px] leading-none">
+              <span className="whitespace-nowrap text-[10px] tabular-nums text-text-muted">
+                İY {fmtScore(p.scoreBreakdown?.halfTime)}
+              </span>
+              <span className="whitespace-nowrap text-[10px] tabular-nums text-text-muted">
+                2Y {fmtScore(p.scoreBreakdown?.secondHalf)}
+              </span>
+              <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-text-primary">
+                MS {fmtScore(p.scoreBreakdown?.fullTime)}
+              </span>
+            </div>
+          </>
+        ) : live ? (
+          <>
+            <span className="text-[9px] font-bold uppercase text-goalai-accent">Canlı</span>
             <span className="text-[16px] font-bold leading-none text-text-primary">{p.score ?? "–"}</span>
           </>
         ) : (

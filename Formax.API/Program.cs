@@ -318,6 +318,14 @@ internal class Program
 
 
         builder.Services.AddScoped<IMatchReadRepository, MatchReadRepository>();
+
+        // ── SEZON KAPSAMI + İÇ KAYNAKLI PUAN DURUMU (30.08.2026) ──────────────
+        // "Bu sezon" tanımı tek yerden çözülür; puan durumu kendi tamamlanmış
+        // maçlarımızdan saatlik projeksiyonla üretilir (dış istek YOK).
+        builder.Services.AddScoped<Formax.Application.Interfaces.ILeagueSeasonResolver,
+                                   Formax.Infrastructure.Seasons.LeagueSeasonResolver>();
+        builder.Services.AddScoped<Formax.Application.Interfaces.ILeagueStandingsService,
+                                   Formax.Infrastructure.Standings.LeagueStandingsService>();
         builder.Services.AddScoped<IMatchSapmaSnapshotRepository, MatchSapmaSnapshotRepository>();
         builder.Services.AddScoped<IMatchUpdateRepository, MatchUpdateRepository>();
         builder.Services.AddScoped<IMatchWriteRepository, MatchWriteRepository>();
@@ -380,6 +388,11 @@ internal class Program
         builder.Services.AddScoped<IFeedScoreLogRepository, FeedScoreLogRepository>();
 
         builder.Services.AddScoped<IUserPickRepository, UserPickRepository>();
+
+        // "SENİN SEÇİMİN" — olası sonuç seçimleri. Mevcut UserPicks tablosu genişletildi;
+        // paralel ikinci bir tahmin sistemi KURULMADI.
+        builder.Services.AddScoped<Formax.Application.UseCases.Picks.UserPickSelectionUseCase>();
+        builder.Services.AddScoped<Formax.Application.UseCases.Picks.GetUserPredictionsUseCase>();
 
 
 
@@ -590,6 +603,8 @@ internal class Program
 
         builder.Services.AddScoped<GetUsersFollowingMatchUseCase>();
         builder.Services.AddScoped<GetFollowedMatchesUseCase>();
+        // "Takip Ettiğim Maçlar" ekranı — yalnız maç takipleri, gerçek durum, iki bölüm.
+        builder.Services.AddScoped<Formax.Application.UseCases.Follow.GetFollowedMatchesScreenUseCase>();
         builder.Services.AddScoped<FollowMatchUseCase>();
         builder.Services.AddScoped<UnfollowMatchUseCase>();
 
@@ -705,6 +720,11 @@ internal class Program
         // MAÇ SONRASI VİDEO — bitmiş maçların RESMÎ videosunu ÖNCEDEN DB'ye yazar;
         // böylece maç özeti tıklaması 0 dış istek üretir. Canlı polling yoktur ve
         // api-football kotasına dokunulmaz.
+        // MAÇ SONRASI OLAY + İSTATİSTİK — aynı turun ilk aşaması. Ayrı bir tekrar eden
+        // iş DEĞİLDİR: kendi kalıcı defteri ve günlük tavanı vardır, video aşamasından
+        // bağımsız çalışır. Kullanıcının maç sayfasını açması bu servisi TETİKLEMEZ.
+        builder.Services.AddScoped<Formax.Infrastructure.PostMatch.PostMatchDataIngestionService>();
+
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>());
 
@@ -744,6 +764,9 @@ internal class Program
         builder.Services.AddHttpClient<Formax.Application.Interfaces.IPlayerStatsProvider,
             Formax.Infrastructure.Providers.ApiFootballPlayerStatsProvider>()
             .ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+            // Bu istemci daha önce METERING'siz kaydedilmişti → istekleri telemetride GÖRÜNMÜYORDU.
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballCacheHandler>()
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballMeteringHandler>()
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballResilienceHandler>();
         builder.Services.AddScoped<Formax.Application.Interfaces.IPlayerIntelligenceEngine,
             Formax.Application.Services.Players.Intelligence.PlayerIntelligenceEngine>();
@@ -781,6 +804,11 @@ internal class Program
         builder.Services.AddSingleton<WorldPerceptionDailyJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<WorldPerceptionDailyJob>());
         builder.Services.AddHostedService<SapmaSnapshotJob>();
+
+        // SAATLİK PUAN DURUMU PROJEKSİYONU — kendi sonuçlarımızdan; dış istek üretmez.
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.HourlyStandingsProjectionJob>();
+        builder.Services.AddHostedService(sp =>
+            sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.HourlyStandingsProjectionJob>());
 
         // ── Sprint 0: Fixture sync ─────────────────────────────────────────────
         // Singleton + hosted: admin geri-doldurma ucu (POST /admin/fixtures/backfill)
@@ -879,9 +907,16 @@ internal class Program
         // kalır → mevcut RequestsByEndpoint sayacının anlamı DEĞİŞMEZ.
         builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballJobAttributionHandler>();
 
+        // ── FORMAX VERİ KATMANI — api-footballa giden TEK kapı (L1 memory → L2 kalıcı → HTTP).
+        // EN DIŞ handlerdır: cache isabetinde alt katmanlar hiç çalışmaz, gerçek istek doğmaz.
+        // Ayrıca single-flight (aynı anahtar için eşzamanlı N çağrı = 1 HTTP) ve günlük bütçe.
+        builder.Services.AddSingleton<Formax.Infrastructure.Http.ApiFootballHttpCacheStore>();
+        builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballCacheHandler>();
+
         // ── Sprint 20A+20B: API-Football H2H enrichment ──────────────────────
         builder.Services.AddHttpClient("ApiFootball")
             .ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballCacheHandler>()
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballMeteringHandler>()
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballResilienceHandler>();
         builder.Services.AddSingleton<Formax.Infrastructure.Cache.H2HCache>();
@@ -894,6 +929,7 @@ internal class Program
         // context tümü buradan gelir; DTO'lar ve job'lar değişmedi. Cache-aside korunur.
         builder.Services.AddHttpClient<ISportsDataProvider, ApiFootballSportsDataProvider>()
             .ConfigureHttpClient(c => c.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballCacheHandler>()
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballMeteringHandler>()
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballResilienceHandler>()
             .AddHttpMessageHandler<Formax.Infrastructure.Http.ApiFootballJobAttributionHandler>();

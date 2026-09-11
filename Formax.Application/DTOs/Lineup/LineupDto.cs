@@ -94,6 +94,30 @@ namespace Formax.Application.DTOs.Lineup
 
         public List<LineupPlayerDto> HomeBench { get; set; } = new();
         public List<LineupPlayerDto> AwayBench { get; set; } = new();
+
+        // ── DÜRÜST BEKLEME DURUMU (06.09.2026) ──────────────────────────────────
+        //
+        // Arayüz eskiden sabit bir söz veriyordu: "Kadrolar maçtan 1 saat önce
+        // açıklanacak." Bu YANLIŞTI — kadro her zaman tam 1 saat önce yayımlanmaz,
+        // yayıncıya ve lige göre değişir. Maça 45 dakika kalmışken bile kullanıcı bu
+        // metni okuyup boş ekrana bakıyordu. Artık ekran VAAT ETMEZ, DURUM BİLDİRİR;
+        // bunun için gereken üç gerçeği backend taşır.
+
+        /// <summary>
+        /// Kadro yoklama penceresi AÇILDI mı? (kickoff'a 90 dakika veya daha az kaldı)
+        /// false iken arayüz "maç saatine yaklaşıldığında gösterilecek" der; SAAT VERMEZ.
+        /// </summary>
+        public bool PollingWindowOpen { get; set; }
+
+        /// <summary>Kickoff geçti mi? Geçtiyse ve veri yoksa arayüz bunu açıkça söyler.</summary>
+        public bool KickoffPassed { get; set; }
+
+        /// <summary>
+        /// Sağlayıcıya EN SON ne zaman soruldu (UTC)? Hiç sorulmadıysa null.
+        /// Arayüz bunu küçük bir "Son kontrol: 18:42" satırı olarak gösterebilir.
+        /// Değer <c>MatchLineups.FetchedAt</c>'tir — uydurulmaz.
+        /// </summary>
+        public DateTime? LastCheckedUtc { get; set; }
     }
 
     public class PlayerStatusSectionDto

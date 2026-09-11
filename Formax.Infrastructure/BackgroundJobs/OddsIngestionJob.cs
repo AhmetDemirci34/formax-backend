@@ -183,9 +183,29 @@ namespace Formax.Infrastructure.BackgroundJobs
             var matched = 0;
             var rows = 0;
 
+            // KAPSAM + OYNANMAMIŞLIK: /odds?date= o günün TÜM liglerini döndürür, o yüzden gün
+            // seviyesinde karar veriyoruz. FORMAX kapsamında ve HENÜZ OYNANMAMIŞ maçı olmayan gün
+            // için sağlayıcıya HİÇ çıkılmaz (bitmiş maçın oranı hiçbir yerde kullanılmıyor).
+            var allow = CoveragePolicy.LeagueAllowList(_config);
+            var scopedDays = await db.Matches.AsNoTracking()
+                .Where(m => m.MatchDate >= today && m.MatchDate < windowEnd.AddDays(1)
+                         && m.Status != "Finished" && m.Status != "Cancelled" && m.ExternalMatchId != null)
+                .Select(m => new { m.MatchDate, m.LeagueId })
+                .ToListAsync(ct);
+            var daysWithScopedMatches = scopedDays
+                .Where(x => CoveragePolicy.Allows(allow, x.LeagueId))
+                .Select(x => x.MatchDate.Date)
+                .ToHashSet();
+
             for (var day = 0; day < scanDays && !ct.IsCancellationRequested; day++)
             {
                 var date = today.AddDays(day);
+
+                if (!daysWithScopedMatches.Contains(date.Date))
+                {
+                    _logger.LogDebug("[ODDS JOB] {Date} — kapsamda oynanmamış maç yok, sağlayıcıya çıkılmadı.", date);
+                    continue;
+                }
 
                 var page = 1;
                 var totalPages = 1;

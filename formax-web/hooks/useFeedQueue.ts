@@ -144,6 +144,9 @@ export function useFeedQueue(filter?: (c: RecommendationCardDto) => boolean) {
 
   return {
     activeCard,
+    // Kart altındaki konum göstergesi için (Keşfet kartı): kaçıncı kart / toplam.
+    currentIndex,
+    total: cards.length,
     nextCard,
     leftPeek,
     rightPeek,

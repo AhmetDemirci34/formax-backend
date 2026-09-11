@@ -114,6 +114,12 @@ namespace Formax.Infrastructure.Data
 
         /// <summary>Yalniz DOGRULANMIS resmi mac videolari.</summary>
         public DbSet<MatchVideo> MatchVideos { get; set; } = null!;
+
+        /// <summary>Bitmiş maçın kanonik olayları — bkz. <see cref="MatchEventRecord"/>.</summary>
+        public DbSet<MatchEventRecord> MatchEventRecords { get; set; } = null!;
+
+        /// <summary>Bitmiş maçın kanonik takım istatistikleri — bkz. <see cref="MatchTeamStatistic"/>.</summary>
+        public DbSet<MatchTeamStatistic> MatchTeamStatistics { get; set; } = null!;
         public DbSet<CompetitionContext> CompetitionContexts { get; set; } = null!;
         public DbSet<LeagueExternalMapping> LeagueExternalMappings { get; set; } = null!;
 
@@ -746,9 +752,35 @@ namespace Formax.Infrastructure.Data
                 .HasForeignKey(m => m.AwayTeamId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            modelBuilder.Entity<UserPick>()
-                .HasIndex(x => new { x.UserId, x.MatchId })
-                .IsUnique();
+            // ── KULLANICI SEÇİMLERİ ─────────────────────────────────────────────
+            //
+            // İNDEKS GENİŞLETİLDİ (06.09.2026): eski benzersizlik (UserId + MatchId)
+            // bir kullanıcıya maç başına TEK seçim hakkı veriyordu. Ürün kararı ise
+            // birden fazla UYUMLU seçime izin verir ("2.5 Alt" + "Karşılıklı Gol Var"
+            // + "Çifte Şans (1X)"). Benzersizlik artık MARKET düzeyindedir: aynı
+            // kullanıcı aynı maçta aynı marketi iki kez kaydedemez, ama farklı
+            // marketleri birlikte seçebilir. Çelişkili seçimler (aynı market grubu)
+            // uygulama katmanında elenir — bkz. PickMarketGroups.
+            //
+            // Veri kaybı YOKTUR: kısıt daraltılmadı, GENİŞLETİLDİ; eski indeksin
+            // kabul ettiği her satır yeni indekste de geçerlidir.
+            modelBuilder.Entity<UserPick>(entity =>
+            {
+                entity.Property(x => x.MarketKey).HasMaxLength(32);
+                entity.Property(x => x.MarketGroup).HasMaxLength(32);
+                entity.Property(x => x.ModelVersions).HasMaxLength(200);
+                entity.Property(x => x.ModelFingerprint).HasMaxLength(120);
+                entity.Property(x => x.SelectionStatus).HasMaxLength(24);
+                entity.Property(x => x.SettlementNote).HasMaxLength(200);
+                entity.Property(x => x.OddAtSelection).HasPrecision(10, 3);
+
+                entity.HasIndex(x => new { x.UserId, x.MatchId, x.MarketKey })
+                      .IsUnique()
+                      .HasDatabaseName("UX_UserPicks_User_Match_Market");
+
+                // Tahminlerim ekranı "bu kullanıcının tüm seçimleri" diye sorar.
+                entity.HasIndex(x => x.UserId).HasDatabaseName("IX_UserPicks_User");
+            });
 
             // 🔥 EKLEDİK (KRİTİK)
             modelBuilder.Entity<MatchBanditStats>()
@@ -824,6 +856,42 @@ namespace Formax.Infrastructure.Data
                 // Okuma yolu her zaman "bu macin oynatilabilir videolari" diye sorar.
                 entity.HasIndex(x => new { x.MatchId, x.CanPlayInApp })
                       .HasDatabaseName("IX_MatchVideos_Match_Playable");
+            });
+
+            // ── BİTMİŞ MAÇ OLAYLARI — kanonik kayıt (canlı akıştan bağımsız) ─────
+            modelBuilder.Entity<MatchEventRecord>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ExternalFixtureId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ProviderEventId).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.EventType).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Detail).HasMaxLength(120);
+                entity.Property(x => x.Comments).HasMaxLength(400);
+                entity.Property(x => x.TeamName).HasMaxLength(120);
+                entity.Property(x => x.PlayerName).HasMaxLength(160);
+                entity.Property(x => x.AssistName).HasMaxLength(160);
+                entity.Property(x => x.Source).HasMaxLength(64).IsRequired();
+                // AYNI OLAY İKİ KEZ YAZILAMAZ. ProviderEventId, (fikstür+dakika+tür+
+                // oyuncu) imzasından türetilen KARARLI anahtardır: aynı yanıt ikinci kez
+                // işlense aynı anahtarı üretir ve bu indeks yazımı reddeder.
+                entity.HasIndex(x => new { x.MatchId, x.ProviderEventId }).IsUnique()
+                      .HasDatabaseName("UX_MatchEventRecords_Match_Event");
+                // Okuma yolu her zaman "bu maçın olayları, dakika sırasıyla" diye sorar.
+                entity.HasIndex(x => new { x.MatchId, x.Minute })
+                      .HasDatabaseName("IX_MatchEventRecords_Match_Minute");
+            });
+
+            // ── BİTMİŞ MAÇ TAKIM İSTATİSTİĞİ — maç başına iki satır ─────────────
+            modelBuilder.Entity<MatchTeamStatistic>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ExternalFixtureId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Side).HasMaxLength(8).IsRequired();
+                entity.Property(x => x.TeamName).HasMaxLength(120);
+                entity.Property(x => x.Source).HasMaxLength(64).IsRequired();
+                // Bir maçın bir tarafı için TEK satır olur; ikinci çekim günceller, eklemez.
+                entity.HasIndex(x => new { x.MatchId, x.Side }).IsUnique()
+                      .HasDatabaseName("UX_MatchTeamStatistics_Match_Side");
             });
 
             // LeagueStandingsSnapshot — İÇ KAYNAKLI projeksiyon; lig+sezon başına TEK satır.

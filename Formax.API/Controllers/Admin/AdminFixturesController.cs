@@ -31,7 +31,20 @@ namespace Formax.API.Controllers.Admin
             var days = (toDate.Date - fromDate.Date).Days + 1;
             if (days > 45) return BadRequest(new { error = "window too large (max 45 days)", days });
 
-            await _job.RunBackfillAsync(fromDate, toDate, ct);
+            try
+            {
+                await _job.RunBackfillAsync(fromDate, toDate, ct);
+            }
+            catch (FixtureSyncBusyException ex)
+            {
+                // Kilit başka örnekte → tur HİÇ çalışmadı. Eskiden bu sessizce 200 dönüyordu.
+                return StatusCode(409, new { error = "fixture_sync_busy", detail = ex.Message, written = false });
+            }
+            catch (Formax.Infrastructure.Providers.ApiFootballSportsDataProvider.ApiFootballUnavailableException ex)
+            {
+                // Sağlayıcı problemi (kota/hata) SESSİZ BAŞARI olarak dönmez: hiçbir şey yazılmadı.
+                return StatusCode(503, new { error = "provider_unavailable", detail = ex.Message, written = false });
+            }
             return Ok(new { from = fromDate.ToString("yyyy-MM-dd"), to = toDate.ToString("yyyy-MM-dd"), days });
         }
     }

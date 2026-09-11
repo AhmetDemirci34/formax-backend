@@ -240,6 +240,8 @@ public static class DependencyInjection
 
         // ── Sprint 3: Live match intelligence repositories ────────────────────
         services.AddScoped<IMatchLiveStatsRepository, MatchLiveStatsRepository>();
+        // Bitmiş maçın KANONİK olay/istatistik okuyucusu — salt DB, sağlayıcıya çıkmaz.
+        services.AddScoped<IPostMatchDataReader, Formax.Infrastructure.PostMatch.PostMatchDataReader>();
         services.AddScoped<IMatchMomentumRepository, MatchMomentumRepository>();
         services.AddScoped<IMatchLiveEventIngestionRepository, MatchLiveEventIngestionRepository>();
 
@@ -269,11 +271,37 @@ public static class DependencyInjection
         services.AddScoped<IVideoEmbedVerifier, Formax.Infrastructure.PostMatch.YouTubeEmbedVerifier>();
         services.AddScoped<IMatchVideoRegistrar, Formax.Infrastructure.PostMatch.MatchVideoRegistrar>();
         services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoAuditService>();
+        // ── RESMÎ VİDEO KEŞİF ZİNCİRİ ─────────────────────────────────────────
+        //
+        // Tek sağlayıcı yerine ÖNCELİKLİ ZİNCİR (07.09.2026): keşfin tamamı YouTube
+        // RSS akışının son ~15 videosuna bağlıydı; akıştan düşen resmî özet kalıcı
+        // olarak kayboluyordu. Zincir hak sahipliği sırasına göre çalışır ve
+        // yapılandırılmamış sağlayıcıyı SESSİZCE atlar (NotConfigured).
+        //
+        // Sağlayıcılar zincire ÜYE olarak kaydedilir; dışarıya açılan tek
+        // IOfficialMatchVideoProvider zincirin kendisidir.
+        services.AddScoped<Formax.Infrastructure.Picks.UserPickSettlementService>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.YouTubeDataApiVideoProvider>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>();
         services.AddScoped<IOfficialMatchVideoProvider>(sp =>
-            sp.GetRequiredService<IConfiguration>().GetValue("PostMatch:Video:Provider", "YouTubeOfficialChannels")
-                is "Disabled"
-                    ? new Formax.Infrastructure.PostMatch.DisabledOfficialMatchVideoProvider()
-                    : ActivatorUtilities.CreateInstance<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>(sp));
+        {
+            // "Disabled" tek anahtarla tüm keşfi kapatır — sıfır dış istek.
+            if (sp.GetRequiredService<IConfiguration>()
+                  .GetValue("PostMatch:Video:Provider", "OfficialVideoChain") is "Disabled")
+                return new Formax.Infrastructure.PostMatch.DisabledOfficialMatchVideoProvider();
+
+            var members = new IOfficialMatchVideoProvider[]
+            {
+                sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>(),
+                sp.GetRequiredService<Formax.Infrastructure.PostMatch.YouTubeDataApiVideoProvider>(),
+                sp.GetRequiredService<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>()
+            };
+
+            return new Formax.Infrastructure.PostMatch.CompositeOfficialMatchVideoProvider(
+                members,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Formax.Infrastructure.PostMatch.CompositeOfficialMatchVideoProvider>>());
+        });
         services.AddScoped<IFixtureSyncLockRepository, FixtureSyncLockRepository>();
 
         // ── Sprint 4: NABIZ feed intelligence ─────────────────────────────────

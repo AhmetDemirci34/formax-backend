@@ -18,11 +18,35 @@ namespace Formax.Application.AI.Radar
             "%100", "100%", "kesin kazanç", "kesin", "mutlaka kazan", "kazanır"
         };
 
+        /// <summary>
+        /// SİSTEMİN İÇ DURUMUNU ANLATAN CÜMLELER — kelime değil, CÜMLE olarak atılır.
+        ///
+        /// NEDEN CÜMLE DÜZEYİ: "sezon verileri" gibi bir ifadeden tek tek kelime silmek
+        /// geriye bozuk bir cümle bırakır. Bu ifadeler futbol değil, deponun iç işleyişidir
+        /// ve kullanıcı metninde hiç bulunmamalıdır — bu yüzden cümlenin tamamı düşer.
+        ///
+        /// ÖLÇÜLDÜ (06.09.2026, Manchester United–Manchester City, gerçek LLM çıktısı):
+        /// "Sezon verilerinin henüz tamamlanmadığı bu erken dönemde, her iki takımın da
+        /// hücum gücü ön plana çıkarken…". Cümledeki sayı ligin BAŞKA bir maçına aitti.
+        /// Kök neden pakette ve prompt'ta kapatıldı; bu süzgeç ikinci emniyet kemeridir.
+        /// </summary>
+        private static readonly string[] SystemTalk =
+        {
+            @"sezon\s+veriler",        // "sezon verileri tamamlanmadı"
+            @"veriler(i|in)?\s+eksik",
+            @"veri\s+taban",
+            @"kay(ı|i)tlar(ı|i)m(ı|i)z",
+            @"depo(m|)uz(da|)",
+            @"ma(ç|c)\s+bekliyor",
+            @"sonu(ç|c)lar(ı|i)\s+hen(ü|u)z\s+kesinle(ş|s)me"
+        };
+
         public string Sanitize(string? text, int maxLen)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
-            var cleaned = text.Trim();
+            var cleaned = DropSystemTalkSentences(text.Trim());
+
             foreach (var term in Banned)
                 cleaned = Regex.Replace(cleaned, WordPattern(term), "", RegexOptions.IgnoreCase);
 
@@ -33,6 +57,26 @@ namespace Formax.Application.AI.Radar
                 cleaned = TrimToSentence(cleaned, maxLen);
 
             return cleaned;
+        }
+
+        /// <summary>
+        /// Sistemin iç durumundan söz eden cümleleri TAMAMEN atar.
+        ///
+        /// Metin cümle sınırlarından bölünür; içinde <see cref="SystemTalk"/>
+        /// kalıplarından biri geçen cümle atılır, kalanlar sırası bozulmadan birleşir.
+        /// Hepsi atılırsa boş döner ve çağıran fallback'e geçer — yarım cümle bırakmaktansa
+        /// hiç metin göstermemek doğrudur.
+        /// </summary>
+        public static string DropSystemTalkSentences(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+            // Cümle sonu: . ! ? ve ardından boşluk/son. Kısaltmalar için nokta+boşluk yeterli.
+            var sentences = Regex.Split(text, @"(?<=[.!?])\s+");
+            var kept = sentences.Where(s =>
+                !SystemTalk.Any(p => Regex.IsMatch(s, p, RegexOptions.IgnoreCase)));
+
+            return string.Join(" ", kept).Trim();
         }
 
         /// <summary>

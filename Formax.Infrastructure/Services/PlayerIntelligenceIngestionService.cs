@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 using Formax.Application.DTOs.Players;
 using Formax.Application.Interfaces;
 using Formax.Domain.Entities;
+using Formax.Infrastructure.BackgroundJobs;
 using Formax.Infrastructure.Data;
+using Formax.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Formax.Infrastructure.Services
@@ -23,13 +26,15 @@ namespace Formax.Infrastructure.Services
         private readonly FormaxDbContext _db;
         private readonly ISportsDataProvider _provider;
         private readonly ITeamPlayerIntelligenceRepository _repo;
+        private readonly IConfiguration _config;
         private readonly ILogger<PlayerIntelligenceIngestionService> _logger;
 
         public PlayerIntelligenceIngestionService(
             FormaxDbContext db, ISportsDataProvider provider,
-            ITeamPlayerIntelligenceRepository repo, ILogger<PlayerIntelligenceIngestionService> logger)
+            ITeamPlayerIntelligenceRepository repo, IConfiguration config,
+            ILogger<PlayerIntelligenceIngestionService> logger)
         {
-            _db = db; _provider = provider; _repo = repo; _logger = logger;
+            _db = db; _provider = provider; _repo = repo; _config = config; _logger = logger;
         }
 
         // ── Watermark (HistoricalSyncJob/TimelineSyncedAt deseniyle aynı) ──────────────
@@ -71,9 +76,22 @@ namespace Formax.Infrastructure.Services
             var now = DateTime.UtcNow;
             var from = now.AddDays(-1); var to = now.AddDays(7);
 
+            // KİLİTLİ MÜSABAKA KAPSAMI — aday havuzu daha SQL'de daraltılır (api-football
+            // çağrısından ÖNCE). Kapsam dışı ligin takımı aday listesine hiç girmez, dolayısıyla
+            // onun için /players ve /injuries?team çağrısı ÜRETİLMEZ. Kaynak: FixtureSync/GdpSync/
+            // HistoricalSync/NewsDiscovery ile AYNI allow-list (Coverage:LeagueAllowList).
+            // Liste boşsa kısıtlama yoktur (geri-uyum).
+            var allow = CoveragePolicy.LeagueAllowList(_config);
+            var upcoming = _db.Matches
+                .Where(m => m.MatchDate >= from && m.MatchDate <= to && m.HomeTeamId > 0 && m.AwayTeamId > 0);
+            if (allow.Count > 0)
+            {
+                var allowIds = allow.ToList();
+                upcoming = upcoming.Where(m => allowIds.Contains(m.LeagueId));
+            }
+
             // Yaklaşan maçların takım id'lerini materialize et (EF SelectMany[array] çeviremiyor).
-            var pairs = await _db.Matches
-                .Where(m => m.MatchDate >= from && m.MatchDate <= to && m.HomeTeamId > 0 && m.AwayTeamId > 0)
+            var pairs = await upcoming
                 .Select(m => new { m.HomeTeamId, m.AwayTeamId })
                 .ToListAsync(ct);
             var teamIds = pairs.SelectMany(p => new[] { p.HomeTeamId, p.AwayTeamId }).Distinct().ToList();
@@ -109,14 +127,32 @@ namespace Formax.Infrastructure.Services
             }
 
             int withData = 0;
+            int processed = 0;
             var season = ResolveSeason(now);
             foreach (var t in teams)
             {
-                if (await IngestTeamAsync(t.Id, t.ExternalTeamId!, season, ct)) withData++;
+                // SAĞLAYICI PROBLEMİ ≠ VERİ YOK: kota bittiğinde/istek başarısızken sahte bir
+                // "HasData=0" YAZILMAZ. Yazılsaydı UpdatedAt ilerler ve takım EmptyBackoffHours
+                // (168sa) boyunca yeniden denenemezdi. Tur burada durur; dokunulmayan takımlar
+                // bir sonraki SAĞLIKLI turda aynen aday kalır.
+                try
+                {
+                    if (await IngestTeamAsync(t.Id, t.ExternalTeamId!, season, ct)) withData++;
+                    processed++;
+                }
+                catch (ApiFootballSportsDataProvider.ApiFootballUnavailableException ex)
+                {
+                    _logger.LogWarning(ex,
+                        "[PLAYER INTEL] Sağlayıcı kullanılamıyor (kota/hata) — tur DURDURULDU. " +
+                        "{Processed} takım yazıldı, {Untouched} takım dokunulmadan bırakıldı.",
+                        processed, teams.Count - processed);
+                    break;
+                }
             }
             _logger.LogInformation(
-                "[PLAYER INTEL] {Teams} takım işlendi, {WithData} kapsamlı, {Skipped} watermark ile atlandı (sezon {Season}).",
-                teams.Count, withData, skipped, season);
+                "[PLAYER INTEL] {Teams} takım işlendi, {WithData} kapsamlı, {Skipped} watermark ile atlandı " +
+                "(sezon {Season}; kapsam {Leagues} lig, aday {Candidates} takım).",
+                processed, withData, skipped, season, allow.Count, candidates.Count);
             return withData;
         }
 

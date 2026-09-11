@@ -99,6 +99,23 @@ export function SearchResults({ results, isSearching, onOpen }: Props) {
   );
 }
 
+/**
+ * Arama sonuçlarını tarih → lig olarak gruplar.
+ *
+ * SIRA BURADA ÜRETİLMEZ, KORUNUR.
+ *
+ * KÖK NEDEN (06.09.2026): burada tarih grupları koşulsuz ARTAN sıralanıyordu
+ * (`a.localeCompare(b)`). Backend "sonuçlar" aramasını doğru sırada — en yeni maç
+ * en üstte — döndürdüğü hâlde bu satır sırayı ters çeviriyordu: "Fenerbahçe"
+ * aramasında dün oynanan Fenerbahçe–Beşiktaş en alta düşüyor, Temmuz maçları
+ * listenin başında görünüyordu.
+ *
+ * ÇÖZÜM: Map ekleme sırası korunur. JavaScript'te `Map` anahtarları ilk ekleme
+ * sırasında tutar; backend listesi zaten deterministik sıradadır (finished →
+ * tarih azalan + MatchId azalan, upcoming → tarih artan + MatchId artan).
+ * Böylece iki sekme için ikinci bir sıralama kuralı yazılmasına gerek kalmaz ve
+ * arayüz backend sözleşmesiyle ayrışamaz.
+ */
 function groupByDateAndLeague(results: MatchResultItemDto[]): DateGroup[] {
   const dateMap = new Map<string, Map<number, MatchResultItemDto[]>>();
 
@@ -110,16 +127,14 @@ function groupByDateAndLeague(results: MatchResultItemDto[]): DateGroup[] {
     leagueMap.get(m.leagueId)!.push(m);
   }
 
-  return Array.from(dateMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, leagueMap]) => ({
-      date,
-      leagues: Array.from(leagueMap.entries()).map(([leagueId, matches]) => ({
-        leagueId,
-        leagueName: matches[0]?.leagueName ?? "",
-        matches,
-      })),
-    }));
+  return Array.from(dateMap.entries()).map(([date, leagueMap]) => ({
+    date,
+    leagues: Array.from(leagueMap.entries()).map(([leagueId, matches]) => ({
+      leagueId,
+      leagueName: matches[0]?.leagueName ?? "",
+      matches,
+    })),
+  }));
 }
 
 /** yyyy-MM-dd → "18 Ağustos 2026" gibi Türkçe tarih.

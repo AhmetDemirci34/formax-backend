@@ -32,6 +32,34 @@ namespace Formax.Application.Interfaces
     }
 
     /// <summary>
+    /// BİR KEŞİF SAĞLAYICISININ DURUMU.
+    ///
+    /// <see cref="NotConfigured"/> bir HATA DEĞİLDİR: sağlayıcının çalışması için gereken
+    /// resmî erişim (ör. API anahtarı, yayıncı uç adresi) bu kurulumda verilmemiştir.
+    /// Bu durumda sağlayıcı SESSİZCE ATLANIR ve zincir yapılandırılmış olanlarla devam
+    /// eder. Anahtar üretmek, gizli uç aramak veya kısıtı dolanmak YASAKTIR.
+    /// </summary>
+    public static class VideoProviderStatuses
+    {
+        /// <summary>Çalışmaya hazır — gereken erişim tanımlı.</summary>
+        public const string Configured = "Configured";
+
+        /// <summary>Gerekli resmî erişim verilmemiş; sağlayıcı atlanır, zincir devam eder.</summary>
+        public const string NotConfigured = "NotConfigured";
+
+        /// <summary>Yapılandırmayla kapatılmış.</summary>
+        public const string Disabled = "Disabled";
+    }
+
+    /// <summary>Tek bir sağlayıcının bir maç için ne yaptığı — teşhis ve rapor kaydı.</summary>
+    public sealed record VideoProviderOutcome(
+        string Provider,
+        string Status,
+        int Priority,
+        int CandidateCount,
+        string Note);
+
+    /// <summary>
     /// RESMÎ VİDEO KEŞFİ — bitmiş bir maç için resmî kaynaklarda aday arar.
     ///
     /// SÖZLEŞME: uygulama, bir istek başına SINIRLI sayıda dış çağrı yapar ve
@@ -41,6 +69,18 @@ namespace Formax.Application.Interfaces
     public interface IOfficialMatchVideoProvider
     {
         string Name { get; }
+        /// <summary>
+        /// KEŞİF SIRASI — küçük sayı önce çalışır
+        /// (<see cref="Formax.Application.Services.PostMatch.OfficialVideoSourceTiers"/>).
+        /// </summary>
+        int Priority { get; }
+
+        /// <summary>
+        /// <see cref="VideoProviderStatuses"/>. <c>NotConfigured</c> sağlayıcı hiç
+        /// çağrılmaz; zincir bir sonrakiyle devam eder.
+        /// </summary>
+        string Status { get; }
+
 
         Task<IReadOnlyList<OfficialVideoCandidate>> DiscoverAsync(
             VideoFixtureIdentity fixture, CancellationToken ct = default);

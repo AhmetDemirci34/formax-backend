@@ -140,9 +140,17 @@ public class PostMatchScreenContractTests
     {
         var screen = Screen();
 
-        const string honest =
-            "Bu maç için uygulama içinde oynatılabilen resmî özet videosu henüz bulunmuyor.";
-        Assert.Contains(honest, screen, StringComparison.Ordinal);
+        // ÜÇ DURUM (07.09.2026): tek bir "henüz bulunmuyor" metni, denemeler sürerken
+        // de bittiğinde de aynı şeyi söylüyordu. Maç biteli 40 dakika olmuşken
+        // "bulunamadı" demek yanlıştır — daha hiç bakılmamıştır.
+        const string searching = "Resmî maç özeti kontrol ediliyor.";
+        const string exhausted =
+            "Bu maç için uygulama içinde oynatılabilen resmî özet videosu bulunamadı.";
+        Assert.Contains(searching, screen, StringComparison.Ordinal);
+        Assert.Contains(exhausted, screen, StringComparison.Ordinal);
+
+        // Hangi metnin çıkacağı ZAMAN SÖZLEŞMESİNDEN gelir; ekran kendi hesabını yapmaz.
+        Assert.Contains("isVideoSearchWindowOver(match.matchDate)", screen, StringComparison.Ordinal);
 
         // <Empty …/> yalnız İKİ yerde: video boş durumu ve backend'in puan durumu metni.
         Assert.Equal(2, Regex.Matches(screen, @"<Empty\b").Count);

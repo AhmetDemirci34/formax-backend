@@ -75,6 +75,9 @@ public class FixtureResultWriteTests
         // Bu testlerin konusu yazma sözleşmesi; hız sınırı ayrı testlerde ölçülür.
         public bool TryReserveFixtureAttempt(string id, string purpose, TimeSpan cd, int cap, DateTime now) => true;
         public void RecordFixtureAttemptOutcome(string id, string purpose, DateTime now, string outcome) { }
+        public Task<int> GetFixtureAttemptCountAsync(string id, string purpose, CancellationToken ct = default)
+            => Task.FromResult(0);
+        public DateTime? GetLastFixtureAttemptUtc(string id, string purpose) => null;
         public List<Match> GetFutureScheduleRefreshCandidates(
             DateTime nowUtc, DateTime horizonUtc, IReadOnlyCollection<int> leagueIds) => new();
         public void AddTeam(Team t) => Teams[t.ExternalTeamId!] = t;

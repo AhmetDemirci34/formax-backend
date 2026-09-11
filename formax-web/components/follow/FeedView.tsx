@@ -8,8 +8,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useNotifications, useMarkAsRead } from "@/hooks/useNotifications";
 import { useMyTeams } from "@/hooks/useTeams";
-import { useFollowedMatches } from "@/hooks/useFollow";
+import { useFollowedMatchDetails } from "@/hooks/useFollowedMatchDetails";
 import { FollowSegments, type SegmentTab } from "./FollowSegments";
+import { FollowedMatchesSection } from "./FollowedMatchesSection";
 import { FeedCard } from "./FeedCard";
 import { SummaryCards } from "./SummaryCards";
 import type { ActivityItem, FeedFilter, ManageFilter } from "./types";
@@ -34,7 +35,9 @@ export function FeedView({ onOpenManagement }: { onOpenManagement: (f: ManageFil
   const { data: notifications, isLoading, isError, refetch } = useNotifications();
   const markAsRead = useMarkAsRead();
   const { data: teams } = useMyTeams();
-  const { data: matches } = useFollowedMatches();
+  // Takip edilen maç sayısı, Maçlar ekranındaki ikonla AYNI kaynaktan gelir
+  // (girişliyse backend, anonimken kalıcı yerel depo) — iki ayrı sayaç olmaz.
+  const { matches } = useFollowedMatchDetails();
 
   const activities = useMemo<ActivityItem[]>(
     () =>
@@ -69,6 +72,9 @@ export function FeedView({ onOpenManagement }: { onOpenManagement: (f: ManageFil
   return (
     <div className="flex flex-col gap-5 pb-4">
       <FollowSegments id="feed" tabs={FEED_TABS} active={filter} onChange={setFilter} />
+
+      {/* TAKİP EDİLEN MAÇLAR — Maçlar ekranındaki takip ikonuyla aynı durumu okur. */}
+      <FollowedMatchesSection />
 
       {/* YENİ GELİŞMELER */}
       <section className="flex flex-col gap-3">
@@ -129,7 +135,7 @@ export function FeedView({ onOpenManagement }: { onOpenManagement: (f: ManageFil
         <SummaryCards
           teamsCount={teams?.length ?? 0}
           leaguesCount={0}
-          matchesCount={matches?.length ?? 0}
+          matchesCount={matches.length}
           onOpen={onOpenManagement}
         />
       </section>

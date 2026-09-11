@@ -25,6 +25,13 @@ namespace Formax.Application.DTOs.Matches
         public DateTime StartTime { get; init; }
 
         public ScoreDto? Score { get; init; }
+
+        /// <summary>
+        /// İY / 2Y / MS kırılımı — Tahminlerim kartındaki tamamlanmış maç satırı bunu
+        /// gösterir. İkinci yarı BACKEND'de hesaplanır; ekran çıkarma yapmaz.
+        /// Maç bitmemişse null.
+        /// </summary>
+        public MatchScoreBreakdownDto? ScoreBreakdown { get; set; }
         public int? Minute { get; init; }
         public string Status { get; init; } = string.Empty;
 

@@ -4,6 +4,7 @@ using Formax.Application.DTOs.Lineup;
 using Formax.Application.DTOs.Live;
 using Formax.Application.DTOs.Odds;
 using Formax.Application.DTOs.Players;
+using Formax.Application.DTOs.PostMatch;
 using Formax.Application.DTOs.Predictions;
 using Formax.Application.DTOs.Standings;
 
@@ -222,5 +223,34 @@ namespace Formax.Application.Interfaces
         /// </summary>
         Task<SportsOddsPage> GetOddsByDateAsync(
             DateTime date, int page, CancellationToken ct = default);
+
+        // ── MAÇ SONRASI OLAY VE İSTATİSTİK ────────────────────────────────────
+        //
+        // İKİSİ AYRI METOTTUR, tek bir "maç detayı" çağrısı DEĞİL: sağlayıcı birini
+        // verip diğerini vermeyebilir. Tek metotta birleştirilseydi, istatistik
+        // gelmediğinde başarıyla alınmış olaylar da çöpe giderdi (kısmi başarı korunur).
+        //
+        // Her ikisi de YALNIZ arka plan işinden çağrılır. Kullanıcının maç detayını
+        // açması bu uçlara İSTEK ÜRETMEZ — ekran kanonik tablodan okur.
+
+        /// <summary>
+        /// BİTMİŞ MAÇIN OLAYLARI — <c>GET /fixtures/events?fixture={id}</c>.
+        ///
+        /// Sağlayıcı hatasında <see cref="SportsMatchEventsResult.Succeeded"/> false
+        /// döner ve çağıran HİÇBİR ŞEY YAZMAZ. Boş liste ile hata birbirinden ayrıdır:
+        /// "olay yok" yazılıp bir daha denenmemesi, veriyi kalıcı olarak kaybettirirdi.
+        /// </summary>
+        Task<SportsMatchEventsResult> GetFinishedMatchEventsAsync(
+            string externalFixtureId, CancellationToken ct = default);
+
+        /// <summary>
+        /// BİTMİŞ MAÇIN TAKIM İSTATİSTİKLERİ — <c>GET /fixtures/statistics?fixture={id}</c>.
+        ///
+        /// Sağlayıcının göndermediği her ölçüm NULL kalır; 0'a çevrilmez. Ölçüldü
+        /// 06.09.2026: mevcut canlı yolda tüm alanlar int olduğu için 87.502 satır
+        /// "sıfır istatistik" gibi görünüyor, ekranda olmayan veri 0 diye gösteriliyordu.
+        /// </summary>
+        Task<SportsMatchStatisticsResult> GetFinishedMatchStatisticsAsync(
+            string externalFixtureId, CancellationToken ct = default);
     }
 }

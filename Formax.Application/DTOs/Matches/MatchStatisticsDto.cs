@@ -33,6 +33,49 @@ namespace Formax.Application.DTOs.Matches
     {
         public List<MatchStatisticRowDto> Rows { get; init; } = new();
 
+        /// <summary>
+        /// KANONİK MAÇ SONRASI İSTATİSTİKLERİ — bitmiş maç ekranının ÖNCELİKLİ kaynağı.
+        ///
+        /// <see cref="MatchTeamStatistic"/> nullable'dır: sağlayıcının göndermediği ölçüm
+        /// null kalır ve satır HİÇ ÜRETİLMEZ. Böylece "0 korner" ile "korner bilgisi yok"
+        /// ekranda ayrışır — eski canlı tabloda ikisi de 0 görünüyordu (ölçüldü 06.09.2026:
+        /// 87.546 satırın 87.502'si skor dışında tamamen sıfırdı).
+        ///
+        /// İki taraftan biri eksikse o ölçüm gösterilmez: tek taraflı istatistik
+        /// karşılaştırma satırı kuramaz.
+        /// </summary>
+        public static MatchStatisticsDto? FromTeamRows(
+            MatchTeamStatistic? home, MatchTeamStatistic? away)
+        {
+            if (home == null || away == null) return null;
+
+            var rows = new List<MatchStatisticRowDto>();
+
+            void Add(string key, string label, int? h, int? a, bool percentage = false)
+            {
+                if (h.HasValue && a.HasValue)
+                    rows.Add(Row(key, label, h.Value, a.Value, percentage));
+            }
+
+            Add("possession",    "Topa sahip olma",  home.BallPossession,  away.BallPossession, percentage: true);
+            Add("shots",         "Toplam şut",       home.TotalShots,      away.TotalShots);
+            Add("shotsOnTarget", "İsabetli şut",     home.ShotsOnTarget,   away.ShotsOnTarget);
+            Add("shotsOffTarget","İsabetsiz şut",    home.ShotsOffTarget,  away.ShotsOffTarget);
+            Add("blockedShots",  "Bloke şut",        home.BlockedShots,    away.BlockedShots);
+            Add("corners",       "Korner",           home.Corners,         away.Corners);
+            Add("offsides",      "Ofsayt",           home.Offsides,        away.Offsides);
+            Add("fouls",         "Faul",             home.Fouls,           away.Fouls);
+            Add("yellow",        "Sarı kart",        home.YellowCards,     away.YellowCards);
+            Add("red",           "Kırmızı kart",     home.RedCards,        away.RedCards);
+            Add("saves",         "Kaleci kurtarışı", home.GoalkeeperSaves, away.GoalkeeperSaves);
+            Add("passes",        "Pas",              home.TotalPasses,     away.TotalPasses);
+            Add("accuratePasses","Başarılı pas",     home.AccuratePasses,  away.AccuratePasses);
+            Add("passAccuracy",  "Başarılı pas %",   home.PassAccuracy,    away.PassAccuracy, percentage: true);
+
+            // HİÇ ÖLÇÜM YOKSA VERİ DE YOKTUR — boş bir tablo "0-0 istatistik" değildir.
+            return rows.Count == 0 ? null : new MatchStatisticsDto { Rows = rows };
+        }
+
         public static MatchStatisticsDto? From(MatchLiveStats? s)
         {
             if (s == null) return null;

@@ -247,9 +247,15 @@ namespace Formax.Infrastructure.Repositories
                     : $"fx:{r.ExternalMatchId!.Trim()}")
                 .Select(g => g.OrderBy(x => x.Id).First());
 
-            // Bitmişte EN YENİ önce, yaklaşanda EN YAKIN önce; eşitlikte MatchId.
+            // SIRA SÖZLEŞMESİ — arayüz bu sırayı YENİDEN ÜRETMEZ, korur.
+            //  • finished : MatchDate AZALAN, eşitlikte MatchId AZALAN (en yeni en üstte)
+            //  • upcoming : MatchDate ARTAN,  eşitlikte MatchId ARTAN  (en yakın en üstte)
+            //
+            // İkincil anahtar bilerek birincil anahtarla AYNI yöndedir: aynı dakikada
+            // başlayan iki maçın sırası, listenin okunuş yönüyle çelişmesin. Anahtar
+            // deterministiktir — aynı sorgu her çağrıda AYNI sırayı döndürür.
             var ordered = finished
-                ? deduped.OrderByDescending(r => r.MatchDate).ThenBy(r => r.Id)
+                ? deduped.OrderByDescending(r => r.MatchDate).ThenByDescending(r => r.Id)
                 : deduped.OrderBy(r => r.MatchDate).ThenBy(r => r.Id);
 
             var page = ordered.Take(Math.Clamp(maxResults, 1, 100)).ToList();

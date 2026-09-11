@@ -267,7 +267,53 @@ namespace Formax.Infrastructure.Repositories
                 .Concat(upcoming)
                 .ToList();
 
+            await FillScoreBreakdownAsync(list);
             return await FillLiveMinutesAsync(list);
+        }
+
+        /// <summary>
+        /// İY / 2Y / MS kırılımını listeye ekler.
+        ///
+        /// NEDEN AYRI ADIM: kırılımın kuralı (2Y = MS − İY, negatifse veri hatası) tek
+        /// merkezde <see cref="MatchScoreBreakdownDto"/> içinde yaşar ve o kural LINQ-to-
+        /// Entities'e çevrilemez. İki yere kopyalamak yerine liste materialize edildikten
+        /// sonra TEK ek sorguyla ham skorlar alınır ve aynı merkezî kural uygulanır.
+        /// Yalnız BİTMİŞ maçlar için çalışır; oynanmamış maçın 0-0'ı sonuç değildir.
+        /// </summary>
+        private async Task FillScoreBreakdownAsync(List<MatchListItemDto> list)
+        {
+            var finishedIds = list
+                .Where(x => string.Equals(x.Status, "Finished", StringComparison.OrdinalIgnoreCase))
+                .Select(x => x.MatchId)
+                .Distinct()
+                .ToList();
+            if (finishedIds.Count == 0) return;
+
+            var rows = await _context.Matches.AsNoTracking()
+                .Where(m => finishedIds.Contains(m.Id))
+                .Select(m => new
+                {
+                    m.Id, m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.HomeScore, m.AwayScore, m.Status
+                })
+                .ToListAsync();
+
+            var byId = rows.ToDictionary(r => r.Id);
+            foreach (var item in list)
+            {
+                if (!byId.TryGetValue(item.MatchId, out var r)) continue;
+                // Depodaki durum KESİN sonucu belirler: liste "Finished" etiketini
+                // saatten türetir, ama skoru yalnız depo Finished dediğinde yazarız.
+                var isFinal = string.Equals(r.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase);
+                item.ScoreBreakdown = MatchScoreBreakdownDto.From(
+                    new Domain.Entities.Match
+                    {
+                        HalfTimeHomeScore = r.HalfTimeHomeScore,
+                        HalfTimeAwayScore = r.HalfTimeAwayScore,
+                        HomeScore = r.HomeScore,
+                        AwayScore = r.AwayScore
+                    },
+                    isFinal);
+            }
         }
 
         // Targeted query

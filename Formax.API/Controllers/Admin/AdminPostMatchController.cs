@@ -32,6 +32,45 @@ namespace Formax.API.Controllers.Admin
             _registrar = registrar; _reader = reader; _job = job;
         }
 
+        /// <summary>
+        /// SAĞLAYICI ZİNCİRİNİN DURUMU — SALT OKUNUR, sıfır dış istek.
+        ///
+        /// "Neden bu maça video bulunamadı?" sorusunun ilk durağı: hangi resmî kaynak
+        /// yapılandırılmış, hangisi <c>NotConfigured</c> diye atlanıyor. Bu uç hiçbir
+        /// sağlayıcıyı ÇAĞIRMAZ; yalnız yapılandırmayı okur.
+        /// </summary>
+        [HttpGet("video/providers")]
+        public IActionResult Providers(
+            [FromServices] Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider siteFeeds,
+            [FromServices] Formax.Infrastructure.PostMatch.YouTubeDataApiVideoProvider dataApi,
+            [FromServices] Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider channelFeeds)
+        {
+            var members = new IOfficialMatchVideoProvider[] { siteFeeds, dataApi, channelFeeds };
+
+            return Ok(new
+            {
+                chain = members
+                    .OrderBy(p => p.Priority)
+                    .Select(p => new
+                    {
+                        provider = p.Name,
+                        priority = p.Priority,
+                        tierLabel = OfficialVideoSourceTiers.Label(p.Priority),
+                        status = p.Status
+                    }),
+                // İzin listesi: bir videonun "resmî" sayılmasının tek ölçütü.
+                allowedSources = OfficialVideoSources.All.Select(s => new
+                {
+                    s.Key, s.Publisher, s.Platform,
+                    // "tier" ve "Tier" camelCase serilestirmede AYNI ada duser —
+                    // ikisini birden yazmak calisma zamaninda JSON catismasi uretir.
+                    tierValue = s.Tier,
+                    tierLabel = OfficialVideoSourceTiers.Label(s.Tier),
+                    s.AllowsInAppEmbed
+                })
+            });
+        }
+
         /// <summary>Bir tur çalıştırır (bitmiş + kilitli kapsam + tekrar takvimi).</summary>
         [HttpPost("video/run")]
         public async Task<IActionResult> Run(CancellationToken ct)

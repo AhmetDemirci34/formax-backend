@@ -145,6 +145,15 @@ namespace Formax.Application.AI.Radar
                 = Services.Matches.FormEvidence.None;
             public Services.Matches.FormEvidence AwayEvidence { get; set; }
                 = Services.Matches.FormEvidence.None;
+
+            /// <summary>
+            /// MEVCUT SEZON LİG FORMU — "bu sezon" ifadesinin arkasındaki gerçek özet.
+            /// (Aynı lig + aynı sezon + kickoff öncesi + tamamlanmış maçlar.) Bu blok
+            /// geldiğinde anlatı form cümlesini BU özetten kurar; G/B/M dizisini kendisi
+            /// yorumlamaz. Sezon çözülemezse null kalır ve form konusu açılmaz.
+            /// </summary>
+            public DTOs.Matches.TeamSeasonFormDto? HomeSeason { get; set; }
+            public DTOs.Matches.TeamSeasonFormDto? AwaySeason { get; set; }
         }
 
         public sealed class StatsBlock

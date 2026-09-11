@@ -65,6 +65,8 @@ export function useUserPredictions() {
           minute: stats?.minute ?? null,
           score: stats ? `${stats.homeScore}-${stats.awayScore}` : null,
           kickoff: d?.matchDate ?? null,
+          // Backend hazırlar; ekran çıkarma yapmaz.
+          scoreBreakdown: d?.scoreBreakdown ?? null,
           createdAt: p.createdAt,
         };
       }),

@@ -92,3 +92,60 @@ export function isFinishedStatus(status?: string | null): boolean {
   if (!status) return false;
   return FINISHED_STATUSES.has(status.toLowerCase().replace(/\s+|_/g, ""));
 }
+
+/**
+ * BİTMİŞ MAÇIN GERÇEK TARİHİ — Europe/Istanbul.
+ *
+ * Bitmiş maçta "bugün/dün" gibi göreli ifade KULLANILMAZ; kullanıcı maçın hangi
+ * gün oynandığını görmelidir. UTC kullanıcıya asla gösterilmez; dönüşüm burada,
+ * tek merkezde yapılır. Tarih yoksa null döner ve ekran tarih satırını GİZLER —
+ * uydurulmaz.
+ */
+export function formatMatchDateTR(iso?: string | null): { date: string; time: string } | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const tz = "Europe/Istanbul";
+  const date = d.toLocaleDateString("tr-TR", {
+    timeZone: tz,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    weekday: "long",
+  });
+  const time = d.toLocaleTimeString("tr-TR", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return { date, time };
+}
+
+/**
+ * RESMÎ VİDEO ARAMASININ SON DENEMESİ GEÇTİ Mİ?
+ *
+ * Backend'in tekrar takvimini (PostMatchEnrichmentJob) yansıtır: son düdükten sonra
+ * FT+60dk, FT+3sa, FT+6sa ve FT+24sa olmak üzere DÖRT kez bakılır; dördü de boş
+ * dönerse arama BİTER. Son düdük kickoff + 115 dakikadır — backend'deki
+ * MatchVideoIdentityValidator.MatchDuration ile aynı sayı.
+ *
+ * NEDEN BURADA: zaman sözleşmesi tek yerdedir. Ekranlar kendi saat hesabını yapmaz;
+ * "şimdi" ile kickoff arasındaki her karar bu dosyadan geçer.
+ *
+ * NEDEN İKİ AYRI DURUM: "aranıyor" ile "bulunamadı" kullanıcı için aynı şey değildir.
+ * Maç biteli 40 dakika olmuşken "bulunamadı" demek yanlıştır — daha hiç bakılmamıştır.
+ * Arama bittikten sonra "kontrol ediliyor" demek ise sonu gelmeyen bir bekleyiş
+ * vaat etmektir.
+ *
+ * Tarih okunamıyorsa pencere AÇIK sayılır: erken "bulunamadı" demektense beklemesini
+ * söylemek daha dürüsttür.
+ */
+export function isVideoSearchWindowOver(kickoffIso?: string | null, now: number = Date.now()): boolean {
+  const kickoff = kickoffMsOf(kickoffIso);
+  if (!kickoff) return false;
+
+  const FULL_TIME_MS = 115 * MINUTE_MS;       // son düdük
+  const LAST_ATTEMPT_MS = 24 * HOUR_MS;       // FT+24sa — son deneme
+  return now > kickoff + FULL_TIME_MS + LAST_ATTEMPT_MS;
+}

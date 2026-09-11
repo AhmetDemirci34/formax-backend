@@ -40,12 +40,57 @@ export function LineupView({ match, onClose }: { match: MatchDetailDto; onClose:
           />
         </div>
       ) : (
-        <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/55">
-          Kadrolar henüz açıklanmadı. Genellikle maçtan ~1 saat önce netleşir.
-        </div>
+        <LineupWaitingState lineup={l} />
       )}
     </ViewShell>
   );
+}
+
+/**
+ * KADRO BEKLEME DURUMU — VAAT DEĞİL, DURUM.
+ *
+ * KALDIRILAN METİN (06.09.2026): "Kadrolar henüz açıklanmadı. Genellikle maçtan
+ * ~1 saat önce netleşir." Bu sabit cümle YANLIŞTI: kadro her zaman tam bir saat
+ * önce yayımlanmaz ve sistem o sırada henüz hiç sormamış bile olabiliyordu.
+ * Ölçüldü: maça 45 dakika kalmışken kullanıcıya hâlâ "1 saat önce açıklanacak"
+ * yazıyordu. Artık ekran üç GERÇEK duruma göre konuşur ve saat SÖZÜ VERMEZ:
+ *
+ *   • pencere henüz açılmadı (kickoff'a 90 dk'dan fazla var)
+ *   • pencere açık, sağlayıcıda henüz veri yok
+ *   • kickoff geçti, doğrulanmış kadro verisi hiç gelmedi
+ *
+ * Üç alanın da kaynağı backend'dir (lineup.pollingWindowOpen / kickoffPassed /
+ * lastCheckedUtc). Bu ekran sağlayıcıya İSTEK ATMAZ — yalnız DB'den geleni okur.
+ */
+function LineupWaitingState({ lineup }: { lineup?: MatchDetailDto["lineup"] }) {
+  const windowOpen = lineup?.pollingWindowOpen === true;
+  const kickoffPassed = lineup?.kickoffPassed === true;
+  const lastChecked = lineup?.lastCheckedUtc ?? null;
+
+  const message = kickoffPassed
+    ? "Bu maç için doğrulanmış kadro verisi bulunamadı."
+    : windowOpen
+      ? "Resmî kadrolar henüz veri sağlayıcısında yayımlanmadı. Yayımlandığında burada gösterilecek."
+      : "Resmî kadrolar maç saatine yaklaşıldığında burada gösterilecek.";
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+      <p className="max-w-[280px] text-sm leading-relaxed text-white/55">{message}</p>
+      {/* Son kontrol yalnız GERÇEKTEN sorulmuşsa gösterilir; yoksa satır hiç çıkmaz. */}
+      {lastChecked && !kickoffPassed && (
+        <p className="text-[11px] tabular-nums text-white/30">
+          Son kontrol: {formatCheckTime(lastChecked)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** UTC damgasını kullanıcının yerel saatine çevirir; bozuksa satır gösterilmez. */
+function formatCheckTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function FormationRow({

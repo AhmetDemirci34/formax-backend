@@ -12,10 +12,11 @@ export function FollowHeader() {
           F
         </span>
         <div className="leading-tight">
-          <h1 className="text-[22px] font-bold uppercase tracking-tight text-text-primary">Takip</h1>
-          <p className="text-[11px] font-medium text-text-muted">
-            Takip ettiklerinle ilgili son gelişmeler
-          </p>
+          {/* BAŞLIK EKRANIN KAPSAMINI SÖYLER. Eski alt metin ("son gelişmeler")
+              artık gösterilmeyen bir akışa işaret ediyordu. */}
+          <h1 className="text-[19px] font-bold uppercase tracking-tight text-text-primary">
+            Takip Ettiğim Maçlar
+          </h1>
         </div>
       </div>
       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-goalai-surface-bright ring-1 ring-white/10">

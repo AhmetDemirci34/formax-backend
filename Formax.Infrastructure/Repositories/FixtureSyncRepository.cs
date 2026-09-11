@@ -179,6 +179,31 @@ SELECT {externalMatchId}, {purpose}, {day}, 1, {nowUtc}, N'Reserved'
     }
 
     /// <inheritdoc />
+    public async Task<int> GetFixtureAttemptCountAsync(
+        string externalMatchId, string purpose, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(externalMatchId)) return 0;
+
+        // GÜN AYRIMI YOK: slot takvimi "bu maç için toplam kaç kez denendi?" diye sorar.
+        // Gün başına toplama, dün harcanmış bir slotu bugün geri açardı.
+        return await _context.FixtureRefreshAttempts.AsNoTracking()
+            .Where(a => a.ExternalMatchId == externalMatchId && a.Purpose == purpose)
+            .SumAsync(a => (int?)a.AttemptCount, ct)
+            .ConfigureAwait(false) ?? 0;
+    }
+
+    /// <inheritdoc />
+    public DateTime? GetLastFixtureAttemptUtc(string externalMatchId, string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(externalMatchId)) return null;
+
+        // Gün başına ayrı satır tutulur; en yeni deneme anı hepsinin maksimumudur.
+        return _context.FixtureRefreshAttempts.AsNoTracking()
+            .Where(a => a.ExternalMatchId == externalMatchId && a.Purpose == purpose)
+            .Max(a => (DateTime?)a.LastAttemptUtc);
+    }
+
+    /// <inheritdoc />
     public List<Match> GetFutureScheduleRefreshCandidates(
         DateTime nowUtc, DateTime horizonUtc, IReadOnlyCollection<int> leagueIds)
     {

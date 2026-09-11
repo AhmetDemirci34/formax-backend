@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getRecommendations } from "@/lib/api/home";
 import type { RecommendationCardDto } from "@/types/api";
+import { isDiscoverable } from "@/components/discover/cardSignals";
 
 // Backend her karta Decision paketinden gerçek AI yüzeyini yazar ve güven endeksi 0 olan
 // maçta tahmin GÖNDERMEZ (bkz. GetRecommendationFeedUseCase.ApplyDecisionSurfaceAsync).
@@ -32,11 +33,18 @@ export function useRecommendations(maxHorizonDays?: number) {
     // TEKİLLEŞTİRİYORUZ (ilk görülen kalır). Key hack değil: gerçek duplicate item elenir.
     // Tek nokta → feed/combo/featured hepsi tekil. hasNextPage/fetchNextPage etkilenmez.
     select: (data) => {
+      // KİLİTLİ ÜRÜN KARARI: FORMAX yalnız MAÇ ÖNCESİ karşılaşma önerir. Başlamış veya
+      // bitmiş maç yeni kart/öneri olarak KULLANICIYA SUNULMAZ. Süzgeç burada tek yerde:
+      // Keşfet, Sana Özel, Trend, Global, Diğer Maçlar, Kombin ve /tumu bu hook'u kullanır.
+      // Geçmiş tahmin kayıtları ve istatistikler bu süzgeçten ETKİLENMEZ (ayrı yüzeyler).
       const seen = new Set<number>();
       const unique: RecommendationCardDto[] = [];
       for (const page of data.pages) {
         for (const card of page) {
           if (card && !seen.has(card.matchId)) {
+            // Kapsam kapısı TEK yerde: cardSignals.isDiscoverable (kickoff gelecekte +
+            // backend durumu "başlamadı" ailesinde + isLive değil). Frontend durum ÜRETMEZ.
+            if (!isDiscoverable(card)) continue;
             seen.add(card.matchId);
             unique.push(card);
           }

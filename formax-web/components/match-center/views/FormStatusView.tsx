@@ -317,20 +317,13 @@ function SeasonFormSummary({ season }: { season?: TeamSeasonFormDto | null }) {
         </div>
       )}
 
-      {/* Veri eksikse GENELLEME YOK: cümle zaten bunu söylüyor, burada yalnız
-          neden değerlendirme yapılmadığı hatırlatılır. Örneklem sınırlılığı ise
-          ayrı bir durumdur (veri tam ama maç az). */}
-      {season.isSeasonDataComplete === false ? (
+      {/* SINIRLAMA NOTU BACKEND'İNDİR — ve YALNIZ bu takımın kendi maç sonucu
+          kesinleşmediyse gelir. Ligin başka bir maçının eksikliği burada metin
+          üretmez (06.09.2026); teknik alanlar bu yüzeyde okunmaz. Örneklem
+          sınırlılığı zaten cümlenin kendisinde söylenir, ikinci kez yazılmaz. */}
+      {season.limitationNote?.trim() ? (
         <p className="mt-1.5 text-[10.5px] leading-snug text-formax-amber/80">
-          Sezon verileri tamamlanıyor
-          {season.seasonMissingFixtures > 0
-            ? ` — ${season.seasonMissingFixtures} lig maçının sonucu bekleniyor`
-            : ""}
-          . Genel form değerlendirmesi yapılmıyor.
-        </p>
-      ) : season.isLimitedSample ? (
-        <p className="mt-1.5 text-[10.5px] leading-snug text-formax-amber/80">
-          Sezonun ilk haftaları olduğu için form verisi henüz sınırlı.
+          {season.limitationNote}
         </p>
       ) : null}
     </div>

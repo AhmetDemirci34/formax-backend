@@ -6,6 +6,7 @@ using Formax.Application.DTOs.Live;
 using Formax.Application.DTOs.Lineup;
 using Formax.Application.DTOs.Odds;
 using Formax.Application.DTOs.Players;
+using Formax.Application.DTOs.PostMatch;
 using Formax.Application.DTOs.Predictions;
 using Formax.Application.DTOs.Standings;
 using Formax.Application.Interfaces;
@@ -1298,6 +1299,145 @@ namespace Formax.Infrastructure.Providers
             }
         }
 
+        // ══════════════════════════════════════════════════════════════════════
+        // MAÇ SONRASI OLAY VE İSTATİSTİK — bitmiş maç ekranının BESLEYİCİSİ
+        //
+        // CANLI YOLDAN AYRIDIR ve bilerek öyledir:
+        //  • Canlı yol her eksik ölçümü 0'a çevirir (SportsLiveStats alanları int).
+        //    Ölçüldü 06.09.2026: MatchLiveStats'taki 87.546 satırın 87.502'si skor
+        //    dışında tamamen sıfırdı — yani "veri var" görünen satırların %99,9'u
+        //    aslında boştu. Bitmiş maç ekranı bu belirsizliği taşıyamaz.
+        //  • Canlı yol kısa TTL ile önbelleğe alır; bitmiş maç verisi DEĞİŞMEZ.
+        //  • Canlı yol sağlayıcı hatasını boş listeye indirger; burada hata ile
+        //    "veri yok" AYRI döner, çünkü çağıran kısmi başarıyı korumak zorundadır.
+        // ══════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public async Task<SportsMatchEventsResult> GetFinishedMatchEventsAsync(
+            string externalFixtureId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(externalFixtureId))
+                return SportsMatchEventsResult.Failed();
+
+            try
+            {
+                var response = await _http.GetFromJsonAsync<ApiFootballEventsResponse>(
+                    $"fixtures/events?fixture={externalFixtureId}", ct);
+
+                // response==null → gövde çözülemedi; bu "olay yok" DEĞİL, HATADIR.
+                if (response?.Response == null) return SportsMatchEventsResult.Failed();
+
+                return new SportsMatchEventsResult
+                {
+                    Succeeded = true,
+                    Events = response.Response.Select(e => new SportsMatchEvent
+                    {
+                        // Dakika ve uzatma AYRI taşınır: 90+4 tek sayıya ezilirse
+                        // "94. dakika" ile "90+4" ayrımı kaybolur.
+                        Minute        = e.Time?.Elapsed ?? 0,
+                        ExtraMinute   = e.Time?.Extra,
+                        TeamExternalId = e.Team?.Id,
+                        TeamName      = Trim(e.Team?.Name),
+                        PlayerName    = Trim(e.Player?.Name),
+                        AssistName    = Trim(e.Assist?.Name),
+                        EventType     = (e.Type ?? string.Empty).Trim(),
+                        Detail        = Trim(e.Detail),
+                        Comments      = Trim(e.Comments)
+                    }).ToList()
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "[POST-MATCH] events cekimi basarisiz — fixture {FixtureId}", externalFixtureId);
+                return SportsMatchEventsResult.Failed();
+            }
+        }
+
+        /// <inheritdoc />
+        public async Task<SportsMatchStatisticsResult> GetFinishedMatchStatisticsAsync(
+            string externalFixtureId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(externalFixtureId))
+                return SportsMatchStatisticsResult.Failed();
+
+            try
+            {
+                var response = await _http.GetFromJsonAsync<ApiFootballStatisticsResponse>(
+                    $"fixtures/statistics?fixture={externalFixtureId}", ct);
+
+                if (response?.Response == null) return SportsMatchStatisticsResult.Failed();
+
+                return new SportsMatchStatisticsResult
+                {
+                    Succeeded = true,
+                    Teams = response.Response.Select(t => new SportsTeamMatchStatistics
+                    {
+                        TeamExternalId  = t.Team?.Id,
+                        TeamName        = Trim(t.Team?.Name),
+                        BallPossession  = NullableStat(t.Statistics, "Ball Possession"),
+                        TotalShots      = NullableStat(t.Statistics, "Total Shots"),
+                        ShotsOnTarget   = NullableStat(t.Statistics, "Shots on Goal"),
+                        ShotsOffTarget  = NullableStat(t.Statistics, "Shots off Goal"),
+                        BlockedShots    = NullableStat(t.Statistics, "Blocked Shots"),
+                        Corners         = NullableStat(t.Statistics, "Corner Kicks"),
+                        Offsides        = NullableStat(t.Statistics, "Offsides"),
+                        Fouls           = NullableStat(t.Statistics, "Fouls"),
+                        YellowCards     = NullableStat(t.Statistics, "Yellow Cards"),
+                        RedCards        = NullableStat(t.Statistics, "Red Cards"),
+                        GoalkeeperSaves = NullableStat(t.Statistics, "Goalkeeper Saves"),
+                        TotalPasses     = NullableStat(t.Statistics, "Total passes"),
+                        // ÖLÇÜLDÜ 06.09.2026: saglayici "Passes %" ALANINI GONDERMIYOR;
+                        // gonderdigi tek pas-basarisi verisi "Passes accurate" SAYISIDIR.
+                        // Yalniz yuzde alani eslenseydi gercek veri kaybolurdu.
+                        AccuratePasses  = NullableStat(t.Statistics, "Passes accurate"),
+                        PassAccuracy    = NullableStat(t.Statistics, "Passes %")
+                    }).ToList()
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "[POST-MATCH] statistics cekimi basarisiz — fixture {FixtureId}", externalFixtureId);
+                return SportsMatchStatisticsResult.Failed();
+            }
+        }
+
+        /// <summary>Boş/whitespace metni null'a indirger — "" kaydetmenin anlamı yok.</summary>
+        private static string? Trim(string? s)
+            => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+        /// <summary>
+        /// SIFIR UYDURMAYAN ölçüm okuyucu.
+        ///
+        /// Sağlayıcı bir türü hiç göndermediyse VEYA değerini null verdiyse null döner.
+        /// Canlı yoldaki <c>GetInt</c> aynı durumda 0 döndürür; o davranış bilerek
+        /// KOPYALANMADI — "0 korner" ile "korner bilgisi yok" farklı gerçeklerdir.
+        /// Yüzde değerleri ("58%") sayıya çevrilir; çözülemeyen değer null kalır.
+        /// </summary>
+        private static int? NullableStat(List<ApiFootballStatEntry>? list, string type)
+        {
+            var raw = list?.FirstOrDefault(s =>
+                string.Equals(s.Type, type, StringComparison.OrdinalIgnoreCase))?.Value;
+            if (raw == null) return null;
+
+            if (raw is System.Text.Json.JsonElement je)
+            {
+                switch (je.ValueKind)
+                {
+                    case System.Text.Json.JsonValueKind.Number:
+                        return je.TryGetInt32(out var n) ? n : (int?)null;
+                    case System.Text.Json.JsonValueKind.String:
+                        var s = je.GetString()?.Replace("%", "").Trim();
+                        return int.TryParse(s, System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+                    default:
+                        return null;   // null / true / false / object → ölçüm YOK
+                }
+            }
+            return null;
+        }
+
         // ──────────────────────────────────────────────────────────────────────
         // Derived momentum
         // ──────────────────────────────────────────────────────────────────────
@@ -2574,6 +2714,10 @@ namespace Formax.Infrastructure.Providers
 
             [JsonPropertyName("detail")]
             public string? Detail { get; set; }
+
+            /// <summary>Sağlayıcının serbest notu (VAR kararı vb.). Çoğu olayda null.</summary>
+            [JsonPropertyName("comments")]
+            public string? Comments { get; set; }
         }
 
         private class ApiFootballEventTime

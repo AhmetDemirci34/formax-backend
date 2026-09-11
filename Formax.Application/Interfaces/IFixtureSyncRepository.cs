@@ -74,6 +74,29 @@ public interface IFixtureSyncRepository
     void RecordFixtureAttemptOutcome(string externalMatchId, string purpose, DateTime nowUtc, string outcome);
 
     /// <summary>
+    /// BİR FİKSTÜR İÇİN BUGÜNE KADARKİ TOPLAM DENEME — gün sınırından BAĞIMSIZ.
+    ///
+    /// Slot temelli takvimlerin (kadro yoklaması, maç sonrası video/olay/istatistik)
+    /// "kaçıncı denemedeyim?" sorusunu yanıtlar. Restart bu sayıyı sıfırlamaz; kayıt
+    /// kalıcı defterdedir. Kayıt yoksa 0 döner.
+    /// </summary>
+    Task<int> GetFixtureAttemptCountAsync(
+        string externalMatchId, string purpose, CancellationToken ct = default);
+
+    /// <summary>
+    /// BİR FİKSTÜR İÇİN SON DENEME ANI — "en son ne zaman bakıldı?".
+    ///
+    /// NEDEN DEFTERDEN, NEDEN VERİ SATIRINDAN DEĞİL (ölçüldü 07.09.2026): kadro ekranı
+    /// "son kontrol" bilgisini kadro başlık satırının FetchedAt alanından okuyordu.
+    /// Sağlayıcı kadroyu henüz yayımlamamışsa o satır HİÇ YAZILMAZ; yani tam da bilginin
+    /// en çok gerektiği durumda (kadro yok) "son kontrol" boş kalıyordu. Deneme kaydı
+    /// ise sonuçtan bağımsız olarak kalıcı deftere düşer.
+    ///
+    /// Hiç denenmemişse null döner — uydurma bir zaman ÜRETİLMEZ.
+    /// </summary>
+    DateTime? GetLastFixtureAttemptUtc(string externalMatchId, string purpose);
+
+    /// <summary>
     /// GELECEK FİKSTÜR TAKVİM DOĞRULAMA ADAYLARI — kickoff'u geçici olan, başlamamış,
     /// kilitli kapsamdaki ve UI'ın yakın penceresine düşebilecek maçlar.
     ///

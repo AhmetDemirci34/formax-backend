@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Formax.Application.Services.Matches;
 
 namespace Formax.Application.DTOs.Matches
 {
@@ -50,30 +51,57 @@ namespace Formax.Application.DTOs.Matches
         public int UsedMatchCount => Played;
 
         /// <summary>3'ten az tamamlanmış maç → örneklem sınırlı; anlatı bunu SÖYLEMEK ZORUNDA.</summary>
-        public bool IsLimitedSample => Played > 0 && Played < 3;
+        public bool IsLimitedSample => Played > 0 && Played < TeamFormSampleQuality.LimitedThreshold;
 
         /// <summary>Hiç tamamlanmış lig maçı yok → form cümlesi kurulamaz.</summary>
         public bool HasNoData => Played == 0;
 
-        // ── SEZON VERİ TAMLIĞI (30.08.2026) ─────────────────────────────────────
-        /// <summary>Bu ana kadar oynanmış OLMASI GEREKEN lig maçı sayısı (ligin tamamı).</summary>
+        // ── LİG VERİ TAMLIĞI — TEŞHİS ALANI (kullanıcı metnine GİRMEZ) ──────────
+        //
+        // 06.09.2026 KARARI: bu üç alan LİG düzeyindedir ve artık takım formunun
+        // KAPISI DEĞİLDİR. Ligdeki ilgisiz bir maçın sonucu eksik diye iki takımın
+        // gerçek ve tamamlanmış maçları gizlenemez. Alanlar teşhis için taşınır;
+        // "1 lig maçı bekliyor" gibi teknik metinler kullanıcı arayüzünde
+        // GÖSTERİLMEZ (bkz. TeamFormSampleQuality).
+
+        /// <summary>TEŞHİS: bu ana kadar oynanmış olması beklenen lig maçı sayısı (ligin tamamı).</summary>
         public int SeasonExpectedFixtures { get; set; }
-        /// <summary>Sonucu hâlâ kesinleşmemiş lig maçı sayısı (ligin tamamı).</summary>
+
+        /// <summary>TEŞHİS: sonucu hâlâ kesinleşmemiş lig maçı sayısı (ligin tamamı).</summary>
         public int SeasonMissingFixtures { get; set; }
-        /// <summary>
-        /// false → ligin bu sezonki verisi EKSİK. Genel form değerlendirmesi YAPILMAZ;
-        /// eksik veriden başarı/başarısızlık genellemesi çıkarılamaz.
-        /// </summary>
+
+        /// <summary>TEŞHİS: ligin bu sezonki verisi eksiksiz mi? Form kapısı DEĞİLDİR.</summary>
         public bool IsSeasonDataComplete { get; set; } = true;
 
-        /// <summary>"Son 5 maç" ifadesi YALNIZ bu true iken kullanılabilir.</summary>
-        public bool AllowsLastFivePhrase => Played >= 5 && IsSeasonDataComplete;
+        // ── TAKIM ÖRNEKLEM KALİTESİ — form anlatısının GERÇEK kapısı ────────────
 
         /// <summary>
-        /// GENEL FORM DEĞERLENDİRMESİ İZNİ — veri tam VE örneklem yeterli olmalı.
-        /// false → "formda/formsuz/bir adım önde" türü hiçbir genelleme kurulamaz.
+        /// BU TAKIMIN sonucu kesinleşmemiş maç sayısı. Ligin geri kalanı sayılmaz.
+        /// &gt;0 ise değerlendirme mevcut kesinleşmiş maçlarla SINIRLANDIRILIR ve
+        /// kullanıcıya kısa, teknik olmayan bir not gösterilir.
         /// </summary>
-        public bool AllowsGeneralization => IsSeasonDataComplete && Played >= 3;
+        public int TeamMissingResultCount { get; set; }
+
+        /// <summary>Sınırlamanın sebebi olan maçların id'leri (teşhis; UI göstermez).</summary>
+        public List<int> TeamMissingResultMatchIds { get; set; } = new();
+
+        /// <summary>
+        /// <see cref="Services.Matches.TeamFormSampleQuality"/>: None / Minimal / Limited / Sufficient.
+        /// Anlatının hangi dili kurabileceğini BU alan belirler.
+        /// </summary>
+        public string SampleQuality => Services.Matches.TeamFormSampleQuality.Classify(Played);
+
+        /// <summary>"Son 5 maç" ifadesi YALNIZ bu true iken kullanılabilir.</summary>
+        public bool AllowsLastFivePhrase => Played >= Services.Matches.TeamFormSampleQuality.SufficientThreshold;
+
+        /// <summary>
+        /// GENEL FORM DEĞERLENDİRMESİ İZNİ — YALNIZ takımın kendi örneklemine bakar.
+        ///
+        /// 3 tamamlanmış maçtan azında "formda/düşüşte/favori/üstün/momentum" türü
+        /// hiçbir genelleme kurulamaz. Ligin başka bir maçının eksik sonucu bu izni
+        /// KALDIRMAZ — o maç bu takımın oynadığı maçları değiştirmez.
+        /// </summary>
+        public bool AllowsGeneralization => Played >= Services.Matches.TeamFormSampleQuality.LimitedThreshold;
 
         /// <summary>
         /// Backend'in yazdığı DETERMİNİSTİK form cümlesi. Model bunu yeniden yazmaz,
@@ -83,6 +111,14 @@ namespace Formax.Application.DTOs.Matches
 
         /// <summary>G/B/M dizisi (en yeni önce), ör. "G B M".</summary>
         public string ResultSequence { get; set; } = string.Empty;
+
+        /// <summary>
+        /// KULLANICIYA GÖSTERİLEBİLİR SINIRLAMA NOTU — teknik terim içermez.
+        ///
+        /// Yalnız BU TAKIMIN bir maç sonucu kesinleşmemişse dolar. Ligdeki ilgisiz
+        /// eksiklik burada HİÇBİR metin üretmez. Boşsa arayüz hiçbir uyarı basmaz.
+        /// </summary>
+        public string LimitationNote { get; set; } = string.Empty;
     }
 
     /// <summary>İç saha veya deplasman alt toplamı.</summary>

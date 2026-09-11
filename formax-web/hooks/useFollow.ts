@@ -1,6 +1,8 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { localFollowStore } from "@/lib/follow/localFollowStore";
 import {
   followMatch,
   unfollowMatch,
@@ -18,13 +20,26 @@ export const FOLLOWED_MATCHES_KEY = ["follow", "matches"] as const;
 
 export function useFollowedIds() {
   const { isLoggedIn } = useAuth();
-  return useQuery<number[]>({
+
+  const remote = useQuery<number[]>({
     queryKey: FOLLOW_IDS_KEY,
     queryFn: getFollowedMatchIds,
     enabled: isLoggedIn,
     staleTime: 60_000,
     placeholderData: [],
   });
+
+  // ANONİM KALICILIK: /api/follows/* JWT ister (girişsiz 401). Auth kapısı kapalıyken
+  // kullanıcı anonim gezdiği için takip durumu localStorage'da saklanır — AYNI hook,
+  // ayrı sistem değil. Giriş yapılınca backend tek doğruluk kaynağı olur.
+  const local = useSyncExternalStore(
+    localFollowStore.subscribe,
+    localFollowStore.getSnapshot,
+    localFollowStore.getServerSnapshot
+  );
+
+  if (isLoggedIn) return remote;
+  return { ...remote, data: local } as typeof remote;
 }
 
 // ── Full list: used on /following page ───────────────────────────────────────
@@ -91,9 +106,15 @@ export function useFollow(matchId: number) {
 
   const toggle = () => {
     if (!isLoggedIn) {
-      // Auth kapısı pasifken takip sessizce yok sayılır (bkz. lib/auth/authGate.ts);
-      // UI geliştirirken tek dokunuş kullanıcıyı login'e atmasın.
-      if (AUTH_GATE_ENABLED) window.location.href = "/auth/login";
+      // Auth kapısı AÇIKSA giriş istenir (eski davranış).
+      if (AUTH_GATE_ENABLED) {
+        window.location.href = "/auth/login";
+        return;
+      }
+      // KAPALIYSA takip artık sessizce YOK SAYILMAZ: anonim kullanıcı da maç takip
+      // edebilir ve durum sayfa yenilense de kalır (localStorage). Backend'e giriş
+      // yapıldığında aynı hook otomatik olarak gerçek uçlara döner.
+      localFollowStore.toggle(matchId);
       return;
     }
     if (isFollowing) {

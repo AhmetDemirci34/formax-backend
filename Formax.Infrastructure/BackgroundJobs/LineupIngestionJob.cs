@@ -1,6 +1,9 @@
 using Formax.Application.Interfaces;
+using Formax.Application.Services.Matches;
 using Formax.Application.UseCases.Follow;
+using Formax.Domain.Constants;
 using Formax.Domain.Entities;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -31,24 +34,72 @@ namespace Formax.Infrastructure.BackgroundJobs
     {
         private static readonly TimeSpan LoopDelay = TimeSpan.FromMinutes(5);
 
-        /// <summary>Kickoff'a en fazla bu kadar süre kalan maçlar yoklanır (kadro ~45 dk önce açıklanır).</summary>
-        private static readonly TimeSpan LineupLeadTime = TimeSpan.FromMinutes(60);
+        /// <summary>
+        /// Kadro penceresinin açılışı — kickoff'a bu kadar kala yoklama BAŞLAR.
+        /// Takvimin tek kaynağı <see cref="LineupPollSchedule"/>'dır; burada yalnız
+        /// aday sorgusunun tarih aralığı kurulur.
+        /// </summary>
+        private static readonly TimeSpan LineupLeadTime = LineupPollSchedule.WindowOpen;
 
-        /// <summary>Sakatlık/ceza taramasının ufku — kadro ufkundan bağımsızdır.</summary>
-        private static readonly TimeSpan StatusLookAhead = TimeSpan.FromHours(72);
+        /// <summary>
+        /// Kadro yoklamasının UTC gün başına KALICI tavanı (tüm maçlar toplamı).
+        ///
+        /// Ölçüldü 06.09.2026: /lineups kotanın en pahalı kalemiydi. Pencere T−45'ten
+        /// T−90'a genişletildiği için tavan artık ayrıca ve kalıcı olarak tutulur;
+        /// mevcut genel bütçe koruması (ApiFootballCacheHandler) üstte devam eder.
+        /// </summary>
+        private const int DefaultMaxLineupRequestsPerUtcDay = 30;
 
-        /// <summary>Tur başına sakatlık sorgusu üst sınırı (kota koruması; /injuries 4 saat cache'li).</summary>
-        private const int MaxStatusMatchesPerCycle = 20;
+        /// <summary>Aynı fikstürün iki yoklaması arasındaki en kısa süre.</summary>
+        private static readonly TimeSpan LineupPerFixtureCooldown = TimeSpan.FromMinutes(20);
+
+        /// <summary>
+        /// Sakatlık/ceza taramasının ufku. 72 saat iken 3 günlük her fikstür sürekli yoklanıyordu;
+        /// oysa sakatlık bilgisi maça 1 günden fazla varken kararı değiştirmiyor. 24 saat, kadro
+        /// ufkundan bağımsız kalmaya devam eder ve talebi kaynağında ~3 kat düşürür.
+        /// </summary>
+        private static readonly TimeSpan StatusLookAhead = TimeSpan.FromHours(12);
+
+        /// <summary>Tur başına sakatlık sorgusu üst sınırı (kota koruması; /injuries 12 saat cache'li).</summary>
+        private const int MaxStatusMatchesPerCycle = 4;
+
+        /// <summary>Kickoff'tan sonraki hoşgörü payı — kadro dakikalar kala yayımlanabiliyor.</summary>
+        private static readonly TimeSpan LineupGrace = TimeSpan.FromMinutes(10);
+
+        /// <summary>
+        /// Bir fikstür için GÜNLÜK sağlayıcı denemesi tavanı — SAKATLIK/CEZA yolu için.
+        /// Kadro yolu artık kalıcı deftere bağlıdır ve bu sayacı KULLANMAZ.
+        /// </summary>
+        private const int MaxProviderAttemptsPerMatchPerDay = 2;
+
+        // matchId → (gün, o gün yapılan deneme sayısı). YALNIZ sakatlık/ceza taraması
+        // için; kadro yolunun freni artık FixtureRefreshAttempts tablosudur (kalıcı,
+        // restart-safe). Süreç belleğindeki sayaç her açılışta sıfırlandığı için kadro
+        // gibi pahalı bir uçta tek başına yeterli DEĞİLDİ.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, (DateTime Day, int Count)>
+            _attempts = new();
+
+        private static bool AttemptAllowed(int matchId, DateTime utcNow)
+        {
+            var today = utcNow.Date;
+            var entry = _attempts.AddOrUpdate(matchId,
+                _ => (today, 1),
+                (_, cur) => cur.Day == today ? (today, cur.Count + 1) : (today, 1));
+            return entry.Count <= MaxProviderAttemptsPerMatchPerDay;
+        }
 
         private readonly ILogger<LineupIngestionJob> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IConfiguration _config;
 
         public LineupIngestionJob(
             ILogger<LineupIngestionJob> logger,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            IConfiguration config)
         {
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _config = config;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -90,29 +141,82 @@ namespace Formax.Infrastructure.BackgroundJobs
             var notificationService = sp.GetRequiredService<INotificationService>();
 
             var utcNow = DateTime.UtcNow;
-            // Yalnız henüz başlamamış ve kickoff'una <= LineupLeadTime kalan maçlar.
-            // windowStart = utcNow  → maç başladıysa yoklanmaz.
-            // windowEnd   = utcNow + 60dk → 61 dk ve ötesi yoklanmaz (kesin boş dönerdi).
-            var windowStart = utcNow;
+            // KADRO PENCERESİ: kickoff−90dk … kickoff−5dk (bkz. LineupPollSchedule).
+            // Sorgu aralığı bilerek biraz geniştir; KESİN karar takvim sınıfınındır.
+            var windowStart = utcNow - LineupGrace;
             var windowEnd = utcNow + LineupLeadTime;
 
-            var matches = matchRepo.GetUpcomingMatches(windowStart, windowEnd);
+            var allow = CoveragePolicy.LeagueAllowList(sp.GetRequiredService<IConfiguration>());
+            // KAPSAM: kadro yalnız FORMAX kapsamındaki maçlar için satın alınır. Filtre API
+            // çağrısından ÖNCEdir; kapsam dışı maç için fixtures/lineups isteği = 0.
+            var candidates = matchRepo.GetUpcomingMatches(windowStart, windowEnd)
+                .Where(m => CoveragePolicy.Allows(allow, m.LeagueId))
+                .Where(m => !string.IsNullOrWhiteSpace(m.ExternalMatchId))
+                .OrderBy(m => m.MatchDate)
+                .ToList();
 
-            if (matches.Count > 0)
+            if (candidates.Count > 0)
             {
-                _logger.LogInformation("[LINEUP JOB] processing {Count} match(es) at {Time}", matches.Count, utcNow);
+                // KALICI DEFTER — kadro yoklamasının freni burada. Restart bu sayıları
+                // sıfırlamaz; harcanmış bir slot yeniden açılmaz.
+                var ledger = sp.GetRequiredService<IFixtureSyncRepository>();
+                var dailyCap = Math.Max(0, _config.GetValue(
+                    "ApiFootball:Lineups:MaxRequestsPerUtcDay", DefaultMaxLineupRequestsPerUtcDay));
 
-                foreach (var match in matches)
+                var polled = 0;
+                foreach (var match in candidates)
                 {
-                    if (string.IsNullOrWhiteSpace(match.ExternalMatchId))
-                        continue;   // not mapped to an external source yet
+                    ct.ThrowIfCancellationRequested();
 
-                    await ProcessMatchAsync(
-                        match, lineupRepo, statusRepo,
-                        sportsProvider, followUseCase,
-                        notificationRepo, notificationService,
-                        utcNow, ct);
+                    var extId = match.ExternalMatchId!;
+                    var stored = lineupRepo.GetByMatchId(match.Id);
+                    var complete = stored?.HomeLineupsReleased == true
+                                && stored?.AwayLineupsReleased == true;
+
+                    // Kadro zaten TAMSA sağlayıcıya HİÇ gidilmez — açıklanan kadro değişmez.
+                    var attempts = await ledger.GetFixtureAttemptCountAsync(
+                        extId, FixtureRefreshPurposes.Lineup, ct);
+
+                    if (!LineupPollSchedule.ShouldPoll(match.MatchDate, utcNow, complete, attempts))
+                    {
+                        // Kadro tamamlandıysa sakatlık/ceza yolu ayrı ufkuyla zaten çalışır.
+                        continue;
+                    }
+
+                    // ATOMİK REZERVASYON — istek HTTP'den ÖNCE deftere yazılır.
+                    if (!ledger.TryReserveFixtureAttempt(
+                            extId, FixtureRefreshPurposes.Lineup,
+                            LineupPerFixtureCooldown, dailyCap, utcNow))
+                        continue;
+
+                    var outcome = "NoData";
+                    try
+                    {
+                        var released = await ProcessMatchAsync(
+                            match, lineupRepo, statusRepo,
+                            sportsProvider, followUseCase,
+                            notificationRepo, notificationService,
+                            utcNow, ct, force: false, includePlayerStatuses: false);
+                        if (released) outcome = "Applied";
+                        polled++;
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        outcome = "ProviderError";
+                        _logger.LogWarning(ex, "[LINEUP JOB] lineup fetch failed for match {MatchId}", match.Id);
+                    }
+
+                    ledger.RecordFixtureAttemptOutcome(
+                        extId, FixtureRefreshPurposes.Lineup, utcNow, outcome);
                 }
+
+                await ledger.SaveChangesAsync(ct);
+
+                if (polled > 0)
+                    _logger.LogInformation(
+                        "[LINEUP JOB] {Polled}/{Total} maç için kadro soruldu (T−90…T−5 penceresi).",
+                        polled, candidates.Count);
             }
             else
             {
@@ -167,10 +271,15 @@ namespace Formax.Infrastructure.BackgroundJobs
             DateTime utcNow,
             CancellationToken ct)
         {
+            // KAPSAM + GÜNLÜK DENEME TAVANI sakatlık yolunda da geçerlidir: kapsam dışı maç için
+            // injuries isteği = 0, aynı fikstür gün içinde tavanı aşarsa yeniden sorulmaz.
+            var allow = CoveragePolicy.LeagueAllowList(_config);
             var candidates = matchRepo
                 .GetUpcomingMatches(utcNow, utcNow + StatusLookAhead)
                 .Where(m => !string.IsNullOrWhiteSpace(m.ExternalMatchId))
+                .Where(m => CoveragePolicy.Allows(allow, m.LeagueId))
                 .OrderBy(m => m.MatchDate)
+                .Where(m => AttemptAllowed(m.Id, utcNow))
                 .Take(MaxStatusMatchesPerCycle)
                 .ToList();
 
@@ -211,7 +320,16 @@ namespace Formax.Infrastructure.BackgroundJobs
                 touched, candidates.Count);
         }
 
-        private async Task ProcessMatchAsync(
+        /// <summary>
+        /// Tek maçın kadro çekimi. Dönüş: sağlayıcı GERÇEK kadro verdi mi?
+        ///
+        /// <paramref name="includePlayerStatuses"/> false iken sakatlık/ceza sorgusu
+        /// YAPILMAZ: döngü yolunda o iş, kendi ufku ve bütçesi olan
+        /// <see cref="RefreshPlayerStatusesAsync"/> tarafından zaten görülür. Pencere
+        /// T−45'ten T−90'a genişletildiği için buradaki ikinci çağrı, aynı maç için
+        /// gereksiz bir sağlayıcı isteği daha üretirdi.
+        /// </summary>
+        private async Task<bool> ProcessMatchAsync(
             Match match,
             IMatchLineupRepository lineupRepo,
             IMatchPlayerStatusRepository statusRepo,
@@ -221,8 +339,10 @@ namespace Formax.Infrastructure.BackgroundJobs
             INotificationService notificationService,
             DateTime utcNow,
             CancellationToken ct,
-            bool force = false)
+            bool force = false,
+            bool includePlayerStatuses = true)
         {
+            var lineupReleased = false;
             // ── 1. Fetch lineup from provider ─────────────────────────────────
             // KISA DEVRE: her iki tarafın kadrosu DB'de zaten kayıtlıysa provider'a hiç gidilmez.
             // Kadro açıklandıktan sonra değişmez; tekrar sormak boşa kotadır. (Sakatlık/ceza akışı
@@ -280,6 +400,9 @@ namespace Formax.Infrastructure.BackgroundJobs
 
                 await lineupRepo.SaveChangesAsync(ct);
 
+                // Sağlayıcı GERÇEK kadro verdi mi? Defterin sonucu buna göre yazılır.
+                lineupReleased = lineup.HomeLineupsReleased || lineup.AwayLineupsReleased;
+
                 // ── 4. First-release event → notification fan-out ─────────────
                 bool triggerNotification = firstRelease
                     || (lineupResult.LineupsAnnounced && !wasAlreadyReleased);
@@ -296,6 +419,10 @@ namespace Formax.Infrastructure.BackgroundJobs
             }
 
             // ── 5. Fetch + persist player statuses ────────────────────────────
+            // Döngü yolunda ATLANIR (bkz. includePlayerStatuses): sakatlık/ceza kendi
+            // ufku ve bütçesiyle ayrıca taranır; burada tekrar sormak aynı maç için
+            // ikinci bir sağlayıcı isteği demektir.
+            if (!includePlayerStatuses) return lineupReleased;
 
             var statuses = await sportsProvider.GetPlayerStatusesAsync(
                 match.ExternalMatchId!, ct);
@@ -320,6 +447,8 @@ namespace Formax.Infrastructure.BackgroundJobs
                     "[LINEUP JOB] persisted {Count} player status(es) for match {MatchId}",
                     statusEntities.Count, match.Id);
             }
+
+            return lineupReleased;
         }
 
         private async Task FanOutNotificationAsync(

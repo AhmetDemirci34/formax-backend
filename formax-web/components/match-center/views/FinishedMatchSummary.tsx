@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { TeamCrest } from "@/components/ui/TeamCrest";
-import { formatMatchDateTR } from "@/lib/matchClock";
+import { formatMatchDateTR, isVideoSearchWindowOver } from "@/lib/matchClock";
 import type {
   MatchDetailDto,
   MatchEventDto,
@@ -49,6 +49,16 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   // Oynatılamayan ama gerçek olan resmî kaynaklar (embed yasağı / bölgesel kısıt):
   // ana video yoksa kullanıcı hiç değilse kaynağa gidebilsin.
   const blocked = main ? [] : videos.filter((v) => !v.canPlayInApp && isMainHighlight(v.videoType));
+
+  // ARAMA HÂLÂ SÜRÜYOR MU? Backend'in tekrar takvimi (PostMatchEnrichmentJob) son
+  // düdükten sonra FT+60dk → FT+3sa → FT+6sa → FT+24sa olmak üzere DÖRT kez bakar;
+  // dördü de boş dönerse arama BİTER.
+  //
+  // NEDEN İKİ AYRI METİN: "henüz bulunamadı" ile "aranıyor" kullanıcı için aynı şey
+  // değildir. Maç biteli 40 dakika olmuşken "bulunamadı" demek yanlıştır — daha hiç
+  // bakılmamıştır ve kullanıcı ekranı bir daha açmaz. Arama bittikten sonra hâlâ
+  // "kontrol ediliyor" demek ise sonu gelmeyen bir bekleyiş vaat etmektir.
+  const searchWindowOver = isVideoSearchWindowOver(match.matchDate);
 
   const fmt = (s?: { home: number; away: number } | null) => (s ? `${s.home}-${s.away}` : "—");
 
@@ -155,7 +165,13 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
             </div>
           ) : (
             <>
-              <Empty text="Bu maç için uygulama içinde oynatılabilen resmî özet videosu henüz bulunmuyor." />
+              <Empty
+                text={
+                  searchWindowOver
+                    ? "Bu maç için uygulama içinde oynatılabilen resmî özet videosu bulunamadı."
+                    : "Resmî maç özeti kontrol ediliyor."
+                }
+              />
               {blocked.length > 0 && (
                 <ul className="flex flex-col gap-2 px-3 pb-3">
                   {blocked.map((v) => (

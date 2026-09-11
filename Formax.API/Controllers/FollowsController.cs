@@ -50,6 +50,24 @@ namespace Formax.API.Controllers
             return Ok(await useCase.ExecuteAsync(userId));
         }
 
+        /// <summary>
+        /// "TAKİP ETTİĞİM MAÇLAR" EKRANI — yalnız kullanıcının kendi maç takipleri.
+        ///
+        /// Mevcut <c>GET me</c> ucundan farkı: durum DEPODAN okunur (saatten "Live"
+        /// türetilmez), skor yalnız bitmiş maçta döner ve liste ekranın istediği iki
+        /// bölüme AYRILMIŞ hâlde gelir. Takım/lig takipleri bu yanıtta YOKTUR.
+        /// Salt DB — sağlayıcıya sıfır istek.
+        /// </summary>
+        [HttpGet("me/matches")]
+        public async Task<IActionResult> MyFollowedMatches(
+            [FromServices] Formax.Application.UseCases.Follow.GetFollowedMatchesScreenUseCase useCase,
+            System.Threading.CancellationToken ct)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+            return Ok(await useCase.ExecuteAsync(userId, System.DateTime.UtcNow, ct));
+        }
+
         /// <summary>Returns the match IDs the current user follows — lightweight endpoint for UI state.</summary>
         [HttpGet("me/ids")]
         public async Task<IActionResult> MyFollowIds(

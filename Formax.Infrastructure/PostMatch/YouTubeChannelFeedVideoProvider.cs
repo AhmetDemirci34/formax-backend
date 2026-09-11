@@ -51,12 +51,22 @@ namespace Formax.Infrastructure.PostMatch
 
         public string Name => "YouTubeOfficialChannels";
 
+        /// <summary>
+        /// YARDIMCI KEŞİF — zincirin EN SONU. Kendi başına bir hak sahibi değildir;
+        /// resmî kanalları okumanın anahtarsız yoludur ve son ~15 videoyla sınırlıdır.
+        /// </summary>
+        public int Priority => OfficialVideoSourceTiers.AuxiliaryDiscovery;
+
+        /// <summary>Anahtar istemez — her zaman çalışmaya hazırdır.</summary>
+        public string Status => VideoProviderStatuses.Configured;
+
         public async Task<IReadOnlyList<OfficialVideoCandidate>> DiscoverAsync(
             VideoFixtureIdentity fixture, CancellationToken ct = default)
         {
             var all = new List<OfficialVideoCandidate>();
 
-            foreach (var source in OfficialVideoSources.DiscoverableYouTubeChannels())
+            foreach (var source in OfficialVideoSources.DiscoverableYouTubeChannels(
+                         fixture.HomeTeamName, fixture.AwayTeamName))
             {
                 ct.ThrowIfCancellationRequested();
                 var entries = await GetChannelFeedAsync(source.YouTubeChannelId!, ct).ConfigureAwait(false);
@@ -131,7 +141,8 @@ namespace Formax.Infrastructure.PostMatch
                     ThumbnailUrl: thumbnail,
                     // Akış süre vermez. Uydurmak yerine null bırakılır; ekran süreyi
                     // yalnız gerçekten bilindiğinde gösterir.
-                    DurationSeconds: null));
+                    DurationSeconds: null,
+                    ProviderName: "YouTubeOfficialChannels"));
             }
 
             return list;
@@ -155,6 +166,10 @@ namespace Formax.Infrastructure.PostMatch
     public sealed class DisabledOfficialMatchVideoProvider : IOfficialMatchVideoProvider
     {
         public string Name => "Disabled";
+
+        public int Priority => OfficialVideoSourceTiers.AuxiliaryDiscovery;
+
+        public string Status => VideoProviderStatuses.Disabled;
 
         public Task<IReadOnlyList<OfficialVideoCandidate>> DiscoverAsync(
             VideoFixtureIdentity fixture, CancellationToken ct = default)

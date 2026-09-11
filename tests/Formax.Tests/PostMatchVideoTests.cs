@@ -386,28 +386,43 @@ public class PostMatchVideoTests
 
     // ── 11. TEKRAR DEFTERİ RESTART SONRASI KORUNUR ────────────────────────────
 
+    /// <summary>
+    /// TEKRAR TAKVİMİ — FT+60dk → FT+3sa → FT+6sa → FT+24sa (ürün takvimi 06.09.2026).
+    ///
+    /// İlk bakış 75 dk'dan 60 dk'ya çekildi: resmî özet çoğu yayıncıda son düdükten
+    /// ~30-40 dk sonra yayımlanıyor ve 75 dakika, hazır olan videoyu geciktiriyordu.
+    /// Dört deneme sonunda arama BİTER — sonsuza dek yoklamak, bulunmayan videoyu
+    /// var etmez; yalnız dış istek harcar.
+    /// </summary>
     [Fact]
-    public void TekrarTakvimi_UcDenemeSonrasiDurur()
+    public void TekrarTakvimi_DortDenemeSonrasiDurur()
     {
         var end = MatchVideoIdentityValidator.EndOf(Leg1);
 
-        // Maç biter bitmez bakılmaz; ilk bakış 75 dk sonradır.
+        // ── FT+60dk'dan ÖNCE ilk arama YAPILMAZ ────────────────────────────────
         Assert.False(PostMatchEnrichmentJob.IsDue(end, 0, null, end.AddMinutes(30)));
-        Assert.True(PostMatchEnrichmentJob.IsDue(end, 0, null, end.AddMinutes(80)));
+        Assert.False(PostMatchEnrichmentJob.IsDue(end, 0, null, end.AddMinutes(59)));
+        Assert.True(PostMatchEnrichmentJob.IsDue(end, 0, null, end.AddMinutes(60)));
 
-        // 1. deneme sonrası 6 saat, 2. deneme sonrası 24 saat beklenir.
-        var first = end.AddMinutes(80);
-        Assert.False(PostMatchEnrichmentJob.IsDue(end, 1, first, first.AddHours(3)));
-        Assert.True(PostMatchEnrichmentJob.IsDue(end, 1, first, first.AddHours(6)));
+        // 1. deneme sonrası 2 saat → FT+3sa
+        var first = end.AddMinutes(60);
+        Assert.False(PostMatchEnrichmentJob.IsDue(end, 1, first, first.AddHours(1)));
+        Assert.True(PostMatchEnrichmentJob.IsDue(end, 1, first, first.AddHours(2)));
 
-        var second = first.AddHours(6);
-        Assert.False(PostMatchEnrichmentJob.IsDue(end, 2, second, second.AddHours(12)));
-        Assert.True(PostMatchEnrichmentJob.IsDue(end, 2, second, second.AddHours(24)));
+        // 2. deneme sonrası 3 saat → FT+6sa
+        var second = first.AddHours(2);
+        Assert.False(PostMatchEnrichmentJob.IsDue(end, 2, second, second.AddHours(2)));
+        Assert.True(PostMatchEnrichmentJob.IsDue(end, 2, second, second.AddHours(3)));
+
+        // 3. deneme sonrası 18 saat → FT+24sa
+        var third = second.AddHours(3);
+        Assert.False(PostMatchEnrichmentJob.IsDue(end, 3, third, third.AddHours(12)));
+        Assert.True(PostMatchEnrichmentJob.IsDue(end, 3, third, third.AddHours(18)));
 
         // Hak bittikten sonra bir daha ASLA denenmez — sonsuz yoklama yok.
-        var third = second.AddHours(24);
-        Assert.False(PostMatchEnrichmentJob.IsDue(end, 3, third, third.AddDays(30)));
-        Assert.Equal(3, PostMatchEnrichmentJob.MaxAttempts);
+        var fourth = third.AddHours(18);
+        Assert.False(PostMatchEnrichmentJob.IsDue(end, 4, fourth, fourth.AddDays(30)));
+        Assert.Equal(4, PostMatchEnrichmentJob.MaxAttempts);
     }
 
     [Fact]
