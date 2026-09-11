@@ -112,6 +112,9 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
     /// <summary>Bir tur — public; testten ve elle tetikten çağrılabilir.</summary>
     public async Task<int> RunCycleAsync(CancellationToken ct = default)
     {
+        // Olay/istatistik aşamasının api-football istekleri bu job'a yazılır; kapsam
+        // ilan edilmezse kota panosunda "unattributed" görünürler.
+        using var _quotaScope = Telemetry.ApiFootballCallScope.Begin(nameof(PostMatchEnrichmentJob));
         using var scope = _scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
         var db = sp.GetRequiredService<FormaxDbContext>();
