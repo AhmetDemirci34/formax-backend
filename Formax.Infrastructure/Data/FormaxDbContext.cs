@@ -48,6 +48,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<OfficialSourceFetch> OfficialSourceFetches { get; set; } = null!;
         public DbSet<OfficialSourceCacheEntry> OfficialSourceCache { get; set; } = null!;
         public DbSet<OfficialMatchLink> OfficialMatchLinks { get; set; } = null!;
+        public DbSet<MatchAnalysisSnapshot> MatchAnalysisSnapshots { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1084,6 +1085,21 @@ namespace Formax.Infrastructure.Data
                       .HasDatabaseName("UX_OfficialMatchLinks_Source_OfficialMatch");
                 entity.HasIndex(x => new { x.MatchId, x.SourceKey }).IsUnique()
                       .HasDatabaseName("UX_OfficialMatchLinks_Match_Source");
+            });
+
+            // ── AI MAÇ ANALİZİ (arka planda üretilmiş, maç başına tek satır) ──
+            modelBuilder.Entity<MatchAnalysisSnapshot>(entity =>
+            {
+                entity.ToTable("MatchAnalysisSnapshots");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.MatchId).IsUnique().HasDatabaseName("UX_MatchAnalysisSnapshots_Match");
+                entity.HasIndex(x => x.GeneratedAtUtc).HasDatabaseName("IX_MatchAnalysisSnapshots_Generated");
+                entity.Property(x => x.InputHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Generator).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ContentJson).IsRequired();
+                entity.Property(x => x.EvidenceJson).IsRequired();
+                entity.Property(x => x.FlatText).IsRequired();
             });
 
             // ── BİLDİRİM SÖZLEŞMESİ (additive) ──────────────────────────────

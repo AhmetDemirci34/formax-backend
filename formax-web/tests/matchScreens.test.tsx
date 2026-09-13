@@ -13,6 +13,12 @@ import { eventLabel, UNKNOWN_EVENT_LABEL } from "@/lib/matches/eventLabels";
 import { FinishedMatchSummary } from "@/components/match-center/views/FinishedMatchSummary";
 import { LineupPanel, hasPitchPositions } from "@/components/match-center/lineup/LineupPanel";
 import { notificationHref, notificationTypeLabel } from "@/lib/api/notifications";
+import {
+  AnalysisSections,
+  ScenarioReasonLines,
+  ANALYSIS_PREPARING_TEXT,
+} from "@/components/match-center/analysis/AnalysisSections";
+import { seasonRecordText } from "@/components/match-center/views/FormStatusView";
 import { VideoPlayerCard } from "@/components/match-center/views/VideoPlayerCard";
 import { TeamCrest, crestInitials } from "@/components/ui/TeamCrest";
 import { groupByDateAndLeague } from "@/components/maclar/SearchResults";
@@ -326,5 +332,47 @@ describe("resmî kadro görünümü", () => {
     expect(notificationTypeLabel("MATCH_LINEUP_AVAILABLE")).toBe("Kadro");
     expect(notificationTypeLabel("MATCH_CRITICAL_UPDATE")).toBe("Kritik gelişme");
     expect(notificationTypeLabel(null)).toBeNull();
+  });
+});
+
+// ── KANITA DAYALI AI ANALİZİ ─────────────────────────────────────────────────
+
+describe("AI maç analizi", () => {
+  const ready = {
+    status: "Ready",
+    whyWatch: ["Barcelona bu sezon oynadığı 4 lig maçının hiçbirini kaybetmedi: 4 galibiyet."],
+    keyBattle: ["Barcelona iç sahada oynadığı 2 lig maçında 7 gol attı; Racing Santander deplasmanda oynadığı 2 lig maçında 4 gol yedi."],
+    lineupImpact: [],
+    uncertainty: "Örneklem sınırlı: Barcelona için 4, Racing Santander için 5 tamamlanmış lig maçı var.",
+    scenarios: [{ market: "Ev Sahibi Kazanır", support: "Barcelona iç sahada oynadığı 2 lig maçında 2 galibiyet aldı.", risk: null }],
+  };
+
+  it("hazır analiz bölümleri gösterilir; boş bölüm (Kadro Etkisi) hiç render edilmez", () => {
+    const html = renderToStaticMarkup(<AnalysisSections analysis={ready} />);
+    expect(html).toContain("Bu Maçı Neden İzlemeli?");
+    expect(html).toContain("Maçın Kilidi");
+    expect(html).toContain("Belirsizlik");
+    expect(html).not.toContain("Kadro Etkisi");
+    expect(html).toContain("Racing Santander deplasmanda");
+  });
+
+  it("analiz hazır değilse uydurma metin yerine 'Analiz hazırlanıyor' yazılır", () => {
+    expect(renderToStaticMarkup(<AnalysisSections analysis={null} />)).toContain(ANALYSIS_PREPARING_TEXT);
+    expect(renderToStaticMarkup(<AnalysisSections analysis={{ ...ready, status: "Preparing" }} />)).toContain(ANALYSIS_PREPARING_TEXT);
+  });
+
+  it("senaryo gerekçesi yalnız aynı market için ve etiketli gösterilir", () => {
+    const html = renderToStaticMarkup(<ScenarioReasonLines analysis={ready} market="Ev Sahibi Kazanır" />);
+    expect(html).toContain("Destekleyen veri");
+    expect(html).not.toContain("Zayıflatan risk");
+    expect(renderToStaticMarkup(<ScenarioReasonLines analysis={ready} market="2.5 Üst" />)).toBe("");
+  });
+
+  it("ham teknik form satırı (O/G/B/M/AG/YG/AV) üretilmez", () => {
+    const text = seasonRecordText({ played: 4, won: 2, drawn: 1, lost: 1, goalsFor: 6, goalsAgainst: 3 });
+    expect(text).toBe("4 maçta 2 galibiyet, 1 beraberlik, 1 mağlubiyet · 6 gol attı, 3 gol yedi");
+    expect(text).not.toMatch(/\b(O|G|B|M) \d|\bAG\b|\bYG\b|\bAV\b/);
+    const html = renderToStaticMarkup(<AnalysisSections analysis={ready} />);
+    expect(html).not.toMatch(/\bAG\b|\bYG\b|\bAV\b|O \d · G \d/);
   });
 });

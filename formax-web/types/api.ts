@@ -923,6 +923,29 @@ export interface MatchDetailDto {
    * hiç göstermez (uydurma metin yok).
    */
   aiNarrative?: RadarNarrativeDto | null;
+
+  /**
+   * AI MAÇ ANALİZİ — arka planda kanıttan üretilmiş, doğrulanmış kayıt (DB). Sayfa açılışı
+   * LLM çağırmaz. Bitmiş maçta null.
+   */
+  analysis?: MatchAnalysisDto | null;
+}
+
+export interface MatchAnalysisScenarioDto {
+  market: string;
+  support?: string | null;
+  risk?: string | null;
+}
+
+export interface MatchAnalysisDto {
+  /** "Ready" | "Preparing" | "InsufficientData" | "Unavailable" */
+  status: string;
+  generatedAtUtc?: string | null;
+  whyWatch: string[];
+  keyBattle: string[];
+  lineupImpact: string[];
+  uncertainty?: string | null;
+  scenarios: MatchAnalysisScenarioDto[];
 }
 
 // ── Follow: MatchListItemDto ──────────────────────────────────────────────────

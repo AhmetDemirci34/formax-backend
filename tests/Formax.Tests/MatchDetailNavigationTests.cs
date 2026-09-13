@@ -45,50 +45,39 @@ public class MatchDetailNavigationTests
 
     // ── Kök neden: cevap artık LLM'i beklemez ────────────────────────────────
 
+    // GÜNCELLEME (13.09.2026, kilitli ürün kararı): "Maç sayfası açıldığında LLM çağırma."
+    // Önceki sözleşme (3 sn anlatı bütçesi + arka planda sürdürme) daha sıkı bir kurala
+    // dönüştü: detay yolu LLM'e HİÇ gitmez; AI Maç Analizi arka planda (MatchAnalysisJob)
+    // üretilir ve burada yalnız DB'deki hazır kayıt okunur. Test adları korunarak aynı
+    // niyet (cevap LLM beklemez, bitmiş maç LLM tetiklemez, istek token'ına bağlı arka
+    // plan görevi yok) yeni sözleşmeyle sabitlenir.
+
     [Fact]
     public void DetayCevabi_AnlatiyiSinirsizBeklemez()
     {
         var src = UseCase();
-
-        // Anlatı için ÜST SINIR var ve cevap onu aşarsa anlatısız döner.
-        Assert.Contains("NarrativeBudget", src, StringComparison.Ordinal);
-        Assert.Contains("Task.WhenAny(all, Task.Delay(NarrativeBudget, ct))", src, StringComparison.Ordinal);
-
-        // Eski davranış (koşulsuz bekleme) GERİ GELMEMELİ.
-        Assert.DoesNotContain("await Task.WhenAll(discoverTask, reportTask, inceleTask);",
-            src, StringComparison.Ordinal);
+        Assert.DoesNotContain("_narrativePipeline", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("GenerateAsync(", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("await Task.WhenAll(discoverTask, reportTask, inceleTask);", src, StringComparison.Ordinal);
+        Assert.Contains("_analysisReader.GetAsync(matchId, ct)", src, StringComparison.Ordinal);
     }
 
     [Fact]
     public void BitmisMacta_LlmHicCagrilmaz()
     {
         var src = UseCase();
-
-        // Kilitli "Bitmiş Maç Özeti" ekranı anlatı GÖSTERMEZ; görünmeyecek metin için
-        // bulut LLM beklemek hem kullanıcıyı bekletir hem boşuna maliyettir.
-        Assert.Contains("var isFinished = string.Equals(detail.Status, MatchStatuses.Finished",
-            src, StringComparison.Ordinal);
-        Assert.Contains("if (!isFinished)", src, StringComparison.Ordinal);
-
-        var finishedGuard = src.IndexOf("if (!isFinished)", StringComparison.Ordinal);
-        var firstGenerate = src.IndexOf("_narrativePipeline.GenerateAsync", StringComparison.Ordinal);
-        Assert.True(finishedGuard > 0 && firstGenerate > finishedGuard,
-            "anlatı üretimi bitmiş-maç kapısının İÇİNDE olmalı");
+        Assert.Contains("var isFinished = string.Equals(detail.Status, MatchStatuses.Finished", src, StringComparison.Ordinal);
+        Assert.Contains("detail.Analysis = isFinished ? null : await _analysisReader.GetAsync(matchId, ct);", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("RadarSurface.", src, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ArkaPlandaSurenAnlati_IstekTokenineBaglanmaz()
     {
         var src = UseCase();
-
-        // Görevler istek token'ıyla başlatılsaydı cevap dönünce iptal olur, önbellek
-        // boş kalır ve bir sonraki açılış yine soğuk olurdu — sorun kendini tekrarlardı.
-        Assert.Contains("RadarSurface.Discover, aiAllowed, CancellationToken.None", src, StringComparison.Ordinal);
-        Assert.Contains("RadarSurface.MatchDetail, aiAllowed, CancellationToken.None", src, StringComparison.Ordinal);
-        Assert.Contains("RadarSurface.AiIncele, aiAllowed, CancellationToken.None", src, StringComparison.Ordinal);
-
-        // Gözlenmeyen istisna bırakılmaz.
-        Assert.Contains("TaskContinuationOptions.OnlyOnFaulted", src, StringComparison.Ordinal);
+        // İstek yolunda arka plana bırakılan (ateşle-unut) anlatı görevi YOKTUR.
+        Assert.DoesNotContain("ContinueWith(", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("CancellationToken.None", src.Substring(src.IndexOf("public async Task<MatchDetailDto?> ExecuteAsync", StringComparison.Ordinal)), StringComparison.Ordinal);
     }
 
     // ── Kontrollü retry: en fazla 1, yalnız network/5xx/timeout ──────────────

@@ -125,6 +125,12 @@ public class MatchDetailDto
 
     // ── Radar v2: LLM Match Intelligence narrative (opsiyonel; gelmezse UI eski davranış)
     public RadarNarrativeDto? AiNarrative { get; set; }
+
+    /// <summary>
+    /// AI MAÇ ANALİZİ — arka planda kanıttan üretilmiş, doğrulanmış kayıt (DB). Sayfa açılışı LLM
+    /// çağırmaz; kayıt yoksa Status="Preparing". Bitmiş maçta null.
+    /// </summary>
+    public Formax.Application.Services.MatchAnalysis.MatchAnalysisDto? Analysis { get; set; }
 }
 
 // TeamSummaryDto and LastMatchDto are defined in their own files

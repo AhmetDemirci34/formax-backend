@@ -4,29 +4,24 @@ import { motion } from "framer-motion";
 import type { MatchDetailDto } from "@/types/api";
 import { useMatchDecision } from "@/hooks/useMatchDecision";
 import { useMatchPicks } from "@/hooks/useMatchPicks";
-import { NarrativeBlocks, hasNarrativeContent } from "../narrative/NarrativeBlocks";
+import { AnalysisSections, ScenarioReasonLines } from "../analysis/AnalysisSections";
 import { ViewShell } from "./ViewShell";
 
 /**
  * AIAnalysisView (activeView === 'analysis') — FORMAX'ın merkez ekranı.
  *
- * ANLATININ TEK KAYNAĞI: Match Intelligence (Gemma) → match.aiNarrative.
- * Sayfa zaten /detail'i yüklediği için EK İSTEK ATILMAZ; Keşfet ve AI İncele
- * de aynı react-query cache'ini (["match", matchId]) okur → ikinci AI üretimi olmaz.
+ * ANALİZİN TEK KAYNAĞI (13.09.2026, kilitli): /detail → match.analysis. Analiz ARKA PLANDA
+ * backend'in deterministik kanıtından üretilir, doğrulanır ve DB'ye yazılır; bu ekran yalnız
+ * hazır kaydı gösterir. Sayfa açılışı LLM çağırmaz, ek istek atmaz.
  *
- * KİLİTLİ KARAR (16.08): Eski Decision/MatchReadingEngine ANLATISI kullanıcıya
- * GÖSTERİLMEZ. Ölçüldü: o katman maçta yer almayan takımdan söz ediyor
- * ("Galatasaray ile aradaki fark" — Kasımpaşa–Trabzonspor maçında), aynı cümleyi
- * tekrarlıyor ve bozuk ek üretiyordu. Endpoint ve backend kodu YERİNDE DURUR;
- * bu ekran /decision'dan yalnız SAYISAL karar verisini okur:
- *   • probabilities → Olası Sonuçlar (market adı/yüzdesi/oranı backend'indir)
+ * KALDIRILANLAR (ürün kararı):
+ *  • Eski Match Intelligence anlatısı (aiNarrative) — maça özel olmayan, kanıtsız ve maçtan
+ *    maça tekrar eden kalıp cümleler üretiyordu ("Maç çevresinde konuşulacak gelişmeler var").
+ *  • "Bu Sezon Form" bloğundaki ham teknik satır (O · G · B · M · AG · YG · AV). Form sayıları
+ *    artık analiz cümlelerinin içinde, takım adıyla ve örneklem büyüklüğüyle birlikte geçer.
  *
- * KULLANICIYA GÖSTERİLMEYENLER (ürün kararı, backend'de silinmedi):
- *   • decision.confidence → AI Güven endeksi bloğu (iç mekanizma)
- *   • "AI İncele" ikinci ekranına bağlantı (aynı veriyi tekrar ediyordu)
- *
- * Boş blok tamamen gizlenir — placeholder yok, uydurma metin yok, frontend
- * hesaplaması yok.
+ * /decision'dan YALNIZ sayısal Olası Sonuçlar okunur; her satırın gerekçesi analizdeki aynı
+ * market kaydından gelir (destekleyen veri / zayıflatan risk).
  */
 export function AIAnalysisView({ match, onClose }: { match: MatchDetailDto; onClose: () => void }) {
   const { data: decision, isLoading, isError } = useMatchDecision(match.matchId);
@@ -42,19 +37,12 @@ export function AIAnalysisView({ match, onClose }: { match: MatchDetailDto; onCl
     .sort((a, b) => b.probability - a.probability)
     .slice(0, 5);
 
-  // Gemma anlatısı — /detail yanıtından birebir; burada hiçbir alan türetilmez.
-  const narrative = match.aiNarrative ?? null;
-  const hasNarrative = hasNarrativeContent(narrative);
 
   return (
     <ViewShell title="AI Maç Analizi" onClose={onClose}>
       <div className="space-y-3 pb-4">
-        {/* Bu sezon form — backend özeti (LLM değil); anlatıdan ÖNCE gelir ki
-            kullanıcı önce dayanağı, sonra yorumu görsün. */}
-        <SeasonFormBlock match={match} />
-
-        {/* Match Intelligence anlatısı — /detail ile birlikte geldi, beklemez. */}
-        {hasNarrative && narrative && <NarrativeBlocks narrative={narrative} />}
+        {/* Kanıta dayalı analiz — /detail ile birlikte geldi (DB); hazır değilse durum yazılır. */}
+        <AnalysisSections analysis={match.analysis} />
 
         {isLoading && (
           <div className="rounded-2xl border border-goalai-border bg-goalai-surface-bright px-4 py-3 text-[13px] text-white/55">
@@ -89,11 +77,6 @@ export function AIAnalysisView({ match, onClose }: { match: MatchDetailDto; onCl
                 Takip sayfası asıl Maç Detay ekranına (/match/[id]) gider. Eski adres
                 yalnız kalıcı yönlendirme bırakır. Analiz TEK ekranda — burada. */}
 
-            {!hasNarrative && probabilities.length === 0 && (
-              <div className="rounded-2xl border border-goalai-border bg-goalai-surface-bright px-4 py-3 text-[13px] text-white/55">
-                Bu maç için AI analizi henüz üretilmedi.
-              </div>
-            )}
           </>
         )}
       </div>
@@ -165,8 +148,8 @@ function PossibleResultsBlock({
                   : "border-goalai-border/70 bg-black/20"
               }`}
             >
-              {/* Market · olasılık · oran. Gerekçe BU BÖLÜMDE tekrarlanmaz —
-                  o "Olası Sonuçların Gerekçesi" bölümünün işidir (tek görev kuralı). */}
+              {/* Market · olasılık · oran. Gerekçe satırın altında, analizdeki aynı market
+                  kaydından gelir (ayrı bir bölümde TEKRARLANMAZ). */}
               <div className="flex items-start justify-between gap-3">
                 <span className="min-w-0 text-sm leading-snug text-white/90">{p.market}</span>
 
@@ -209,6 +192,9 @@ function PossibleResultsBlock({
                 </span>
               </div>
 
+              {/* OLASI SENARYONUN GEREKÇESİ — analizdeki aynı market kaydı (kanıtlı). */}
+              <ScenarioReasonLines analysis={match.analysis} market={p.market} />
+
               {/* KULLANICININ SEÇİMİ MODEL TAHMİNİ GİBİ GÖSTERİLMEZ. */}
               {selected && (
                 <p className="mt-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-formax-green/85">
@@ -246,74 +232,6 @@ function PossibleResultsBlock({
           Seçim kaydedilemedi, tekrar dene.
         </p>
       )}
-    </div>
-  );
-}
-
-/**
- * BU SEZON FORM — backend'in doğrulanmış sezon özeti (LLM DEĞİL).
- *
- * KÖK NEDEN (30.08.2026): AI metni "son beş maç" derken beşin dördü GEÇEN SEZONDANDI.
- * Anlatı katmanı artık sezon kapsamlı veriyle besleniyor; bu blok ise kullanıcıya
- * dayanağı DOĞRUDAN gösterir: hangi sezon, hangi lig, kaç tamamlanmış maç, G/B/M.
- *
- * Cümle backend'in deterministik çıktısıdır; burada metin üretilmez, sayı hesaplanmaz.
- * Örneklem 3 maçtan azsa sınırlılık açıkça yazılır — üstünlük iddiası kurulmaz.
- */
-function SeasonFormBlock({ match }: { match: MatchDetailDto }) {
-  const sides = [match.homeSeasonForm, match.awaySeasonForm].filter(
-    (s): s is NonNullable<typeof s> => !!s && s.sentence.trim().length > 0
-  );
-  if (sides.length === 0) return null;
-
-  // SINIRLAMA NOTU BACKEND'İNDİR (06.09.2026).
-  //
-  // Eskiden burada LİG düzeyindeki veri tamlığı okunuyor ve teknik bir uyarı
-  // basılıyordu: "Sezon verileri henüz tamamlanmadı (1 lig maçı bekliyor)."
-  // O sayı ligin BAŞKA bir maçına aitti ve ekrandaki iki takımla ilgisizdi;
-  // yine de ikisinin de form değerlendirmesini kapatıyordu. Artık:
-  //  • kapı takımın kendi örneklemidir (backend: TeamFormSampleQuality),
-  //  • not yalnız takımın KENDİ eksik sonucu varsa gelir (limitationNote),
-  //  • teknik alanlar (isSeasonDataComplete / seasonMissingFixtures) TEŞHİS'tir
-  //    ve bu yüzeyde OKUNMAZ — CSS ile gizlenmez, hiç üretilmez.
-  //
-  // Aynı not iki bölümde tekrar etmesin diye maç başına TEK kez gösterilir.
-  const limitation = sides.map((s) => s.limitationNote?.trim()).find((n) => !!n) ?? "";
-  const scope = sides[0];
-
-  return (
-    <div className="rounded-2xl border border-goalai-border bg-goalai-surface-bright p-4">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-goalai-accent">
-        Bu Sezon Form
-      </h3>
-
-      <p className="mb-2.5 text-[11px] text-white/40">
-        {scope.seasonLabel} · {scope.leagueName || "lig"} · yalnız tamamlanmış lig maçları
-      </p>
-
-      <div className="space-y-2">
-        {sides.map((s) => (
-          <div key={s.teamId}>
-            {/* Takım adı: iki taraf da aynı cümleyi alabildiği için (veri eksikken
-                metin takım adı taşımaz) hangi takıma ait olduğu burada belirtilir. */}
-            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/45">
-              {s.teamName}
-            </p>
-            <p className="text-[13.5px] leading-[1.6] text-white/85">{s.sentence}</p>
-            {s.played > 0 && (
-              <p className="mt-0.5 text-[10.5px] tabular-nums text-white/40">
-                O {s.played} · G {s.won} · B {s.drawn} · M {s.lost} · AG {s.goalsFor} · YG{" "}
-                {s.goalsAgainst} · AV{" "}
-                {s.goalDifference > 0 ? `+${s.goalDifference}` : s.goalDifference}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {limitation ? (
-        <p className="mt-2.5 text-[11.5px] leading-snug text-formax-amber/80">{limitation}</p>
-      ) : null}
     </div>
   );
 }

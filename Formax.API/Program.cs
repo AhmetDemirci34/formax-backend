@@ -943,6 +943,9 @@ internal class Program
         // yalnız resmî kaynaktan (OfficialLineupCollector, Infrastructure DI) toplanır.
         // Singleton + hosted: admin teşhis ucu (POST /admin/lineup/sync) AYNI örneği
         // çözüp tek maç için ingestion tetikleyebilsin diye (Odds ile aynı desen).
+        // AI MAÇ ANALİZİ — yaklaşan maçlar için arka planda kanıttan üretim (admin tetiği aynı örnek).
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.MatchAnalysisJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.MatchAnalysisJob>());
         builder.Services.AddSingleton<LineupIngestionJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LineupIngestionJob>());
 
@@ -1224,6 +1227,16 @@ internal class Program
                 .GetRequiredService<Formax.Infrastructure.Providers.Bootstrap.ProviderBootstrap>()
                 .Run();
         }
+
+        // LLM ÇAĞRI KAPSAMI — kullanıcı isteği sırasında yapılan her LLM çağrısı
+        // "request:{yol}" olarak sayılır (sayısal kimlikler {id}'ye indirgenir). Kullanıcı
+        // sayfasının LLM çağırmadığı bu sayaçla kanıtlanır: GET /admin/analysis/report.
+        app.Use(async (ctx, next) =>
+        {
+            var path = System.Text.RegularExpressions.Regex.Replace(ctx.Request.Path.Value ?? "/", @"/\d+", "/{id}");
+            using (Formax.Application.AI.LLM.LlmCallMeter.Begin("request:" + path))
+                await next();
+        });
 
         app.UseCors("Frontend");
 

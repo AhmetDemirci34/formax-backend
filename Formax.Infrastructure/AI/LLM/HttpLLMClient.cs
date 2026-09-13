@@ -49,6 +49,11 @@ namespace Formax.Infrastructure.AI.LLM
         {
             var provider = (_config["Llm:Provider"] ?? "Mock").Trim();
 
+            // Gerçek sağlayıcıya gidecek her çağrı, çağıranın kapsamıyla sayılır (Mock sayılmaz).
+            if (provider.Equals("ollama", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+                LlmCallMeter.Record();
+
             try
             {
                 return provider.ToLowerInvariant() switch

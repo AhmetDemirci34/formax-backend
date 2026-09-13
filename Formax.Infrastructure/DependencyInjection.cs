@@ -339,6 +339,11 @@ public static class DependencyInjection
         // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
         services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();
 
+        // ── AI MAÇ ANALİZİ — okuma (kullanıcı yolu, salt DB) ve üretim (yalnız arka plan) ──
+        services.AddScoped<Formax.Application.Services.MatchAnalysis.IMatchAnalysisReader,
+            Formax.Infrastructure.MatchAnalysis.MatchAnalysisReader>();
+        services.AddScoped<Formax.Infrastructure.MatchAnalysis.MatchAnalysisGenerator>();
+
         // ── Sprint 4: NABIZ feed intelligence ─────────────────────────────────
         services.AddScoped<INabizFeedRepository, NabizFeedRepository>();
         services.AddSingleton<NabizRelevanceEngine>();

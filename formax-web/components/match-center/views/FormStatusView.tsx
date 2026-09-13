@@ -287,6 +287,16 @@ function TeamLeagueForm({
   );
 }
 
+/** "4 maçta 2 galibiyet, 1 beraberlik, 1 mağlubiyet · 6 gol attı, 3 gol yedi" — sıfır kalem yazılmaz. */
+export function seasonRecordText(s: Pick<TeamSeasonFormDto, "played" | "won" | "drawn" | "lost" | "goalsFor" | "goalsAgainst">): string {
+  const parts = [
+    s.won > 0 ? `${s.won} galibiyet` : null,
+    s.drawn > 0 ? `${s.drawn} beraberlik` : null,
+    s.lost > 0 ? `${s.lost} mağlubiyet` : null,
+  ].filter(Boolean);
+  return `${s.played} maçta ${parts.join(", ")} · ${s.goalsFor} gol attı, ${s.goalsAgainst} gol yedi`;
+}
+
 /**
  * SEZON FORM ÖZETİ — backend'in yazdığı cümle + sayılar.
  *
@@ -301,20 +311,11 @@ function SeasonFormSummary({ season }: { season?: TeamSeasonFormDto | null }) {
     <div className="border-b border-goalai-border/40 px-3 py-2">
       <p className="text-[12px] leading-[1.55] text-white/80">{season.sentence}</p>
 
+      {/* Ham teknik satır (O · G · B · M · AG · YG · AV, "2-1-0") KALDIRILDI (13.09.2026):
+          kullanıcı kısaltma çözmek zorunda kalmaz. Aynı sayılar okunur cümle olarak yazılır;
+          değerler backend'indir, burada yalnız biçimlenir. */}
       {season.played > 0 && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] tabular-nums text-white/45">
-          <span>O {season.played}</span>
-          <span>G {season.won}</span>
-          <span>B {season.drawn}</span>
-          <span>M {season.lost}</span>
-          <span>AG {season.goalsFor}</span>
-          <span>YG {season.goalsAgainst}</span>
-          <span>AV {season.goalDifference > 0 ? `+${season.goalDifference}` : season.goalDifference}</span>
-          <span className="text-white/35">
-            İç saha {season.home.won}-{season.home.drawn}-{season.home.lost} · Deplasman{" "}
-            {season.away.won}-{season.away.drawn}-{season.away.lost}
-          </span>
-        </div>
+        <p className="mt-1 text-[11.5px] leading-snug text-white/60">{seasonRecordText(season)}</p>
       )}
 
       {/* SINIRLAMA NOTU BACKEND'İNDİR — ve YALNIZ bu takımın kendi maç sonucu

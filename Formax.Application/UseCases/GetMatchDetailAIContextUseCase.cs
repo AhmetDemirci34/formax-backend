@@ -49,8 +49,7 @@ namespace Formax.Application.UseCases
         private readonly INabizFeedRepository _nabizFeedRepository;
         private readonly IUserMatchFollowRepository _followRepository;
         // Radar v2 — anlatı zenginleştirme (opsiyonel; mevcut Execute akışını bozmaz).
-        private readonly MatchIntelligenceContextBuilder _contextBuilder;
-        private readonly RadarNarrativePipeline _narrativePipeline;
+        private readonly Formax.Application.Services.MatchAnalysis.IMatchAnalysisReader _analysisReader;
         // Radar v2.2 — dinamik senaryo motoru.
         private readonly MarketProbabilityEngine _marketEngine;
         private readonly ScenarioRankingService _scenarioRanking;
@@ -58,7 +57,6 @@ namespace Formax.Application.UseCases
         private readonly IMatchAiContextBuilder _aiContextBuilder;
         // FINAL — Evidence → Reasoning köprüsü (Data Engine v1/v2.1 bağlantısı).
         private readonly Formax.Application.Services.Fixtures.FormaxMatchIdFactory _matchIdFactory;
-        private readonly Formax.Application.Interfaces.IMatchEvidenceRepository _evidenceRepository;
         // SON DAKİKA — liste üretiminin TEK yeri (kapılar + sıralama + tekilleştirme).
         private readonly Formax.Application.Services.News.Feed.MatchNewsFeedService _newsFeedService;
         // FAZ 1 — TeamComparison/H2H artık ortak kaynaktan (formül birebir aynı; bkz. MatchComparisonFactory).
@@ -91,13 +89,11 @@ namespace Formax.Application.UseCases
             IMatchVideoReader videoReader,
             INabizFeedRepository nabizFeedRepository,
             IUserMatchFollowRepository followRepository,
-            MatchIntelligenceContextBuilder contextBuilder,
-            RadarNarrativePipeline narrativePipeline,
+            Formax.Application.Services.MatchAnalysis.IMatchAnalysisReader analysisReader,
             MarketProbabilityEngine marketEngine,
             ScenarioRankingService scenarioRanking,
             IMatchAiContextBuilder aiContextBuilder,
             Formax.Application.Services.Fixtures.FormaxMatchIdFactory matchIdFactory,
-            Formax.Application.Interfaces.IMatchEvidenceRepository evidenceRepository,
             Formax.Application.Services.Matches.MatchComparisonFactory comparisonFactory,
             Formax.Application.Services.News.Feed.MatchNewsFeedService newsFeedService,
             ILeagueSeasonResolver seasonResolver,
@@ -129,13 +125,11 @@ namespace Formax.Application.UseCases
             _videoReader = videoReader;
             _nabizFeedRepository = nabizFeedRepository;
             _followRepository = followRepository;
-            _contextBuilder = contextBuilder;
-            _narrativePipeline = narrativePipeline;
+            _analysisReader = analysisReader;
             _marketEngine = marketEngine;
             _scenarioRanking = scenarioRanking;
             _aiContextBuilder = aiContextBuilder;
             _matchIdFactory = matchIdFactory;
-            _evidenceRepository = evidenceRepository;
             _logger = logger;
         }
 
@@ -420,177 +414,37 @@ namespace Formax.Application.UseCases
         }
 
         // ────────────────────────────────────────────────────────────────────────
-        // Radar v2 — AI anlatı ile zenginleştirilmiş giriş noktası.
-        // Mevcut sync Execute'u çağırır (akış aynen korunur), sonra LLM anlatısını
-        // (Keşfet özeti + Detay section'ları) MatchDetailDto.AiNarrative'e ekler.
-        // LLM kapalı/sustuğunda pipeline deterministik fallback döndürür → bozulmaz.
+        // SAYFA AÇILIŞI GİRİŞ NOKTASI — LLM ÇAĞIRMAZ.
+        //
+        // Eskiden bu uç üç anlatı yüzeyini (Discover/MatchDetail/AiIncele) bulut LLM'e
+        // üretiyor, 3 sn bütçe dolunca arka planda sürdürüyordu. Ürün kararı: kullanıcı
+        // sayfası LLM ÇAĞIRMAZ. AI Maç Analizi arka planda (MatchAnalysisJob) kanıttan
+        // üretilir ve buradan yalnız DB'deki hazır kayıt okunur; hazır değilse durum
+        // "Preparing" döner. Bitmiş maçta analiz okunmaz (Maç Özeti ekranı göstermez).
         // ────────────────────────────────────────────────────────────────────────
         public async Task<MatchDetailDto?> ExecuteAsync(int matchId, CancellationToken ct = default)
         {
-            // AŞAMA PROFİLİ — /detail yavaşlığının nereden geldiği ÖLÇÜLEREK bulunur.
-            // Log seviyesi Information; her aşamanın gerçek ms'i "[DETAIL-PROF]" ile yazılır.
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            long tSync = 0, tContext = 0, tEvidence = 0, tNews = 0, tNarrative = 0;
 
             var detail = Execute(matchId);
-            tSync = sw.ElapsedMilliseconds;
             if (detail == null) return null;
+            var tSync = sw.ElapsedMilliseconds;
 
-            // AI konuşma izni mevcut guardrail kararından gelir (Silent/SelfRetracted → fallback).
-            var aiAllowed = detail.Ai.State is "Extended" or "Short";
-
-            // Senaryoları (kanıt etiketleriyle) yeniden sırala — DTO ile aynı deterministik sonuç,
-            // ek olarak EvidenceTags taşır → LLM "neden öne çıkıyor"u kanıta dayandırır.
-            var aiContext = _aiContextBuilder.Build(
-                detail.MatchId, detail.HomeTeam.Id, detail.AwayTeam.Id,
-                detail.Comparison.Home, detail.Comparison.Away, detail.H2H,
-                detail.Sapma.GucSkoru, detail.HomeTeam.Name, detail.AwayTeam.Name);
-            var candidates = _marketEngine.Evaluate(aiContext);
-            var ranked = _scenarioRanking.RankTop(candidates, 3);
-
-            // FINAL köprü: maçın FORMAX_MATCH_ID'sini hesapla → Evidence Store'dan
-            // Match Intelligence Context çek. Evidence varsa Reasoning ham haber yerine
-            // signal-typed kanıtlardan beslenir; yoksa eski NABIZ'e düşer (geri-uyum).
+            // SON DAKİKA — maçın gerçek haberleri (DB okuması; LLM/dış kaynak yok).
             var formaxMatchId = _matchIdFactory.Create(
                 detail.MatchDate, detail.HomeTeam.Name, detail.AwayTeam.Name);
-            // Kickoff da verilir → haberin maça göre zaman konumu (maç öncesi / maç günü /
-            // eski) okuma anında belirlenir; geçmiş sezona ait içerik bugünkü maçın "son
-            // gelişmesi" olarak anlatıya giremez.
-            //
-            // BİLİNEN KADRO ADLARI: haber olayının öznesi bir oyuncuysa adı YALNIZ bu
-            // listeyle eşleştiğinde taşınır (serbest ad çıkarımı yok). Yeni sorgu/kaynak
-            // YOK — bu maç için zaten çekilmiş oyuncu durumu kullanılır.
-            var knownPlayers = (detail.PlayerStatus?.Injuries ?? new List<PlayerStatusDto>())
-                .Concat(detail.PlayerStatus?.Suspensions ?? new List<PlayerStatusDto>())
-                .Concat(detail.PlayerStatus?.Doubtful ?? new List<PlayerStatusDto>())
-                .Select(p => p.PlayerName)
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            tContext = sw.ElapsedMilliseconds;
-
-            var evidenceCtx = await _evidenceRepository.GetContextAsync(
-                formaxMatchId, detail.HomeTeam.Name, detail.AwayTeam.Name, detail.MatchDate,
-                knownPlayers, ct);
-            tEvidence = sw.ElapsedMilliseconds;
-
-            // SON DAKİKA — maçın gerçek haberleri. Aynı FORMAX_MATCH_ID zaten yukarıda
-            // hesaplandı; ikinci bir kimlik/toplama yolu açılmaz.
             detail.NabizFeed = await BuildNewsSectionAsync(formaxMatchId, detail, ct);
-            tNews = sw.ElapsedMilliseconds;
+            var tNews = sw.ElapsedMilliseconds;
 
-            // Availability: aiContext'te ZATEN hesaplanmış (MatchPlayerStatuses + canonical/external
-            // takım kimliği çözümü orada). Yeniden hesaplamak yerine aynı sonuç pack'e taşınır.
-            // ANLATI TARAFI TAM KAYDI GÖRÜR: motorun dar penceresi (aiContext.Availability)
-            // yerine kickoff uzaklığından bağımsız AvailabilityFull taşınır. Motor bu alanı
-            // okumaz → Olası Sonuçlar bu bağlantıdan etkilenmez.
-            var context = _contextBuilder.Build(detail, null, ranked, evidenceCtx, aiContext.AvailabilityFull);
-
-            // ── ANLATI ARTIK CEVABI BLOKLAMAZ (ÖLÇÜLDÜ 03.09.2026) ─────────────────
-            //
-            // KÖK NEDEN: bu uç, önbelleği soğuk bir maçta bulut LLM'i BEKLİYORDU. Aşama
-            // profili (aynı istek):
-            //     sync=130ms context=15ms evidence=2ms news=37ms
-            //     narrative(LLM)=13.100ms  → total=13.284ms
-            // Yani ekranın gerçekten ihtiyaç duyduğu her şey ~184 ms'de hazırdı; kalan
-            // 13 saniye yalnız anlatı beklemesiydi. Soğuk LLM süresi 5,7–13,1 sn arasında
-            // dalgalanıyor; istemci zaman aşımı 10 sn. 10 sn'yi aştığı anlarda istek
-            // iptal ediliyor ve kullanıcı "Maç bilgileri şu an yüklenemiyor" görüyordu.
-            // Yenileyince anlatı artık önbellekte olduğu için 0,2 sn'de açılıyordu —
-            // "bazen açılmıyor, yenileyince düzeliyor" şikâyetinin tam tarifi.
-            //
-            // ÇÖZÜM ZAMAN AŞIMINI BÜYÜTMEK DEĞİLDİR: o, kullanıcıyı 13 saniye spinner'a
-            // baktırmak olurdu. Bunun yerine anlatı için KISA BİR BÜTÇE beklenir; bütçe
-            // dolarsa cevap anlatısız döner ve üretim ARKA PLANDA sürer. Pipeline sonucu
-            // önbelleğe yazdığı için bir sonraki açılış hazır bulur.
-            //
-            // BİTMİŞ MAÇTA HİÇ ÜRETİLMEZ: kilitli "Bitmiş Maç Özeti" ekranı anlatı
-            // GÖSTERMEZ (ürün kararı). Görünmeyecek bir metin için bulut LLM beklemek
-            // hem kullanıcıyı bekletir hem boşuna maliyettir.
             var isFinished = string.Equals(detail.Status, MatchStatuses.Finished,
                 StringComparison.OrdinalIgnoreCase);
-
-            if (!isFinished)
-            {
-                // Görevler İSTEK TOKEN'INA BAĞLANMAZ: cevap döndükten sonra da devam edip
-                // önbelleği ısıtmalıdırlar. İstekle birlikte iptal edilselerdi, bütçeyi
-                // aşan her açılış önbelleği boş bırakır ve sorun kendini tekrarlardı.
-                var discoverTask = _narrativePipeline.GenerateAsync(context, RadarSurface.Discover, aiAllowed, CancellationToken.None);
-                var reportTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.MatchDetail, aiAllowed, CancellationToken.None);
-                var inceleTask   = _narrativePipeline.GenerateAsync(context, RadarSurface.AiIncele, aiAllowed, CancellationToken.None);
-
-                var all = Task.WhenAll(discoverTask, reportTask, inceleTask);
-                var finishedInBudget = await Task.WhenAny(all, Task.Delay(NarrativeBudget, ct))
-                                                 .ConfigureAwait(false) == all;
-
-                if (finishedInBudget && all.IsCompletedSuccessfully)
-                {
-                    ApplyNarrative(detail, discoverTask.Result, reportTask.Result, inceleTask.Result);
-                }
-                else
-                {
-                    // Arka planda sürecek görevin hatası GÖZLENİR: gözlenmeyen istisna
-                    // süreç düzeyinde patlama riskidir ve sessizce kaybolur.
-                    _ = all.ContinueWith(
-                        t => _logger.LogWarning(t.Exception,
-                            "[DETAIL] {MatchId} anlatısı arka planda tamamlanamadı.", matchId),
-                        CancellationToken.None,
-                        TaskContinuationOptions.OnlyOnFaulted,
-                        TaskScheduler.Default);
-
-                    _logger.LogInformation(
-                        "[DETAIL] {MatchId} anlatı bütçesi ({Budget} ms) doldu — cevap anlatısız döndü, üretim arka planda sürüyor.",
-                        matchId, NarrativeBudget.TotalMilliseconds);
-                }
-            }
-
-            tNarrative = sw.ElapsedMilliseconds;
+            detail.Analysis = isFinished ? null : await _analysisReader.GetAsync(matchId, ct);
 
             _logger.LogInformation(
-                "[DETAIL-PROF] match={MatchId} sync={Sync}ms context={Context}ms evidence={Evidence}ms " +
-                "news={News}ms narrative(LLM)={Narrative}ms total={Total}ms",
-                matchId, tSync, tContext - tSync, tEvidence - tContext,
-                tNews - tEvidence, tNarrative - tNews, tNarrative);
+                "[DETAIL-PROF] match={MatchId} sync={Sync}ms news={News}ms analysis(db)={Analysis}ms total={Total}ms llm=0",
+                matchId, tSync, tNews - tSync, sw.ElapsedMilliseconds - tNews, sw.ElapsedMilliseconds);
 
             return detail;
-        }
-
-        /// <summary>
-        /// ANLATI BÜTÇESİ — cevabın anlatı için bekleyebileceği EN UZUN süre.
-        ///
-        /// Ölçüm (03.09.2026): anlatı dışındaki her şey ~184 ms; soğuk LLM 5,7–13,1 sn.
-        /// Sıcak (önbellekli) anlatı ~0,2 sn içinde döner, yani bu bütçe normal akışta
-        /// hiç devreye girmez — yalnız soğuk çağrıda cevabı kurtarır.
-        /// </summary>
-        private static readonly TimeSpan NarrativeBudget = TimeSpan.FromSeconds(3);
-
-        /// <summary>Üç yüzeyin sonucunu DTO'ya taşır (içerik ve alanlar DEĞİŞMEDİ).</summary>
-        private static void ApplyNarrative(
-            MatchDetailDto detail,
-            Formax.Application.AI.Radar.RadarNarrativeResult discover,
-            Formax.Application.AI.Radar.RadarNarrativeResult report,
-            Formax.Application.AI.Radar.RadarNarrativeResult incele)
-        {
-            detail.AiNarrative = new RadarNarrativeDto
-            {
-                RadarSummary       = discover.RadarSummary,
-                Highlights         = discover.Highlights,
-                MatchReport        = report.MatchReport,
-                WhyThisMatch       = report.WhyThisMatch,
-                ReasoningSummary   = report.ReasoningSummary,
-                NewsSummary        = report.NewsSummary,
-                SocialSummary      = report.SocialSummary,
-                StatisticalSummary = report.StatisticalSummary,
-                KeyInsights        = report.KeyInsights,
-                Scenarios          = report.ScenarioExplanations
-                    .Select(s => new RadarScenarioReasonDto { Market = s.Market, Reason = s.Reason })
-                    .ToList(),
-                EvidenceSummary    = report.EvidenceSummary,
-                AiIncele           = incele.AiIncele,
-                ReasoningConfidence = report.ReasoningConfidence,
-                IsAiGenerated      = discover.IsAiGenerated || report.IsAiGenerated || incele.IsAiGenerated
-            };
         }
 
         // ────────────────────────────────────────────────────────────────────────
