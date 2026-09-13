@@ -8,7 +8,6 @@ import {
   GridIcon,
   BroadcastIcon,
   NewsIcon,
-  PlayIcon,
 } from "../icons";
 
 const ICONS: Record<ActionKey, (p: { className?: string; size?: number }) => React.ReactNode> = {
@@ -17,20 +16,17 @@ const ICONS: Record<ActionKey, (p: { className?: string; size?: number }) => Rea
   lineup: GridIcon,
   live: BroadcastIcon,
   news: NewsIcon,
-  video: PlayIcon,
 };
 
 /**
  * ActionGrid — dashboard aksiyonları (Teknik Doküman §4):
  *   • primary  → tam genişlik "AI Maç Analizi"
- *   • grid     → 2×2 (Form, Kadro, Canlı, Son Dakika)
- *   • video    → tam genişlik "ÖNEMLİ ANLARI İZLE" (alt CTA)
- * Gap 12px. Tüm butonlar active:scale-95.
+ *   • grid     → Form, Kadro, Son Dakika
+ * Alttaki video aksiyonu kaldırıldı (kilitli ürün kararı). Gap 12px. Tüm butonlar active:scale-95.
  */
 export function ActionGrid({ onSelect }: { onSelect: (action: MatchAction) => void }) {
   const primary = MATCH_ACTIONS.find((a) => a.slot === "primary")!;
   const grid = MATCH_ACTIONS.filter((a) => a.slot === "grid");
-  const video = MATCH_ACTIONS.find((a) => a.slot === "video")!;
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -41,8 +37,6 @@ export function ActionGrid({ onSelect }: { onSelect: (action: MatchAction) => vo
           <GridButton key={a.key} action={a} onSelect={onSelect} />
         ))}
       </div>
-
-      <VideoButton action={video} onSelect={onSelect} />
     </div>
   );
 }
@@ -79,22 +73,6 @@ function GridButton({ action, onSelect }: { action: MatchAction; onSelect: (a: M
       className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-goalai-border bg-goalai-surface-bright px-3 text-center text-[13px] font-medium text-white/90 transition-colors hover:border-white/25"
     >
       <Icon className="text-goalai-accent" size={24} />
-      <span>{action.label}</span>
-    </motion.button>
-  );
-}
-
-function VideoButton({ action, onSelect }: { action: MatchAction; onSelect: (a: MatchAction) => void }) {
-  const Icon = ICONS[action.key];
-  const tap = useTap();
-  return (
-    <motion.button
-      {...tap}
-      type="button"
-      onClick={() => onSelect(action)}
-      className="flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl border border-goalai-border bg-goalai-surface-bright px-4 text-[15px] font-semibold text-white transition-colors hover:border-white/25"
-    >
-      <Icon className="text-goalai-accent" size={22} />
       <span>{action.label}</span>
     </motion.button>
   );

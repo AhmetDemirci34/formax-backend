@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import fs from "node:fs";
+import path from "node:path";
+import { ActionGrid } from "@/components/match-center/dashboard/ActionGrid";
+import { MATCH_ACTIONS } from "@/components/match-center/aiContext";
 import type { LineupPlayerDto, MatchDetailDto, MatchVideoDto } from "@/types/api";
 import {
   VIDEO_CHECKING_TEXT,
@@ -374,5 +378,45 @@ describe("AI maç analizi", () => {
     expect(text).not.toMatch(/\b(O|G|B|M) \d|\bAG\b|\bYG\b|\bAV\b/);
     const html = renderToStaticMarkup(<AnalysisSections analysis={ready} />);
     expect(html).not.toMatch(/\bAG\b|\bYG\b|\bAV\b|O \d · G \d/);
+  });
+});
+
+// ── "ÖNEMLİ ANLARI İZLE" AKSİYONU KALDIRILDI ─────────────────────────────────
+
+describe("önemli anlar aksiyonu", () => {
+  const forbidden = /önemli anları izle/i;
+
+  it("maç ekranı aksiyon menüsünde buton yok", () => {
+    const html = renderToStaticMarkup(<ActionGrid onSelect={() => {}} />);
+    expect(html).not.toMatch(forbidden);
+    expect(MATCH_ACTIONS.map((a) => a.label).join(" ")).not.toMatch(forbidden);
+    expect(html).toContain("AI Maç Analizi");
+  });
+
+  it("hiçbir ekran kaynağında buton metni geçmez (app + components)", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (/\.(tsx?|jsx?)$/.test(entry.name) && forbidden.test(fs.readFileSync(p, "utf8"))) hits.push(p);
+      }
+    };
+    walk(path.resolve(__dirname, "../app"));
+    walk(path.resolve(__dirname, "../components"));
+    expect(hits).toEqual([]);
+  });
+
+  it("bitmiş maçta doğrulanmış resmî MAÇ ÖZETİ oynatıcısı korunur", () => {
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary
+        match={finishedMatch({
+          videos: [video({ title: "Telstar - Cambuur (Özet)", videoType: "MatchHighlights" })],
+        })}
+      />
+    );
+    expect(html).toMatch(/Maç Özeti/i);
+    expect(html).toContain("Telstar - Cambuur (Özet)");
+    expect(html).not.toMatch(forbidden);
   });
 });

@@ -103,16 +103,6 @@ export function NewsIcon({ className, size }: IconProps) {
   );
 }
 
-// Maçın Özetini İzle — oynat
-export function PlayIcon({ className, size }: IconProps) {
-  return (
-    <svg {...base(size)} className={className} aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M10 9.5l4 2.5-4 2.5z" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 // ── Bottom nav ───────────────────────────────────────────────────────────────
 export function CompassIcon({ className, size }: IconProps) {
   return (

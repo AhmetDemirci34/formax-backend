@@ -16,14 +16,14 @@ export type ActiveView =
   | "news"
   | "live";
 
-export type ActionKey = "analysis" | "stats" | "lineup" | "live" | "news" | "video";
+export type ActionKey = "analysis" | "stats" | "lineup" | "live" | "news";
 
 export interface MatchAction {
   key: ActionKey;
   label: string;
-  /** Hedef görünüm; "video" için null (overlay tetikler). */
-  view: ActiveView | null;
-  slot: "primary" | "grid" | "video";
+  /** Hedef görünüm. */
+  view: ActiveView;
+  slot: "primary" | "grid";
 }
 
 /** Asistan karşılama metni — statik (Stitch ile birebir). */
@@ -38,7 +38,9 @@ export const MATCH_ACTIONS: MatchAction[] = [
   // "Canlı Takip" KALDIRILDI (kilitli ürün kararı): FORMAX canlı maç göstermez.
   // Detay ekranı yalnız maç öncesi analiz sunar; canlı skor/dakika/olay yoktur.
   { key: "news", label: "Son Dakika", view: "news", slot: "grid" },
-  { key: "video", label: "ÖNEMLİ ANLARI İZLE", view: null, slot: "video" },
+  // "Önemli anlar" video aksiyonu KALDIRILDI (13.09.2026, kilitli ürün kararı): yaklaşan,
+  // canlı ya da bitmiş hiçbir maç ekranında gösterilmez. Bitmiş maçta yalnız doğrulanmış
+  // resmî MAÇ ÖZETİ oynatıcısı kalır (FinishedMatchSummary).
 ];
 
 /**

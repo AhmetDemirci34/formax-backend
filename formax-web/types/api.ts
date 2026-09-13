@@ -655,46 +655,6 @@ export interface MatchLiveFeedDto {
 
 // ── ÖNEMLİ ANLAR (GET /api/matches/{id}/highlights) ───────────────────────────
 
-export type MatchHighlightsStatus = "NotStartedYet" | "Ready" | "NoContent";
-
-export interface MatchHighlightMomentDto {
-  minute: number;
-  /** Gösterim etiketi; penaltı atışları için "PEN". */
-  minuteLabel: string;
-  type: string;
-  label: string;
-  /** Sağlayıcı alanlarından kurulu kısa açıklama; çıkarım içermez. */
-  description: string | null;
-  team: string | null;
-  player: string | null;
-  /** Bu ana bağlanmış doğrulanmış videonun id'si; yoksa null. */
-  videoId: string | null;
-}
-
-export interface MatchHighlightVideoDto {
-  id: string;
-  title: string;
-  minute: number | null;
-  platform: string;
-  source: string;
-  url: string;
-  /** Platformun izin verdiği embed adresi; embed edilemiyorsa null. */
-  embedUrl: string | null;
-  thumbnailUrl: string | null;
-  embeddable: boolean;
-  publishedUtc: string;
-}
-
-export interface MatchHighlightsDto {
-  matchId: number;
-  state: MatchLiveState;
-  status: MatchHighlightsStatus;
-  homeTeam: string;
-  awayTeam: string;
-  moments: MatchHighlightMomentDto[];
-  videos: MatchHighlightVideoDto[];
-}
-
 export interface NabizFeedItemDto {
   /** Haberin kimliği (backend ContentHash). Detay seçimi bunu kullanır. */
   id?: string;

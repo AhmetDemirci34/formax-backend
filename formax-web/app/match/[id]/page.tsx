@@ -21,7 +21,6 @@ import { FormStatusView } from "@/components/match-center/views/FormStatusView";
 import { LineupView } from "@/components/match-center/views/LineupView";
 import { LineupPanel } from "@/components/match-center/lineup/LineupPanel";
 import { NewsView } from "@/components/match-center/views/NewsView";
-import { HighlightsOverlay } from "@/components/match-center/overlays/HighlightsOverlay";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -43,7 +42,6 @@ export default function MatchCenterPage({ params }: PageProps) {
   useLineupAutoRefresh(match, refetch);
 
   const [activeView, setActiveView] = useState<ActiveView>("dashboard");
-  const [showHighlights, setShowHighlights] = useState(false);
 
   // Ekranda geçirilen süre analitiği (mevcut swipe endpoint'i).
   const openTimeRef = useRef(0);
@@ -59,21 +57,13 @@ export default function MatchCenterPage({ params }: PageProps) {
   }, [matchId]);
 
   function handleSelect(action: MatchAction) {
-    if (action.slot === "video") {
-      setShowHighlights(true);
-    } else if (action.view) {
-      setActiveView(action.view);
-    }
+    setActiveView(action.view);
   }
 
   const goDashboard = () => setActiveView("dashboard");
 
-  // Header geri: overlay/alt görünüm açıksa dashboard'a döner, dashboard'daysa route geri.
+  // Header geri: alt görünüm açıksa dashboard'a döner, dashboard'daysa route geri.
   function handleBack() {
-    if (showHighlights) {
-      setShowHighlights(false);
-      return;
-    }
     if (activeView !== "dashboard") {
       setActiveView("dashboard");
       return;
@@ -181,17 +171,6 @@ export default function MatchCenterPage({ params }: PageProps) {
 
       {/* Sabit: Bottom Nav */}
       <MatchCenterBottomNav />
-
-      {/* Önemli Anlar paneli (z-40; header/nav z-50 üstte kalır) */}
-      <AnimatePresence>
-        {showHighlights && (
-          <HighlightsOverlay
-            key="highlights-overlay"
-            match={match}
-            onClose={() => setShowHighlights(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

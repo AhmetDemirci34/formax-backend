@@ -1,7 +1,6 @@
 import apiClient from "./client";
 import type {
   MatchDetailDto,
-  MatchHighlightsDto,
   MatchLiveFeedDto,
   NabizSectionDto,
 } from "@/types/api";
@@ -52,13 +51,3 @@ export async function getMatchLiveFeed(matchId: number): Promise<MatchLiveFeedDt
   return res.data;
 }
 
-/**
- * ÖNEMLİ ANLAR — maçın gerçek olayları (gol/kart/penaltı/VAR) ve maça katı şekilde
- * eşleşen, platformun embed'ine izin verdiği video içerikleri.
- */
-export async function getMatchHighlights(matchId: number): Promise<MatchHighlightsDto> {
-  const res = await apiClient.get<MatchHighlightsDto>(
-    `/api/matches/${matchId}/highlights`
-  );
-  return res.data;
-}
