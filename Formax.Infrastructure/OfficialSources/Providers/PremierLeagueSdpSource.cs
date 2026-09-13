@@ -138,7 +138,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                 if (team.Prop("goals") is { ValueKind: JsonValueKind.Array } goals)
                     foreach (var g in goals.EnumerateArray())
                     {
-                        var (min, extra) = Minute(g.Str("time"));
+                        var (min, extra) = Minute(g.Str("time"), g.Str("period"));
                         var type = g.Str("goalType") ?? "Goal";
                         var detail = type.Contains("Own", StringComparison.OrdinalIgnoreCase) ? "Own Goal"
                                    : type.Contains("Pen", StringComparison.OrdinalIgnoreCase) ? "Penalty" : "Normal Goal";
@@ -148,7 +148,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                 if (team.Prop("cards") is { ValueKind: JsonValueKind.Array } cards)
                     foreach (var c in cards.EnumerateArray())
                     {
-                        var (min, extra) = Minute(c.Str("time"));
+                        var (min, extra) = Minute(c.Str("time"), c.Str("period"));
                         var t = c.Str("type") ?? string.Empty;
                         var detail = t.Contains("YellowRed", StringComparison.OrdinalIgnoreCase) || t.Contains("Second", StringComparison.OrdinalIgnoreCase)
                             ? "Second Yellow card"
@@ -159,12 +159,32 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                 if (team.Prop("subs") is { ValueKind: JsonValueKind.Array } subs)
                     foreach (var s in subs.EnumerateArray())
                     {
-                        var (min, extra) = Minute(s.Str("time"));
+                        var (min, extra) = Minute(s.Str("time"), s.Str("period"));
                         list.Add(new OfficialMatchEvent($"pl:sub:{side}:{s.Str("time")}:{s.Str("playerOnId")}", min, extra, side,
-                            "subst", "Substitution", Name(s.Str("playerOnId")), Name(s.Str("playerOffId"))));
+                            // FORMAX olay sözleşmesi (MatchEventDto): Player = ÇIKAN, Assist = GİREN.
+                            "subst", "Substitution", Name(s.Str("playerOffId")), Name(s.Str("playerOnId"))));
                     }
             }
             return list.OrderBy(e => e.Minute).ThenBy(e => e.ExtraMinute ?? 0).ToList();
+        }
+
+        /// <summary>
+        /// Resmî dakika. "45+2" → (45, 2). Kaynak uzatmayı düz sayı yazarsa ("94", SecondHalf) devrenin
+        /// normal süresine göre ayrılır → (90, 4); ilk yarıda "47" → (45, 2). Devre bilinmiyorsa ayrılmaz.
+        /// </summary>
+        public static (int Minute, int? Extra) Minute(string? raw, string? period)
+        {
+            var (m, extra) = Minute(raw);
+            if (extra != null) return (m, extra);
+            var cap = period switch
+            {
+                "FirstHalf" => 45,
+                "SecondHalf" => 90,
+                "ExtraFirstHalf" => 105,
+                "ExtraSecondHalf" => 120,
+                _ => 0
+            };
+            return cap > 0 && m > cap ? (cap, m - cap) : (m, null);
         }
 
         /// <summary>"45+2" → (45, 2); "62" → (62, null).</summary>

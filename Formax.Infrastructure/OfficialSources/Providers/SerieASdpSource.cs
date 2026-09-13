@@ -163,8 +163,11 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                             _ => null
                         };
                         if (mapped == null) continue;
+                        var own = name.Length > 0 ? name : null;
+                        // FORMAX olay sözleşmesi (MatchEventDto): oyuncu değişikliğinde Player = ÇIKAN, Assist = GİREN.
+                        var (player, assist) = mapped.Value.Type == "subst" ? (mapped.Value.Assist, own) : (own, mapped.Value.Assist);
                         list.Add(new OfficialMatchEvent($"sa:{type}:{side}:{min}:{add}:{id}", min, add, side,
-                            mapped.Value.Type, mapped.Value.Detail, name.Length > 0 ? name : null, mapped.Value.Assist));
+                            mapped.Value.Type, mapped.Value.Detail, player, assist));
                     }
             }
             return list.OrderBy(e => e.Minute).ThenBy(e => e.ExtraMinute ?? 0).ToList();

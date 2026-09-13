@@ -69,9 +69,25 @@ public class OfficialResultsTests
         Assert.All(goals, g => Assert.False(string.IsNullOrWhiteSpace(g.PlayerName)));
         Assert.Equal(2, events.Count(e => e.EventType == "Card"));
         Assert.Equal(9, events.Count(e => e.EventType == "subst"));
+
+        // Sözleşme: oyuncu değişikliğinde PlayerName = ÇIKAN, AssistName = GİREN. Gol atan oyuncu,
+        // golünden SONRA oyuna giren biri olarak yazılamaz (canlı doğrulamada yakalanan ters eşleme).
+        foreach (var g in goals)
+            Assert.DoesNotContain(events, s => s.EventType == "subst" && s.AssistName == g.PlayerName && s.Minute > g.Minute);
+        var scorerOff = events.Where(s => s.EventType == "subst" && goals.Any(g => g.PlayerName == s.PlayerName)).ToList();
+        Assert.All(scorerOff, s => Assert.True(s.Minute >= goals.First(g => g.PlayerName == s.PlayerName).Minute));
         // Aynı olay iki kez üretilmez.
         Assert.Equal(events.Count, events.Select(e => e.OfficialEventId).Distinct().Count());
     }
+
+    [Theory]
+    [InlineData("94", "SecondHalf", 90, 4)]
+    [InlineData("47", "FirstHalf", 45, 2)]
+    [InlineData("45+2", "FirstHalf", 45, 2)]
+    [InlineData("62", "SecondHalf", 62, null)]
+    [InlineData("94", null, 94, null)]
+    public void PremierLeague_Dakika_UzatmaResmiDevreyeGoreAyrilir(string raw, string? period, int minute, int? extra)
+        => Assert.Equal((minute, extra), PremierLeagueSdpSource.Minute(raw, period));
 
     [Fact]
     public void PremierLeague_Istatistik_KaynakVermeyenAlanNull_SifirUydurulmaz()
@@ -99,6 +115,8 @@ public class OfficialResultsTests
         Assert.All(events, e => Assert.Contains(e.EventType, new[] { "Goal", "Card", "subst" }));
         Assert.All(events, e => Assert.Contains(e.Side, new[] { "home", "away" }));
         Assert.Equal(events.Count, events.Select(e => e.OfficialEventId).Distinct().Count());
+        // Oyuncu değişikliğinde giren oyuncu her zaman AssistName'dedir.
+        Assert.All(events.Where(e => e.EventType == "subst"), e => Assert.NotNull(e.AssistName));
     }
 
     [Fact]
