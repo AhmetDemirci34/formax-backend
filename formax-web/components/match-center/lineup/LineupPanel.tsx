@@ -15,6 +15,8 @@ import { formatLastCheck, hasVerifiedLineup, lineupWaitingText } from "@/lib/lin
  *  • Maç başlamış ya da bitmiş olsa bile DB'deki doğrulanmış kadro KAYBOLMAZ.
  *  • Diziliş TAHMİN EDİLMEZ; saha konumu sağlayıcının grid'inden gelir.
  *  • "Son kontrol" backend'in kalıcı defterinden gelir; yoksa satır hiç çıkmaz.
+ *  • Resmî kaynak saha konumu vermediyse (grid yok) saha ÇİZİLMEZ; ilk 11 liste olarak
+ *    gösterilir. Konum uydurulmaz.
  *  • Metin kontrastı mobilde okunur olmalı: bekleme metni ≥ %85, yardımcı satır ≥ %70
  *    beyaz (koyu zemin üzerinde).
  */
@@ -39,9 +41,18 @@ export function LineupPanel({ match, pitchHeight = 440 }: { match: MatchDetailDt
         <FormationRow name={match.homeTeam?.name} formation={l.homeFormation} />
       </div>
 
-      <div style={{ height: pitchHeight }} className="flex">
-        <Pitch home={l.homeStartingXI} away={l.awayStartingXI} />
-      </div>
+      {hasPitchPositions(l.homeStartingXI, l.awayStartingXI) ? (
+        <div style={{ height: pitchHeight }} className="flex">
+          <Pitch home={l.homeStartingXI} away={l.awayStartingXI} />
+        </div>
+      ) : (
+        <StartersList
+          homeName={match.homeTeam?.name}
+          awayName={match.awayTeam?.name}
+          home={l.homeStartingXI ?? []}
+          away={l.awayStartingXI ?? []}
+        />
+      )}
 
       <BenchSection
         homeName={match.homeTeam?.name}
@@ -50,8 +61,46 @@ export function LineupPanel({ match, pitchHeight = 440 }: { match: MatchDetailDt
         away={l.awayBench ?? []}
       />
 
+      {(l.homeCoach || l.awayCoach) && (
+        <p className="px-1 text-[12px] text-white/80">
+          Teknik direktör: {[l.homeCoach, l.awayCoach].filter(Boolean).join(" · ")}
+        </p>
+      )}
+      {l.source && <p className="px-1 text-[12px] text-white/75">Resmî kaynak: {l.source}</p>}
       {lastCheck && <p className="px-1 text-[12px] tabular-nums text-white/75">{lastCheck}</p>}
     </div>
+  );
+}
+
+/**
+ * Sahaya yerleştirme ancak İLK 11 oyuncularının tamamı kaynaktan gelen grid taşıyorsa yapılır.
+ * Tek bir eksik konum bile sahayı yanıltıcı yapar → liste görünümü.
+ */
+export function hasPitchPositions(home?: LineupPlayerDto[], away?: LineupPlayerDto[]): boolean {
+  const all = [...(home ?? []), ...(away ?? [])];
+  return all.length > 0 && all.every((p) => typeof p.grid === "string" && /^\d+\s*:\s*\d+$/.test(p.grid.trim()));
+}
+
+/** İLK 11 LİSTESİ — saha konumu olmayan resmî kadrolar için (ör. TFF). */
+export function StartersList({
+  homeName,
+  awayName,
+  home,
+  away,
+}: {
+  homeName?: string;
+  awayName?: string;
+  home: LineupPlayerDto[];
+  away: LineupPlayerDto[];
+}) {
+  return (
+    <section className="rounded-xl border border-goalai-border bg-goalai-surface-bright px-3 py-2.5" data-lineup-view="list">
+      <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/85">İlk 11</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <BenchColumn title={homeName} players={home} accent emptyText="İlk 11 açıklanmadı" />
+        <BenchColumn title={awayName} players={away} emptyText="İlk 11 açıklanmadı" />
+      </div>
+    </section>
   );
 }
 
@@ -79,14 +128,24 @@ export function BenchSection({
   );
 }
 
-function BenchColumn({ title, players, accent = false }: { title?: string; players: LineupPlayerDto[]; accent?: boolean }) {
+function BenchColumn({
+  title,
+  players,
+  accent = false,
+  emptyText = "Yedek bilgisi yok",
+}: {
+  title?: string;
+  players: LineupPlayerDto[];
+  accent?: boolean;
+  emptyText?: string;
+}) {
   return (
     <div className="min-w-0">
       <p className={`mb-1 truncate text-[10.5px] font-semibold uppercase ${accent ? "text-goalai-accent" : "text-white/80"}`}>
         {title ?? "—"}
       </p>
       {players.length === 0 ? (
-        <p className="text-[11px] text-white/70">Yedek bilgisi yok</p>
+        <p className="text-[11px] text-white/70">{emptyText}</p>
       ) : (
         <ul className="flex flex-col gap-0.5">
           {players.map((p, i) => (

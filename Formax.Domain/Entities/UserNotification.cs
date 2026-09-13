@@ -43,6 +43,20 @@ namespace Formax.Domain.Entities
 
         /// <summary>Yönlendirme hedefi id'si (ör. matchId, newsId). Yoksa MatchId kullanılır.</summary>
         public int? TargetId { get; set; }
+
+        // ── Maç bildirimi sözleşmesi (additive; legacy satırlarda null) ──────────────
+
+        /// <summary>Makine okunur tür: "MATCH_LINEUP_AVAILABLE" | "MATCH_CRITICAL_UPDATE".</summary>
+        public string? NotificationType { get; set; }
+
+        /// <summary>Bildirime basınca açılacak rota (ör. "/match/15383").</summary>
+        public string? Route { get; set; }
+
+        /// <summary>
+        /// DB seviyesinde tekillik anahtarı (filtreli UNIQUE indeks). Restart ya da iki job
+        /// örneği aynı bildirimi ikinci kez YAZAMAZ; ikinci deneme indeks ihlaliyle düşer.
+        /// </summary>
+        public string? IdempotencyKey { get; set; }
     }
 }
 

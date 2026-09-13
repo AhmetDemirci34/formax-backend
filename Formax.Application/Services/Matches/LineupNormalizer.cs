@@ -99,6 +99,20 @@ namespace Formax.Application.Services.Matches
         public const string Waiting = "Waiting";
         public const string NotFound = "NotFound";
 
+        /// <summary>
+        /// RESMÎ KAYNAK TAKVİMİYLE DURUM — arama T−60'ta başlar, kickoff+10'da biter
+        /// (<see cref="OfficialSources.OfficialLineupSchedule"/>). T−60'tan önce "Waiting":
+        /// henüz aranmadığı için "kaynak gecikti" DENMEZ.
+        /// </summary>
+        public static string ResolveOfficial(bool hasLineup, DateTime kickoffUtc, DateTime nowUtc)
+        {
+            if (hasLineup) return Released;
+            var remaining = kickoffUtc - nowUtc;
+            if (remaining > OfficialSources.OfficialLineupSchedule.WindowOpen) return Waiting;
+            if (remaining >= -OfficialSources.OfficialLineupSchedule.FinalCheckAfterKickoff) return SourceDelayed;
+            return NotFound;
+        }
+
         public static string Resolve(bool hasLineup, DateTime kickoffUtc, DateTime nowUtc)
         {
             if (hasLineup) return Released;

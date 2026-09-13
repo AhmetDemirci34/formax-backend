@@ -35,7 +35,9 @@ namespace Formax.Application.UseCases.Notifications
                 LeagueId = n.LeagueId,
                 TargetType = n.TargetType.ToString(),
                 // Legacy satırlar için hedef id yoksa maça düş (frontend her zaman yönlenebilsin).
-                TargetId = n.TargetId ?? n.MatchId
+                TargetId = n.TargetId ?? n.MatchId,
+                Type = n.NotificationType,
+                Route = n.Route ?? (n.MatchId > 0 ? $"/match/{n.MatchId}" : null)
             }).ToList();
         }
     }

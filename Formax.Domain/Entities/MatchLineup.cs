@@ -49,6 +49,40 @@ namespace Formax.Domain.Entities
         /// </summary>
         public DateTime? LastCheckedAtUtc { get; set; }
 
+        // ── RESMÎ KAYNAK KANITI (additive) ──────────────────────────────────────────
+        // Kadro artık lisanslı veri sağlayıcısından değil lig/federasyon/kulübün resmî
+        // yayınından gelir. Hangi kaynaktan, hangi içerikten ve ne zaman doğrulandığı
+        // taraf bazında değil başlıkta tutulur; iki kulübün ayrı açıklaması birleştiğinde
+        // kaynaklar virgülle yan yana yazılır.
+
+        /// <summary>Kayıt defterindeki resmî kaynak anahtarı (ör. "seriea-sdp").</summary>
+        public string? SourceKey { get; set; }
+
+        /// <summary>Kadronun okunduğu resmî adres.</summary>
+        public string? SourceUrl { get; set; }
+
+        /// <summary>Kadronun ayrıştırıldığı ham içeriğin SHA-256 özeti.</summary>
+        public string? RawContentHash { get; set; }
+
+        /// <summary>Kaynağın yayın anı (kaynak veriyorsa); vermiyorsa null — uydurulmaz.</summary>
+        public DateTime? SourcePublishedAtUtc { get; set; }
+
+        /// <summary>Kadronun kaynakta ilk kez görüldüğü an.</summary>
+        public DateTime? DiscoveredAtUtc { get; set; }
+
+        /// <summary>Doğrulamanın geçtiği an.</summary>
+        public DateTime? VerifiedAtUtc { get; set; }
+
+        /// <summary>"Verified" | "PartiallyVerified" (yalnız bir taraf) | "Pending".</summary>
+        public string? VerificationStatus { get; set; }
+
+        /// <summary>
+        /// Takipçilere "Kadrolar açıklandı" dağıtımının tamamlandığı an. Kadro yazıldıktan sonra
+        /// süreç çökerse bir sonraki tur dağıtımı bu alan boş olduğu için tamamlar; kullanıcı
+        /// başına tekillik yine DB anahtarındadır.
+        /// </summary>
+        public DateTime? FollowersNotifiedAtUtc { get; set; }
+
         // Navigation
         public Match? Match { get; set; }
     }

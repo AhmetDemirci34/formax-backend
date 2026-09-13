@@ -42,6 +42,12 @@ namespace Formax.Infrastructure.Data
         public DbSet<UserLeagueFollow> UserLeagueFollows { get; set; }
 
         public DbSet<UserNotification> UserNotifications { get; set; }
+        public DbSet<UserNotificationPreference> UserNotificationPreferences { get; set; } = null!;
+
+        // ── Resmî kaynak altyapısı (kadro/sonuç/olay/istatistik/kritik gelişme) ──
+        public DbSet<OfficialSourceFetch> OfficialSourceFetches { get; set; } = null!;
+        public DbSet<OfficialSourceCacheEntry> OfficialSourceCache { get; set; } = null!;
+        public DbSet<OfficialMatchLink> OfficialMatchLinks { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1024,6 +1030,81 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.HomeCoach).HasMaxLength(128);
                 entity.Property(x => x.AwayCoach).HasMaxLength(128);
                 entity.Property(x => x.Provider).HasMaxLength(32);
+                // Resmî kaynak kanıtı (additive).
+                entity.Property(x => x.SourceKey).HasMaxLength(120);
+                entity.Property(x => x.SourceUrl).HasMaxLength(1000);
+                entity.Property(x => x.RawContentHash).HasMaxLength(64);
+                entity.Property(x => x.VerificationStatus).HasMaxLength(32);
+            });
+
+            // ── RESMÎ KAYNAK ALTYAPISI ───────────────────────────────────────
+            modelBuilder.Entity<OfficialSourceFetch>(entity =>
+            {
+                entity.ToTable("OfficialSourceFetches");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.Host).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.UrlHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Url).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.Purpose).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.RoundKey).HasMaxLength(120);
+                entity.Property(x => x.Outcome).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(64);
+                entity.Property(x => x.Decision).HasMaxLength(400);
+                entity.HasIndex(x => new { x.Host, x.RequestedAtUtc }).HasDatabaseName("IX_OfficialSourceFetches_Host_Time");
+                entity.HasIndex(x => new { x.RoundKey, x.UrlHash }).HasDatabaseName("IX_OfficialSourceFetches_Round_Url");
+                entity.HasIndex(x => new { x.MatchId, x.Purpose }).HasDatabaseName("IX_OfficialSourceFetches_Match_Purpose");
+            });
+
+            modelBuilder.Entity<OfficialSourceCacheEntry>(entity =>
+            {
+                entity.ToTable("OfficialSourceCache");
+                entity.HasKey(x => x.UrlHash);
+                entity.Property(x => x.UrlHash).HasMaxLength(64);
+                entity.Property(x => x.Url).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.ETag).HasMaxLength(200);
+                entity.Property(x => x.LastModified).HasMaxLength(64);
+                entity.Property(x => x.ContentType).HasMaxLength(100);
+                entity.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ProcessedHash).HasMaxLength(64);
+            });
+
+            modelBuilder.Entity<OfficialMatchLink>(entity =>
+            {
+                entity.ToTable("OfficialMatchLinks");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.OfficialMatchId).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.OfficialUrl).HasMaxLength(500);
+                entity.Property(x => x.OfficialHomeName).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.OfficialAwayName).HasMaxLength(200).IsRequired();
+                entity.HasIndex(x => new { x.SourceKey, x.OfficialMatchId }).IsUnique()
+                      .HasDatabaseName("UX_OfficialMatchLinks_Source_OfficialMatch");
+                entity.HasIndex(x => new { x.MatchId, x.SourceKey }).IsUnique()
+                      .HasDatabaseName("UX_OfficialMatchLinks_Match_Source");
+            });
+
+            // ── BİLDİRİM SÖZLEŞMESİ (additive) ──────────────────────────────
+            modelBuilder.Entity<UserNotification>(entity =>
+            {
+                entity.Property(x => x.NotificationType).HasMaxLength(64);
+                entity.Property(x => x.Route).HasMaxLength(200);
+                entity.Property(x => x.IdempotencyKey).HasMaxLength(200);
+                // DB seviyesinde tekillik: aynı anahtar ikinci kez YAZILAMAZ (legacy satırlar null).
+                entity.HasIndex(x => x.IdempotencyKey).IsUnique()
+                      .HasFilter("[IdempotencyKey] IS NOT NULL")
+                      .HasDatabaseName("UX_UserNotifications_IdempotencyKey");
+            });
+
+            modelBuilder.Entity<UserNotificationPreference>(entity =>
+            {
+                entity.ToTable("UserNotificationPreferences");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.PrefKey).HasMaxLength(100).IsRequired();
+                entity.HasIndex(x => new { x.UserId, x.PrefKey }).IsUnique()
+                      .HasDatabaseName("UX_UserNotificationPreferences_User_Key");
             });
 
             // MatchLineupPlayer — Guid PK, index on MatchId for fast reads

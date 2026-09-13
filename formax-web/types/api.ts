@@ -353,6 +353,14 @@ export interface LineupSectionDto {
   homeBench: LineupPlayerDto[];
   awayStartingXI: LineupPlayerDto[];
   awayBench: LineupPlayerDto[];
+  /** Kadronun alındığı resmî kaynak (ör. "Lega Serie A"); eski kayıtta null. */
+  source?: string | null;
+  /** Taraf bazında yayım — kulüp yalnız kendi ilk 11'ini açıkladıysa diğeri false. */
+  homeReleased?: boolean;
+  awayReleased?: boolean;
+  /** Kaynak verdiyse teknik direktör; yoksa null (uydurulmaz). */
+  homeCoach?: string | null;
+  awayCoach?: string | null;
 }
 
 export interface PlayerStatusDto {

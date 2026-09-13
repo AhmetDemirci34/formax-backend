@@ -4,6 +4,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System;
+using System.Linq;
+using System.Threading;
+using Formax.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Formax.API.Controllers
 {
@@ -59,6 +64,56 @@ namespace Formax.API.Controllers
 
             await _repository.MarkAsReadAsync(id);
             return NoContent();
+        }
+
+        // ── BİLDİRİM TERCİHLERİ ─────────────────────────────────────────────────
+        // İçerik bazlı aç/kapat ("match:123" …). Satır yoksa tercih AÇIK sayılır. Bildirim
+        // üreten job'lar (kadro, kritik gelişme) göndermeden önce bu tabloya bakar.
+
+        private static readonly System.Text.RegularExpressions.Regex PrefKeyRx =
+            new(@"^(match|team|league|formax):[A-Za-z0-9\-]{1,60}$");
+
+        public sealed record PreferenceDto(string Key, bool Enabled);
+
+        [HttpGet("me/preferences")]
+        public async Task<IActionResult> GetPreferences(
+            [FromServices] FormaxDbContext db, CancellationToken ct)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+            var rows = await db.UserNotificationPreferences.AsNoTracking()
+                .Where(p => p.UserId == userId)
+                .Select(p => new PreferenceDto(p.PrefKey, p.Enabled))
+                .ToListAsync(ct);
+            return Ok(rows);
+        }
+
+        [HttpPut("me/preferences")]
+        public async Task<IActionResult> SetPreference(
+            [FromBody] PreferenceDto body,
+            [FromServices] FormaxDbContext db, CancellationToken ct)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+            if (body == null || !PrefKeyRx.IsMatch(body.Key ?? string.Empty))
+                return BadRequest(new { error = "Geçersiz tercih anahtarı" });
+
+            var row = await db.UserNotificationPreferences
+                .FirstOrDefaultAsync(p => p.UserId == userId && p.PrefKey == body.Key, ct);
+            if (row == null)
+            {
+                db.UserNotificationPreferences.Add(new Formax.Domain.Entities.UserNotificationPreference
+                {
+                    UserId = userId, PrefKey = body.Key!, Enabled = body.Enabled, UpdatedAtUtc = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                row.Enabled = body.Enabled;
+                row.UpdatedAtUtc = DateTime.UtcNow;
+            }
+            await db.SaveChangesAsync(ct);
+            return Ok(new PreferenceDto(body.Key!, body.Enabled));
         }
 
         /// <summary>Kullanıcının tüm okunmamış bildirimlerini tek işlemde okundu yapar.</summary>

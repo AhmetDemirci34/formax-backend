@@ -1132,32 +1132,34 @@ namespace Formax.Application.UseCases
             var players = _matchLineupRepository.GetPlayersByMatchId(matchId);
 
             // BEKLEME DURUMU — arayüz sabit bir saat SÖZÜ vermesin diye taşınır.
-            // Bu üç alan salt DB'den okunur; sayfa açılışı sağlayıcıya ÇIKMAZ.
+            // Bu alanlar salt DB'den okunur; sayfa açılışı hiçbir dış kaynağa ÇIKMAZ.
             var nowUtc   = DateTime.UtcNow;
             var remaining = kickoffUtc - nowUtc;
-            var ledger = string.IsNullOrWhiteSpace(externalMatchId)
-                ? Services.PostMatch.FixtureAttemptSummary.None
-                : _fixtureSync.GetFixtureAttemptSummary(externalMatchId!, FixtureRefreshPurposes.Lineup);
+
+            // Kadro yalnız RESMÎ kaynaktan gelir ("official:" damgası). "Son kontrol" de yalnız
+            // resmî kaynağın gerçek kontrolüdür; eski sağlayıcı izi (defter/başlık) gösterilmez.
+            var official = header?.Provider?.StartsWith("official:", StringComparison.Ordinal) == true;
 
             var waitState = new
             {
-                WindowOpen    = remaining <= Services.Matches.LineupPollSchedule.WindowOpen,
+                WindowOpen    = remaining <= Services.OfficialSources.OfficialLineupSchedule.WindowOpen,
                 KickoffPassed = remaining <= TimeSpan.Zero,
-                // SON KONTROL: sağlayıcının GERÇEKTEN cevap verdiği son an — kural
-                // LineupAvailability.LastRealCheck'te (engellenen rezervasyon sayılmaz).
-                LastChecked   = Services.Matches.LineupAvailability.LastRealCheck(
-                                    header?.LastCheckedAtUtc, header?.FetchedAt,
-                                    ledger.LastAttemptUtc, ledger.LastOutcome)
+                LastChecked   = official ? header!.LastCheckedAtUtc : null
             };
+            var sourceLabel = official
+                ? string.Join(" + ", (header!.SourceKey ?? string.Empty)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(k => Services.OfficialSources.OfficialSourceRegistry.ByKey(k)?.Organization ?? k))
+                : null;
 
-            if (header == null || players.Count == 0)
+            if (header == null || players.Count == 0 || (!header.HomeLineupsReleased && !header.AwayLineupsReleased))
                 return new LineupSectionDto
                 {
                     LineupsAnnounced  = false,
                     PollingWindowOpen = waitState.WindowOpen,
                     KickoffPassed     = waitState.KickoffPassed,
                     LastCheckedUtc    = waitState.LastChecked,
-                    Status            = Services.Matches.LineupAvailability.Resolve(false, kickoffUtc, nowUtc)
+                    Status            = Services.Matches.LineupAvailability.ResolveOfficial(false, kickoffUtc, nowUtc)
                 };
 
             static LineupPlayerDto Map(MatchLineupPlayer p) => new()
@@ -1183,8 +1185,13 @@ namespace Formax.Application.UseCases
                 KickoffPassed     = waitState.KickoffPassed,
                 LastCheckedUtc    = waitState.LastChecked,
                 // DB'de doğrulanmış kadro varsa maç başlamış/bitmiş olsa da gösterilir.
-                Status            = Services.Matches.LineupAvailability.Resolve(
-                                        header.HomeLineupsReleased || header.AwayLineupsReleased, kickoffUtc, nowUtc)
+                Status            = Services.Matches.LineupAvailability.ResolveOfficial(
+                                        header.HomeLineupsReleased || header.AwayLineupsReleased, kickoffUtc, nowUtc),
+                Source            = sourceLabel,
+                HomeReleased      = header.HomeLineupsReleased,
+                AwayReleased      = header.AwayLineupsReleased,
+                HomeCoach         = header.HomeCoach,
+                AwayCoach         = header.AwayCoach
             };
         }
 

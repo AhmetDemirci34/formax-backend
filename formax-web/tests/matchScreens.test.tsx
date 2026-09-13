@@ -11,7 +11,8 @@ import { nextPlaybackState, parsePlayerMessage, playbackErrorText } from "@/lib/
 import { formatLastCheck, lineupWaitingText, LINEUP_TEXT_NOT_FOUND } from "@/lib/lineup/lineupStatus";
 import { eventLabel, UNKNOWN_EVENT_LABEL } from "@/lib/matches/eventLabels";
 import { FinishedMatchSummary } from "@/components/match-center/views/FinishedMatchSummary";
-import { LineupPanel } from "@/components/match-center/lineup/LineupPanel";
+import { LineupPanel, hasPitchPositions } from "@/components/match-center/lineup/LineupPanel";
+import { notificationHref, notificationTypeLabel } from "@/lib/api/notifications";
 import { VideoPlayerCard } from "@/components/match-center/views/VideoPlayerCard";
 import { TeamCrest, crestInitials } from "@/components/ui/TeamCrest";
 import { groupByDateAndLeague } from "@/components/maclar/SearchResults";
@@ -274,5 +275,56 @@ describe("olay etiketi", () => {
     expect(html).toContain("Giren: S. Bouhoudane");
     expect(html).toContain("Çıkan: I. Baouf");
     expect(html).not.toContain("Asist: S. Bouhoudane");
+  });
+});
+
+// ── RESMÎ KADRO: KONUMSUZ KAYNAK + BİLDİRİM ROTASI ──────────────────────────
+
+describe("resmî kadro görünümü", () => {
+  const eleven = (prefix: string, grid: boolean) =>
+    Array.from({ length: 11 }, (_, i) => player(i + 1, `${prefix} ${i + 1}`, grid ? `${i === 0 ? 1 : 2}:${i + 1}` : null));
+
+  it("kaynak saha konumu vermediyse saha çizilmez, ilk 11 liste olarak ve kaynak etiketiyle gösterilir", () => {
+    const html = renderToStaticMarkup(
+      <LineupPanel
+        match={finishedMatch({
+          homeTeam: { name: "Beşiktaş" } as never,
+          awayTeam: { name: "Erzurumspor FK" } as never,
+          lineup: {
+            lineupsAnnounced: true,
+            homeStartingXI: eleven("BJK", false),
+            awayStartingXI: eleven("ERZ", false),
+            homeBench: [],
+            awayBench: [],
+            source: "Türkiye Futbol Federasyonu",
+            homeCoach: "VINCENZO ITALIANO",
+            awayCoach: "SERKAN ÖZBALTA",
+          } as never,
+        })}
+      />
+    );
+    expect(html).toContain('data-lineup-view="list"');
+    expect(html).not.toContain("Saha konumu bildirilmeyen");
+    expect(html).toContain("BJK 11");
+    expect(html).toContain("Resmî kaynak: Türkiye Futbol Federasyonu");
+    expect(html).toContain("VINCENZO ITALIANO");
+  });
+
+  it("saha yalnız bütün ilk 11 oyuncularında kaynak konumu varsa çizilir", () => {
+    expect(hasPitchPositions(eleven("A", true), eleven("B", true))).toBe(true);
+    const mixed = [...eleven("A", true)];
+    mixed[3] = player(4, "A 4", null);
+    expect(hasPitchPositions(mixed, eleven("B", true))).toBe(false);
+    expect(hasPitchPositions([], [])).toBe(false);
+  });
+
+  it("bildirim doğru maç detayına gider; dış/protokol-göreli rota kabul edilmez", () => {
+    expect(notificationHref({ route: "/match/15383", matchId: 15383 })).toBe("/match/15383");
+    expect(notificationHref({ route: null, matchId: 99 })).toBe("/match/99");
+    expect(notificationHref({ route: "https://evil.example", matchId: 7 })).toBe("/match/7");
+    expect(notificationHref({ route: "//evil.example", matchId: 7 })).toBe("/match/7");
+    expect(notificationTypeLabel("MATCH_LINEUP_AVAILABLE")).toBe("Kadro");
+    expect(notificationTypeLabel("MATCH_CRITICAL_UPDATE")).toBe("Kritik gelişme");
+    expect(notificationTypeLabel(null)).toBeNull();
   });
 });

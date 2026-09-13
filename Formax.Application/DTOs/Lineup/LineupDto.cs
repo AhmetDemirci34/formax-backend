@@ -137,6 +137,19 @@ namespace Formax.Application.DTOs.Lineup
         /// SourceDelayed = yoklama sürüyor ama lisanslı veri kaynağı kadroyu henüz iletmedi.
         /// </summary>
         public string Status { get; set; } = "Waiting";
+
+        // ── RESMÎ KAYNAK (additive) ─────────────────────────────────────────────
+
+        /// <summary>Kadronun alındığı resmî kaynak(lar) — ör. "Lega Serie A". Eski kayıtta null.</summary>
+        public string? Source { get; set; }
+
+        /// <summary>Taraf bazında yayım: kulüp yalnız kendi ilk 11'ini açıkladıysa diğer taraf false.</summary>
+        public bool HomeReleased { get; set; }
+        public bool AwayReleased { get; set; }
+
+        /// <summary>Kaynak verdiyse teknik direktör; vermediyse null (uydurulmaz).</summary>
+        public string? HomeCoach { get; set; }
+        public string? AwayCoach { get; set; }
     }
 
     public class PlayerStatusSectionDto

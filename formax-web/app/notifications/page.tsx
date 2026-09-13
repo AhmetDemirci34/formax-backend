@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { AUTH_GATE_ENABLED } from "@/lib/auth/authGate";
 import { useNotifications, useMarkAsRead } from "@/hooks/useNotifications";
-import type { UserNotificationDto } from "@/lib/api/notifications";
+import { notificationHref, notificationTypeLabel, type UserNotificationDto } from "@/lib/api/notifications";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Relative time helper
@@ -34,11 +34,13 @@ function NotificationRow({
   notification: UserNotificationDto;
   onRead: (id: number) => void;
 }) {
-  const { id, matchId, title, message, isRead, createdAt } = notification;
+  const { id, title, message, isRead, createdAt } = notification;
+  const typeLabel = notificationTypeLabel(notification.type);
 
   return (
     <Link
-      href={`/match/${matchId}`}
+      href={notificationHref(notification)}
+      data-notification-type={notification.type ?? undefined}
       onClick={() => { if (!isRead) onRead(id); }}
       className={`flex items-start gap-3 px-4 py-3.5 border rounded-xl transition-colors ${
         isRead
@@ -57,6 +59,9 @@ function NotificationRow({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
+        {typeLabel && (
+          <p className="text-[10px] font-bold uppercase tracking-wide text-accent">{typeLabel}</p>
+        )}
         <p className={`text-sm font-semibold leading-tight ${isRead ? "text-text-secondary" : "text-text-primary"}`}>
           {title}
         </p>
@@ -125,7 +130,7 @@ export default function NotificationsPage() {
             <p className="text-4xl">🔔</p>
             <p className="text-sm text-text-secondary font-medium">Henüz bildirim yok</p>
             <p className="text-xs text-text-muted">
-              Takip ettiğin maçlarda gol ve önemli olaylar burada görünecek
+              Takip ettiğin maçlarda resmî kadrolar ve kritik gelişmeler burada görünecek
             </p>
             <Link
               href="/"

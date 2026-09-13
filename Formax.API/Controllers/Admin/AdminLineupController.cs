@@ -5,9 +5,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Formax.API.Controllers.Admin
 {
     /// <summary>
-    /// Kadro ingestion'ının tek maçlık manuel tetiği + kapsam teşhisi.
-    /// Otomatik tetik LineupIngestionJob'un kendi döngüsüdür (kickoff'a &lt;=60 dk);
-    /// burası doğrulama ve şema genişlemesi sonrası geri-doldurma içindir.
+    /// Kadro alımının tek maçlık manuel tetiği. Otomatik tetik LineupIngestionJob'un kendi
+    /// döngüsüdür (T−60 … kickoff+10, resmî kaynak); burası doğrulama ve geri-doldurma içindir.
+    /// API-Football'a ÇIKMAZ: aynı resmî okuma/doğrulama/yazma yolu çalışır.
     /// </summary>
     [ApiController]
     [Route("admin/lineup")]
@@ -22,12 +22,12 @@ namespace Formax.API.Controllers.Admin
             _lineupRepo = lineupRepo;
         }
 
-        /// <summary>Tek maç için sağlayıcıdan kadro çeker (formation + grid dahil).</summary>
+        /// <summary>Tek maç için resmî kaynaktan kadro doğrular ve (varsa) yazar.</summary>
         [HttpPost("sync")]
         public async Task<IActionResult> Sync([FromQuery] int matchId, CancellationToken ct)
         {
-            var ok = await _job.RunForMatchAsync(matchId, ct);
-            if (!ok) return NotFound(new { error = "Match not found or not mapped", matchId });
+            var outcome = await _job.RunForMatchAsync(matchId, ct);
+            if (outcome.Outcome == "MatchNotFound") return NotFound(new { error = "Match not found", matchId });
 
             var header = _lineupRepo.GetByMatchId(matchId);
             var players = _lineupRepo.GetPlayersByMatchId(matchId);
@@ -35,10 +35,20 @@ namespace Formax.API.Controllers.Admin
             return Ok(new
             {
                 matchId,
+                outcome = outcome.Outcome,
+                source = outcome.SourceKey,
+                detail = outcome.Detail,
+                provider = header?.Provider,
+                sourceUrl = header?.SourceUrl,
+                verificationStatus = header?.VerificationStatus,
+                verifiedAtUtc = header?.VerifiedAtUtc,
+                homeReleased = header?.HomeLineupsReleased,
+                awayReleased = header?.AwayLineupsReleased,
                 homeFormation = header?.HomeFormation,
                 awayFormation = header?.AwayFormation,
-                players = players.Count,
-                withGrid = players.Count(p => !string.IsNullOrWhiteSpace(p.Grid))
+                homeStarters = players.Count(p => p.Side == "Home" && p.Role == "Starter"),
+                awayStarters = players.Count(p => p.Side == "Away" && p.Role == "Starter"),
+                players = players.Count
             });
         }
     }

@@ -304,6 +304,41 @@ public static class DependencyInjection
         });
         services.AddScoped<IFixtureSyncLockRepository, FixtureSyncLockRepository>();
 
+        // ── RESMÎ KAYNAK ALTYAPISI ───────────────────────────────────────────
+        // Kadro / sonuç / olay / istatistik / kritik gelişme için TEK ortak indirici.
+        // Güvenlik: yalnız HTTPS + kayıt defterindeki doğrulanmış host'lar; yönlendirme elle
+        // izlenir ve her atlamada host yeniden doğrulanır; bağlantı anında özel/yerel IP
+        // reddedilir (DNS yeniden bağlama koruması); çerez yok; gövde boyutu sınırlı.
+        services.AddHttpClient(Formax.Infrastructure.OfficialSources.OfficialContentFetcher.HttpClientName, c =>
+            {
+                c.Timeout = System.Threading.Timeout.InfiniteTimeSpan; // süreyi fetcher yönetir
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                AutomaticDecompression = System.Net.DecompressionMethods.All,
+                ConnectTimeout = TimeSpan.FromSeconds(10),
+                ConnectCallback = Formax.Infrastructure.OfficialSources.OfficialNetworkGuard.ConnectGuardedAsync
+            });
+        services.AddSingleton<Formax.Infrastructure.OfficialSources.OfficialHostRateLimiter>();
+        services.AddSingleton<Formax.Infrastructure.OfficialSources.IOfficialAddressResolver,
+            Formax.Infrastructure.OfficialSources.DnsOfficialAddressResolver>();
+        services.AddSingleton(new Formax.Infrastructure.OfficialSources.OfficialFetcherOptions());
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialSourceStore>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialContentFetcher,
+            Formax.Infrastructure.OfficialSources.OfficialContentFetcher>();
+        // Kaynak türüne özel parser'lar — yalnız canlı doğrulanmış kaynaklar kayıtlıdır.
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.SerieASdpSource>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.PremierLeagueSdpSource>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.TffSource>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
+        // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
+        services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();
+
         // ── Sprint 4: NABIZ feed intelligence ─────────────────────────────────
         services.AddScoped<INabizFeedRepository, NabizFeedRepository>();
         services.AddSingleton<NabizRelevanceEngine>();
