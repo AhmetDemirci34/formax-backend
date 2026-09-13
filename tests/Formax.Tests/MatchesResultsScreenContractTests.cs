@@ -145,13 +145,11 @@ public class MatchesResultsScreenContractTests
     {
         var grouping = Grouping();
 
-        // Lig sırası: kilitli kapsam sırası (rank), eşitlikte Türkçe alfabetik.
-        Assert.Contains("a.rank - b.rank || a.league.localeCompare(b.league, \"tr\")",
-            grouping, StringComparison.Ordinal);
-        // Lig içi: kickoff, eşitlikte MatchId.
-        Assert.Contains("a.matchId - b.matchId", grouping, StringComparison.Ordinal);
-        Assert.Contains("new Date(a.matchDateUtc).getTime() - new Date(b.matchDateUtc).getTime()",
-            grouping, StringComparison.Ordinal);
+        // Lig içi: EN SON BİTEN ÖNCE — kickoff azalan, eşitlikte MatchId azalan.
+        Assert.Contains("newest(b) - newest(a) || b.matchId - a.matchId", grouping, StringComparison.Ordinal);
+        // Lig sırası: en yeni maçı olan grup önce; eşitlikte kapsam sırası, sonra Türkçe alfabetik.
+        Assert.Contains("a.rank - b.rank ||", grouping, StringComparison.Ordinal);
+        Assert.Contains("a.league.localeCompare(b.league, \"tr\")", grouping, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -244,20 +242,29 @@ public class MatchesResultsScreenContractTests
     }
 
     [Fact]
-    public void IlkAcilis_EnYakinSonucluGunuSecer()
+    public void IlkAcilis_HerZamanBugun_DuneOtomatikGecmez()
     {
+        // ÜRÜN KARARI (13.09.2026): SONUÇLAR sekmesi BUGÜN (Europe/Istanbul) ile açılır.
+        // Bugün biten maç yoksa dürüst boş durum gösterilir; düne otomatik geçilmez.
         var selection = DaySelection();
-        Assert.Contains("pickInitialDay(daysWithResults, istanbulDay())", selection, StringComparison.Ordinal);
+        Assert.Contains("setDay(pickInitialDay(istanbulDay()))", selection, StringComparison.Ordinal);
+        // Gün seçimi gün listesi sorgusunun sonucuna BAĞLI DEĞİLDİR.
+        Assert.DoesNotContain("pickInitialDay(daysWithResults", selection, StringComparison.Ordinal);
 
-        // KAPI isSuccess OLMALI. Sekme kapalıyken sorgu devre dışıdır ve devre dışı
-        // bir sorgu "yükleniyor" demez; isLoading'e bakan sürüm sekme daha açılmadan
-        // boş listeyle çalışıp günü "bugün"e sabitliyordu (ölçüldü 03.09.2026:
-        // sekme "Bugün" ve 0 kartla açılıyordu).
-        Assert.Contains("!daysQuery.isSuccess", selection, StringComparison.Ordinal);
-        Assert.DoesNotContain("daysQuery.isLoading", selection, StringComparison.Ordinal);
+        var rules = DayRules();
+        Assert.Contains("export function pickInitialDay(today: string = istanbulDay()): string {\n  return today;\n}",
+            rules.Replace("\r\n", "\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("inWindow[0] ?? today", rules, StringComparison.Ordinal);
+    }
 
-        // Kural tek merkezde: pencere içindeki en YENİ sonuçlu gün, yoksa bugün.
-        Assert.Contains("return inWindow[0] ?? today;", DayRules(), StringComparison.Ordinal);
+    [Fact]
+    public void BugununSonuclari_KontrolluTazelenir_GecmisGunTazelenmez()
+    {
+        var hooks = Hooks();
+        Assert.Contains("day !== null && day === today ? TODAY_RESULTS_REFRESH_MS : false", hooks, StringComparison.Ordinal);
+        Assert.Contains("refetchIntervalInBackground: false", hooks, StringComparison.Ordinal);
+        // Salt DB ucu: kanca yalnız backend sonuç uçlarını çağırır.
+        Assert.Contains("getMatchResults(day!)", hooks, StringComparison.Ordinal);
     }
 
     // ── Boş durumlar ─────────────────────────────────────────────────────────
@@ -303,12 +310,13 @@ public class MatchesResultsScreenContractTests
     }
 
     [Fact]
-    public void SonuclarOnbellegi_OtomatikTazelemeYapmaz()
+    public void SonuclarOnbellegi_GecmisGunOtomatikTazelenmez()
     {
         var hooks = Hooks();
 
-        // Geçmiş sonuç DEĞİŞMEZ: periyodik yenileme yok, önbellek uzun.
-        Assert.Contains("refetchInterval: false", hooks, StringComparison.Ordinal);
+        // Geçmiş sonuç DEĞİŞMEZ: periyodik yenileme yalnız BUGÜN içindir, önbellek uzun.
+        Assert.Contains("refetchInterval: resultsRefreshInterval(day)", hooks, StringComparison.Ordinal);
+        Assert.Contains(": false;", hooks, StringComparison.Ordinal);
         Assert.Contains("FINISHED_DATA_IS_IMMUTABLE", hooks, StringComparison.Ordinal);
         // Sekme kapalıyken sorgu HİÇ çalışmaz → sekme açılmadan istek doğmaz.
         Assert.Contains("enabled,", hooks, StringComparison.Ordinal);

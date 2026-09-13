@@ -18,7 +18,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// EKONOMİ: tur başına 1 hafta listesi (~3 KB) + pencereye düşen hafta başına 1 maç listesi
     /// (~35 KB, 10 maç). Sezonun tamamı (1,2 MB) indirilmez. Kadro maç başına okunur.
     /// </summary>
-    public sealed class SerieASdpSource : IOfficialCompetitionSource
+    public sealed class SerieASdpSource : IOfficialCompetitionSource, IOfficialPostMatchSource
     {
         public const string ProviderName = "SerieASdp";
         public const string Root = "https://api-sdp.legaseriea.it/v1/serie-a/football/seasons/";
@@ -101,6 +101,77 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             }
             catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
         }
+
+        // ── Bitmiş maç: olaylar ─────────────────────────────────────────────────────
+
+        public async Task<OfficialRead<IReadOnlyList<OfficialMatchEvent>>> ReadEventsAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var url = $"{SeasonRoot}/matches/{Uri.EscapeDataString(match.OfficialMatchId)}/lineups?locale=it-IT";
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, url, OfficialPurposes.Events, round.RoundKey, round.MatchId, Accept: "application/json"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            try { return new(ParseEvents(f.Body!), OfficialReadOutcomes.Ok, null, f); }
+            catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+        }
+
+        /// <summary>Serie A resmî veri ucunda takım istatistiği bulunamadı (404) — ÜRETİLMEZ.</summary>
+        public Task<OfficialRead<OfficialMatchStatistics>> ReadStatisticsAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+            => Task.FromResult(new OfficialRead<OfficialMatchStatistics>(null, OfficialReadOutcomes.NotSupported, null, null));
+
+        /// <summary>
+        /// Kadro cevabındaki oyuncu olayları (goal / own-goal / penalty-goal / yellow-card / red-card /
+        /// second-yellow-card / substitution-in). Tanınmayan olay türü atlanır (uydurulmaz). Oyuncu
+        /// değişikliğinde çıkan oyuncu, aynı takım ve aynı dakikada TEK çıkış varsa eşlenir.
+        /// </summary>
+        public static IReadOnlyList<OfficialMatchEvent> ParseEvents(string lineupsJson)
+        {
+            using var doc = JsonDocument.Parse(lineupsJson);
+            var list = new List<OfficialMatchEvent>();
+            foreach (var side in new[] { "home", "away" })
+            {
+                if (doc.RootElement.Prop(side) is not { } team) continue;
+                var players = new List<(string Id, string Name, JsonElement P)>();
+                foreach (var arrName in new[] { "fielded", "benched" })
+                    if (team.Prop(arrName) is { ValueKind: JsonValueKind.Array } arr)
+                        foreach (var p in arr.EnumerateArray())
+                            players.Add((p.Str("playerId") ?? string.Empty, p.Str("shortName") ?? p.Str("displayName") ?? string.Empty, p.Clone()));
+                string? NameOf(string? pid) => players.FirstOrDefault(x => x.Id == pid).Name is { Length: > 0 } n ? n : null;
+
+                var outs = players
+                    .SelectMany(x => PlayerEvents(x.P).Where(e => e.Str("type") == "substitution-out")
+                        .Select(e => (x.Name, Time: e.Int("time"), Add: e.Int("additionalTime"))))
+                    .ToList();
+
+                foreach (var (id, name, p) in players)
+                    foreach (var e in PlayerEvents(p))
+                    {
+                        var type = e.Str("type");
+                        var min = e.Int("time") ?? 0;
+                        int? add = e.Int("additionalTime") is int a && a > 0 ? a : null;
+                        var sameMinuteOuts = outs.Where(o => o.Time == e.Int("time") && o.Add == e.Int("additionalTime")).ToList();
+                        (string Type, string Detail, string? Assist)? mapped = type switch
+                        {
+                            "goal" => ("Goal", "Normal Goal", NameOf(e.Str("relatedPlayerId"))),
+                            "own-goal" => ("Goal", "Own Goal", null),
+                            "penalty-goal" or "penalty" => ("Goal", "Penalty", null),
+                            "yellow-card" => ("Card", "Yellow Card", null),
+                            "red-card" => ("Card", "Red Card", null),
+                            "second-yellow-card" or "yellow-red-card" => ("Card", "Second Yellow card", null),
+                            "substitution-in" => ("subst", "Substitution", sameMinuteOuts.Count == 1 ? sameMinuteOuts[0].Name : null),
+                            _ => null
+                        };
+                        if (mapped == null) continue;
+                        list.Add(new OfficialMatchEvent($"sa:{type}:{side}:{min}:{add}:{id}", min, add, side,
+                            mapped.Value.Type, mapped.Value.Detail, name.Length > 0 ? name : null, mapped.Value.Assist));
+                    }
+            }
+            return list.OrderBy(e => e.Minute).ThenBy(e => e.ExtraMinute ?? 0).ToList();
+        }
+
+        private static IEnumerable<JsonElement> PlayerEvents(JsonElement player)
+            => player.Prop("events") is { ValueKind: JsonValueKind.Array } arr ? arr.EnumerateArray() : Enumerable.Empty<JsonElement>();
 
         // ── Saf ayrıştırıcılar (testte gerçek cevaplarla sınanır) ─────────────────
 

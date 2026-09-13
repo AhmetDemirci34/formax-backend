@@ -335,8 +335,11 @@ public static class DependencyInjection
             Formax.Infrastructure.OfficialSources.Providers.PremierLeagueSdpSource>();
         services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
             Formax.Infrastructure.OfficialSources.Providers.TffSource>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.BundesligaSiteSource>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialMatchCentreService>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialPostMatchDataService>();
         // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
         services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();
 

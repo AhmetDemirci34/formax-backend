@@ -22,7 +22,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// sonra VE maç sayfasındaki skorla aynıysa kesin sonuç sayılır; daha erken görülen skor
     /// "Unknown" kalır (canlı skor olabilir — yazılmaz).
     /// </summary>
-    public sealed class TffSource : IOfficialCompetitionSource
+    public sealed class TffSource : IOfficialCompetitionSource, IOfficialResultConfirmation
     {
         public const string ProviderName = "TffSite";
         public const string FixturePageUrl = "https://www.tff.org/default.aspx?pageID=198";
@@ -73,6 +73,20 @@ namespace Formax.Infrastructure.OfficialSources.Providers
 
             return new(new OfficialLineupDocument(SourceKey, match.OfficialMatchId, f.Url, f.ContentHash!, null,
                 page.Home, page.Away), OfficialReadOutcomes.Ok, null, f);
+        }
+
+        /// <summary>Haftanın Maçları skorunu aynı federasyonun maç sayfasındaki skorla teyit eder.</summary>
+        public async Task<OfficialRead<(int Home, int Away)?>> ConfirmScoreAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, MatchPageUrl(match.OfficialMatchId), OfficialPurposes.Result,
+                round.RoundKey, round.MatchId, Accept: "text/html", Encoding: "windows-1254"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            var page = ParseMatchPage(f.Body!);
+            if (page?.HomeScore is not int h || page.AwayScore is not int a)
+                return new(null, OfficialReadOutcomes.Ok, "maç sayfasında skor yok", f);
+            return new((h, a), OfficialReadOutcomes.Ok, null, f);
         }
 
         // ── Saf ayrıştırıcılar ─────────────────────────────────────────────────────

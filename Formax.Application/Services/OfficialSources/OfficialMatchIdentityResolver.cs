@@ -50,6 +50,18 @@ namespace Formax.Application.Services.OfficialSources
         /// </summary>
         public static readonly TimeSpan DefaultKickoffWindow = TimeSpan.FromHours(72);
 
+        /// <summary>
+        /// Kaynak takımın tam adının yanında kısa adını da veriyorsa ("TSG Hoffenheim" / "Hoffenheim")
+        /// ikisinden biri eşleşmelidir. Kısa ad kaynağın KENDİ verisidir; FORMAX tarafında takma ad uydurulmaz.
+        /// </summary>
+        public static bool HomeMatches(OfficialMatchRecord r, string formaxName)
+            => OfficialTeamNameMatcher.SameTeam(r.HomeName, formaxName)
+               || (r.Extra?.GetValueOrDefault("homeAltName") is { } alt && OfficialTeamNameMatcher.SameTeam(alt, formaxName));
+
+        public static bool AwayMatches(OfficialMatchRecord r, string formaxName)
+            => OfficialTeamNameMatcher.SameTeam(r.AwayName, formaxName)
+               || (r.Extra?.GetValueOrDefault("awayAltName") is { } alt && OfficialTeamNameMatcher.SameTeam(alt, formaxName));
+
         public static OfficialIdentityDecision Resolve(
             FormaxMatchIdentity match,
             IEnumerable<OfficialMatchRecord> records,
@@ -59,8 +71,7 @@ namespace Formax.Application.Services.OfficialSources
             var list = records as IReadOnlyCollection<OfficialMatchRecord> ?? records.ToList();
 
             var sameOrientation = list
-                .Where(r => OfficialTeamNameMatcher.SameTeam(r.HomeName, match.HomeName)
-                         && OfficialTeamNameMatcher.SameTeam(r.AwayName, match.AwayName))
+                .Where(r => HomeMatches(r, match.HomeName) && AwayMatches(r, match.AwayName))
                 .ToList();
 
             var inWindow = sameOrientation
@@ -89,8 +100,7 @@ namespace Formax.Application.Services.OfficialSources
                         null, nearest.KickoffUtc!.Value - match.KickoffUtc);
             }
 
-            var reversed = list.Any(r => OfficialTeamNameMatcher.SameTeam(r.HomeName, match.AwayName)
-                                      && OfficialTeamNameMatcher.SameTeam(r.AwayName, match.HomeName)
+            var reversed = list.Any(r => HomeMatches(r, match.AwayName) && AwayMatches(r, match.HomeName)
                                       && r.KickoffUtc.HasValue
                                       && (r.KickoffUtc.Value - match.KickoffUtc).Duration() <= window);
             return new OfficialIdentityDecision(false,

@@ -22,11 +22,10 @@ export interface ResultLeagueGroup {
  * Sonuçları lige göre gruplar.
  *
  * SIRA DETERMİNİSTİKTİR ve iki kademelidir:
- *  • Lig sırası: kilitli kapsamın ürün sırası (leagueMeta.rank), eşitlikte Türkçe
- *    alfabetik. Bilinmeyen lig en sona düşer ama ELENMEZ.
- *  • Lig içi: kickoff saati, eşitlikte MatchId. Aynı dakikada başlayan maçlar her
- *    açılışta AYNI sırada görünür — backend zaten böyle sıralar, burada o sıra
- *    korunur, yeniden yorumlanmaz.
+ *  • Lig içi: EN SON BİTEN ÖNCE — kickoff azalan, eşitlikte MatchId azalan (backend
+ *    zaten böyle sıralar, burada o sıra korunur).
+ *  • Lig sırası: grubun en yeni maçı önce; eşitlikte kilitli kapsamın ürün sırası
+ *    (leagueMeta.rank), sonra Türkçe alfabetik. Bilinmeyen lig ELENMEZ.
  */
 export function buildResultLeagueGroups(results: readonly MatchResultItemDto[]): ResultLeagueGroup[] {
   const groups = new Map<string, ResultLeagueGroup>();
@@ -50,13 +49,16 @@ export function buildResultLeagueGroups(results: readonly MatchResultItemDto[]):
   }
 
   const list = [...groups.values()];
+  const newest = (r: MatchResultItemDto) => new Date(r.matchDateUtc).getTime();
   for (const g of list) {
-    g.results.sort(
-      (a, b) =>
-        new Date(a.matchDateUtc).getTime() - new Date(b.matchDateUtc).getTime() ||
-        a.matchId - b.matchId
-    );
+    g.results.sort((a, b) => newest(b) - newest(a) || b.matchId - a.matchId);
   }
-  list.sort((a, b) => a.rank - b.rank || a.league.localeCompare(b.league, "tr"));
+  list.sort(
+    (a, b) =>
+      newest(b.results[0]) - newest(a.results[0]) ||
+      b.results[0].matchId - a.results[0].matchId ||
+      a.rank - b.rank ||
+      a.league.localeCompare(b.league, "tr")
+  );
   return list;
 }

@@ -7,24 +7,33 @@ import {
   type MatchResultDayDto,
   type MatchResultItemDto,
 } from "@/lib/api/matchResults";
-import { RESULT_DAY_SPAN } from "@/lib/matches/resultDays";
+import { RESULT_DAY_SPAN, istanbulDay } from "@/lib/matches/resultDays";
 
 /**
  * SONUÇLAR sekmesinin veri kancaları.
  *
- * İkisi de salt DB okur; sağlayıcıya çıkmaz. Sonuçlar geçmişe aittir ve DEĞİŞMEZ:
- * bu yüzden otomatik tazeleme yoktur ve önbellek uzun tutulur — sekme değiştirmek
- * ya da güne geri dönmek yeni istek üretmez.
+ * İkisi de salt DB okur; sağlayıcıya/resmî kaynağa ÇIKMAZ (resmî sonuçları arka plan işi
+ * DB'ye yazar). Geçmiş günler DEĞİŞMEZ: otomatik tazeleme yoktur ve önbellek uzun
+ * tutulur. YALNIZ BUGÜN kontrollü tazelenir — gün içinde biten maçın resmî sonucu DB'ye
+ * yazıldığında ekran kendiliğinden görsün diye; sekme gizliyken istek atılmaz.
  */
 
 const FINISHED_DATA_IS_IMMUTABLE = 10 * 60_000;
+export const TODAY_RESULTS_REFRESH_MS = 5 * 60_000;
+
+/** Tazeleme aralığı: yalnız bugün; geçmiş gün için false. */
+export function resultsRefreshInterval(day: string | null, today: string = istanbulDay()): number | false {
+  return day !== null && day === today ? TODAY_RESULTS_REFRESH_MS : false;
+}
 
 export function useMatchResultDays(enabled: boolean) {
   return useQuery<MatchResultDayDto[]>({
     queryKey: ["match-result-days", RESULT_DAY_SPAN],
     queryFn: () => getMatchResultDays(RESULT_DAY_SPAN),
     staleTime: FINISHED_DATA_IS_IMMUTABLE,
-    refetchInterval: false,
+    // Bugünün sayısı gün içinde değişir; "Son sonuçlar" butonu bu listeye bakar.
+    refetchInterval: enabled ? TODAY_RESULTS_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
     enabled,
   });
 }
@@ -33,8 +42,9 @@ export function useMatchResults(day: string | null) {
   return useQuery<MatchResultItemDto[]>({
     queryKey: ["match-results", day],
     queryFn: () => getMatchResults(day!),
-    staleTime: FINISHED_DATA_IS_IMMUTABLE,
-    refetchInterval: false,
+    staleTime: day !== null && day === istanbulDay() ? TODAY_RESULTS_REFRESH_MS : FINISHED_DATA_IS_IMMUTABLE,
+    refetchInterval: resultsRefreshInterval(day),
+    refetchIntervalInBackground: false,
     enabled: !!day,
   });
 }

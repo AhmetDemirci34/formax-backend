@@ -102,11 +102,11 @@ namespace Formax.Infrastructure.Repositories
                 videoRows.Where(MatchVideoRules.IsPlayable).Select(v => v.MatchId).Distinct());
 
             return deduped
-                // DETERMİNİSTİK SIRA: kickoff, sonra lig, sonra MatchId. Aynı dakikada
-                // başlayan maçlar her açılışta AYNI sırada görünür.
-                .OrderBy(r => r.MatchDate)
-                .ThenBy(r => r.LeagueId)
-                .ThenBy(r => r.Id)
+                // DETERMİNİSTİK SIRA (ürün kararı 13.09.2026): EN SON BİTEN ÖNCE — kickoff
+                // azalan, eşitlikte MatchId azalan. Aynı dakikada başlayan maçlar her
+                // açılışta AYNI sırada görünür.
+                .OrderByDescending(r => r.MatchDate)
+                .ThenByDescending(r => r.Id)
                 .Select(r =>
                 {
                     var round = string.IsNullOrWhiteSpace(r.Round) ? null : r.Round!.Trim();

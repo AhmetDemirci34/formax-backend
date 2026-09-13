@@ -69,6 +69,13 @@ namespace Formax.Domain.Entities
         /// </summary>
         public string? ResultSource { get; set; }
 
+        /// <summary>
+        /// Resmî sonuç doğrulaması: "Verified" (resmî kaynak maçı bitmiş gösterdi ve teyit geçti) |
+        /// "VerificationPending" (aynı resmî kaynağın iki yüzü çelişti — skor KESİNLEŞTİRİLMEDİ).
+        /// Eski kayıtlarda null.
+        /// </summary>
+        public string? ResultVerificationStatus { get; set; }
+
         // ── TAKVİM GÜVENİLİRLİĞİ (01.09.2026) ───────────────────────────────────
 
         /// <summary>

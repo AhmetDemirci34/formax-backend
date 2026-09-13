@@ -40,23 +40,14 @@ export function isSelectableDay(day: string, today: string = istanbulDay()): boo
 }
 
 /**
- * Sekme ilk açıldığında hangi gün seçili gelmeli?
+ * Sekme ilk açıldığında hangi gün seçili gelmeli? — HER ZAMAN BUGÜN (Europe/Istanbul).
  *
- * Bugün sonuç varsa bugün. Yoksa pencere içindeki EN YAKIN sonuçlu gün — kullanıcıyı
- * boş bir "bugün" ekranına düşürüp "sonuç yok" sanmasına izin verilmez. Pencerenin
- * tamamı boşsa bugün seçilir ve ekran dürüst boş durumu gösterir.
+ * Ürün kararı (13.09.2026): aynı günün resmî sonuçları gün içinde yayımlanır; bugün
+ * henüz biten maç yoksa ekran dürüst boş durumu gösterir ve "Son sonuçlar" yardımcı
+ * butonu önceki sonuçlu güne götürür. Düne OTOMATİK geçiş yapılmaz.
  */
-export function pickInitialDay(
-  daysWithResults: readonly { date: string; matchCount: number }[],
-  today: string = istanbulDay()
-): string {
-  const oldest = oldestSelectableDay(today);
-  const inWindow = daysWithResults
-    .filter((d) => d.matchCount > 0 && d.date <= today && d.date >= oldest)
-    .map((d) => d.date)
-    .sort()
-    .reverse();
-  return inWindow[0] ?? today;
+export function pickInitialDay(today: string = istanbulDay()): string {
+  return today;
 }
 
 /** Tarih seçicideki insan okunur etiket. */

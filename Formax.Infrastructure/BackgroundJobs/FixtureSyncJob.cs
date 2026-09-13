@@ -514,8 +514,16 @@ public sealed class FixtureSyncJob : BackgroundService
         }
 
         var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz).Date;
+
+        // ── ÜRÜN KARARI (13.09.2026): MAÇ SONUCU/DURUMU API-FOOTBALL'DAN ALINMAZ ──
+        // Sonuç ve durum resmî maç merkezinden (OfficialMatchCentreJob) yazılır. Kapalıyken bu
+        // tur yalnız TAKVİM senkronudur: dünün günü (sonuç uzlaştırması için) sorulmaz, eksik
+        // sonuç günleri ve tekil "fixtures?id=" sonuç çekimi yapılmaz, mevcut maçın durumu/skoru
+        // yazılmaz. (appsettings: ApiFootball:Results:Enabled=false.)
+        var resultsFromApiFootball = config.GetValue("ApiFootball:Results:Enabled", true);
+
         // Override verilmişse geri doldurma penceresi kullanılır (admin tetiği).
-        var fromDate = fromOverride?.Date ?? todayLocal.AddDays(-1);   // yesterday — status reconciliation
+        var fromDate = fromOverride?.Date ?? (resultsFromApiFootball ? todayLocal.AddDays(-1) : todayLocal);
         var toDate   = toOverride?.Date   ?? todayLocal.AddDays(7);    // today + 7
 
         // ── 0b. GÜN KÜMESİ = ileri pencere + GEÇMİŞTEKİ EKSİK SONUÇ GÜNLERİ ───
@@ -529,7 +537,9 @@ public sealed class FixtureSyncJob : BackgroundService
         var windowDays = new List<DateTime>();
         for (var d = fromDate; d <= toDate; d = d.AddDays(1)) windowDays.Add(d);
 
-        var reconciliation = BuildReconciliationPlan(repo, config, tz, windowDays);
+        var reconciliation = resultsFromApiFootball
+            ? BuildReconciliationPlan(repo, config, tz, windowDays)
+            : new ReconciliationPlan();
         var requestDays = windowDays.Concat(reconciliation.Days).Distinct().OrderBy(d => d).ToList();
 
         if (reconciliation.Days.Count > 0)
@@ -570,8 +580,9 @@ public sealed class FixtureSyncJob : BackgroundService
         // almanın BAŞKA yolu yoktur. Bu, ikinci bir sonuç sistemi değildir: aynı turda,
         // aynı upsert yoluna beslenen bir GERİ ÇEKİLME adımıdır ve tur başına sert
         // tavanı vardır — plan açık olsaydı hiç çalışmazdı.
-        var recovered = await RecoverPlanBlockedResultsAsync(
-            provider, repo, config, tz, batch, reconciliation, ct);
+        var recovered = resultsFromApiFootball
+            ? await RecoverPlanBlockedResultsAsync(provider, repo, config, tz, batch, reconciliation, ct)
+            : new List<Formax.Application.DTOs.Fixtures.SportsFixtureResult>();
 
         // ── 1b. GELECEK TAKVİM DOĞRULAMA ─────────────────────────────────────
         // Aynı turun aşaması; ayrı job değil. Geçici kickoff'lu gelecek maçların gerçek
@@ -741,7 +752,8 @@ public sealed class FixtureSyncJob : BackgroundService
             // Finished fixtures carry a real final score from the provider.
             // Live scores are owned exclusively by the live engine (Locked
             // Decision #6) — FixtureSync never writes them. NotStarted = 0.
-            var isFinished = fixture.Status == "Finished"
+            var isFinished = resultsFromApiFootball
+                             && fixture.Status == "Finished"
                              && fixture.HomeScore.HasValue
                              && fixture.AwayScore.HasValue;
 
@@ -779,7 +791,11 @@ public sealed class FixtureSyncJob : BackgroundService
                 var finishedWithoutScore =
                     string.Equals(fixture.Status, "Finished", StringComparison.OrdinalIgnoreCase) && !isFinished;
 
-                if (isResultRegression)
+                if (!resultsFromApiFootball)
+                {
+                    // Durum ve skor YAZILMAZ — sahibi resmî maç merkezidir.
+                }
+                else if (isResultRegression)
                 {
                     _logger.LogWarning(
                         "[FIXTURE SYNC] {FixtureId} — sağlayıcı '{New}' dedi ama depoda Finished; " +
@@ -834,7 +850,9 @@ public sealed class FixtureSyncJob : BackgroundService
                     MatchDate       = fixture.MatchDate,
                     // Skorsuz "Finished" yeni kayıtta da kabul edilmez (bkz. güncelleme dalı):
                     // sonucu olmayan maç "bitmiş" diye kaydedilirse 0-0 uydurma bir sonuca döner.
-                    Status          = string.Equals(fixture.Status, "Finished", StringComparison.OrdinalIgnoreCase) && !isFinished
+                    // Resmî kaynak sonuç sahibi olduğunda yeni kayıt da sağlayıcının durumunu taşımaz.
+                    Status          = !resultsFromApiFootball
+                                      || (string.Equals(fixture.Status, "Finished", StringComparison.OrdinalIgnoreCase) && !isFinished)
                                       ? "NotStarted"
                                       : fixture.Status,
                     League          = fixture.LeagueName,

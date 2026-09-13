@@ -20,18 +20,14 @@ export function useResultDaySelection(active: boolean) {
   const daysQuery = useMatchResultDays(active);
   const daysWithResults = useMemo(() => daysQuery.data ?? [], [daysQuery.data]);
 
-  // İLK AÇILIŞ: bugün sonuç yoksa pencere içindeki en yakın sonuçlu güne düş.
-  // Kullanıcıyı boş bir "bugün" ekranında bırakmak, hiç sonuç yok sanmasına yol açar.
-  //
-  // KAPI isSuccess'tir, isLoading DEĞİL: sekme kapalıyken sorgu DEVRE DIŞIDIR ve
-  // devre dışı bir sorgu "yükleniyor" demez. isLoading'e bakan bir sürüm, sekme daha
-  // açılmadan boş listeyle çalışıp günü "bugün"e sabitliyordu; sekme açılıp gerçek
-  // günler geldiğinde ise gün zaten seçilmiş olduğu için bir daha düzelmiyordu.
-  // (Ölçüldü 03.09.2026: sekme "Bugün" ve 0 kartla açılıyordu.)
+  // İLK AÇILIŞ: HER ZAMAN BUGÜN (Europe/Istanbul). Bugün sonuç yoksa dürüst boş durum
+  // gösterilir; düne OTOMATİK geçilmez (ürün kararı 13.09.2026). "Son sonuçlar"
+  // yardımcı butonu kullanıcının kendi seçimiyle önceki sonuçlu güne götürür.
+  // Gün seçimi gün listesi sorgusunu BEKLEMEZ.
   useEffect(() => {
-    if (day !== null || !daysQuery.isSuccess) return;
-    setDay(pickInitialDay(daysWithResults, istanbulDay()));
-  }, [day, daysQuery.isSuccess, daysWithResults]);
+    if (day !== null || !active) return;
+    setDay(pickInitialDay(istanbulDay()));
+  }, [day, active]);
 
   const nearestResultDay = useMemo(() => {
     const today = istanbulDay();

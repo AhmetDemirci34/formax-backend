@@ -23,7 +23,8 @@ namespace Formax.Infrastructure.OfficialSources
         IReadOnlyList<string> SourcesRead,
         IReadOnlyList<MatchCentreMatchOutcome> Matches,
         int DevelopmentsRecorded,
-        int NotificationsCreated);
+        int NotificationsCreated,
+        int ResultsApplied = 0);
 
     /// <summary>
     /// RESMÎ MAÇ MERKEZİ TURU — kaynak başına maç listesi TUR BAŞINA BİR KEZ okunur; listedeki bütün
@@ -45,23 +46,29 @@ namespace Formax.Infrastructure.OfficialSources
         private readonly IMatchNotificationDispatcher _notifier;
         private readonly IConfiguration _config;
         private readonly ILogger<OfficialMatchCentreService> _log;
+        private readonly IMatchLiveStatsRepository? _liveStats;
+        private readonly ILeagueStandingsService? _standings;
 
         public OfficialMatchCentreService(
             FormaxDbContext db, IEnumerable<IOfficialCompetitionSource> sources, IMatchNotificationDispatcher notifier,
-            IConfiguration config, ILogger<OfficialMatchCentreService> log)
+            IConfiguration config, ILogger<OfficialMatchCentreService> log,
+            IMatchLiveStatsRepository? liveStats = null, ILeagueStandingsService? standings = null)
         {
             _db = db;
             _sources = sources.ToList();
             _notifier = notifier;
             _config = config;
             _log = log;
+            _liveStats = liveStats;
+            _standings = standings;
         }
 
         public async Task<MatchCentreRoundReport> RunRoundAsync(DateTime utcNow, CancellationToken ct = default)
         {
             var roundKey = $"centre:{utcNow:yyyyMMddHHmm}";
             var allow = CoveragePolicy.LeagueAllowList(_config);
-            var from = utcNow.AddDays(-1);
+            // Geriye 3 gün: sonucu kesinleşmemiş (NotStarted/Live kalmış) yakın maçlar da resmî listeyle kapanır.
+            var from = utcNow.AddDays(-3);
             var to = utcNow.AddDays(3);
 
             var matches = (await _db.Matches
@@ -75,6 +82,7 @@ namespace Formax.Infrastructure.OfficialSources
             var sourcesRead = new List<string>();
             var recorded = 0;
             var notified = 0;
+            var results = 0;
 
             foreach (var source in _sources)
             {
@@ -95,21 +103,28 @@ namespace Formax.Infrastructure.OfficialSources
                 foreach (var match in group)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var (outcome, rec, notes) = await ProcessAsync(match, source.SourceKey, feed.Value!, utcNow, ct);
+                    var (outcome, rec, notes, record) = await ProcessAsync(match, source.SourceKey, feed.Value!, utcNow, ct);
                     outcomes.Add(outcome);
                     recorded += rec;
                     notified += notes;
+                    if (record != null)
+                    {
+                        var r = await ApplyStatusAndResultAsync(match.Id, source, record, roundKey, utcNow, ct);
+                        if (r != null) outcomes.Add(r);
+                        if (r?.Outcome == ResultOutcomes.Applied) results++;
+                    }
                 }
             }
 
             notified += await CompletePendingAsync(utcNow, ct);
 
-            if (recorded > 0 || notified > 0)
-                _log.LogInformation("[MATCH CENTRE] {Round}: {Recorded} kritik gelişme, {Notified} bildirim", roundKey, recorded, notified);
-            return new MatchCentreRoundReport(roundKey, sourcesRead, outcomes, recorded, notified);
+            if (recorded > 0 || notified > 0 || results > 0)
+                _log.LogInformation("[MATCH CENTRE] {Round}: {Recorded} kritik gelişme, {Notified} bildirim, {Results} resmî sonuç",
+                    roundKey, recorded, notified, results);
+            return new MatchCentreRoundReport(roundKey, sourcesRead, outcomes, recorded, notified, results);
         }
 
-        private async Task<(MatchCentreMatchOutcome Outcome, int Recorded, int Notified)> ProcessAsync(
+        private async Task<(MatchCentreMatchOutcome Outcome, int Recorded, int Notified, OfficialMatchRecord? Record)> ProcessAsync(
             Match match, string sourceKey, IReadOnlyList<OfficialMatchRecord> feed, DateTime utcNow, CancellationToken ct)
         {
             var home = match.HomeTeam?.Name ?? string.Empty;
@@ -124,13 +139,13 @@ namespace Formax.Infrastructure.OfficialSources
                 record = feed.FirstOrDefault(r => r.OfficialMatchId == link.OfficialMatchId);
                 if (record != null && !(OfficialTeamNameMatcher.SameTeam(record.HomeName, home)
                                         && OfficialTeamNameMatcher.SameTeam(record.AwayName, away)))
-                    return (new(match.Id, sourceKey, "IdentityRejected", "LinkOrientationMismatch"), 0, 0);
+                    return (new(match.Id, sourceKey, "IdentityRejected", "LinkOrientationMismatch"), 0, 0, null);
             }
             if (record == null)
             {
                 var decision = OfficialMatchIdentityResolver.Resolve(
                     new FormaxMatchIdentity(match.Id, match.LeagueId, home, away, match.MatchDate), feed);
-                if (!decision.Accepted) return (new(match.Id, sourceKey, "IdentityRejected", decision.Reason), 0, 0);
+                if (!decision.Accepted) return (new(match.Id, sourceKey, "IdentityRejected", decision.Reason), 0, 0, null);
                 record = decision.Record!;
             }
 
@@ -209,7 +224,105 @@ namespace Formax.Infrastructure.OfficialSources
                 notified += await NotifyAsync(match, row, utcNow, ct);
 
             return (new(match.Id, sourceKey, fresh.Count > 0 ? "DevelopmentRecorded" : "NoChange",
-                fresh.Count > 0 ? string.Join(",", fresh.Select(f => f.DevelopmentType)) : null), fresh.Count, notified);
+                fresh.Count > 0 ? string.Join(",", fresh.Select(f => f.DevelopmentType)) : null), fresh.Count, notified, record);
+        }
+
+        public static class ResultOutcomes
+        {
+            public const string Applied = "ResultApplied";
+            public const string Unchanged = "ResultUnchanged";
+            public const string VerificationPending = "VerificationPending";
+            public const string ConfirmationFetchFailed = "ResultConfirmationFetchFailed";
+            public const string StatusApplied = "StatusApplied";
+        }
+
+        /// <summary>
+        /// DURUM VE SONUÇ — API-Football DEĞİL, yalnız resmî kaynağın kaydından.
+        ///  • Finished + iki skor: kaynak "teyit" sunuyorsa (TFF maç sayfası) skor karşılaştırılır;
+        ///    uyuşmazsa ya da sayfada skor yoksa sonuç KESİNLEŞTİRİLMEZ (VerificationPending).
+        ///  • Live: yalnız başlamamış görünen maç "Live" olur.
+        ///  • Postponed / Cancelled: bitmemiş maça yazılır.
+        /// Kesin sonuç geri alınmaz; skor 0-0 uydurulmaz (skor yoksa yazım yok).
+        /// </summary>
+        private async Task<MatchCentreMatchOutcome?> ApplyStatusAndResultAsync(
+            int matchId, IOfficialCompetitionSource source, OfficialMatchRecord record, string roundKey, DateTime utcNow, CancellationToken ct)
+        {
+            var descriptor = OfficialSourceRegistry.ByKey(source.SourceKey);
+            if (descriptor == null || !descriptor.Capabilities.Contains(OfficialPurposes.Result)) return null;
+            var tracked = await _db.Matches.FirstAsync(m => m.Id == matchId, ct);
+            var isFinished = string.Equals(tracked.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase);
+            var official = OfficialLineupCollector.ProviderPrefix + source.SourceKey;
+
+            if (record.Status == OfficialMatchStatuses.Finished && record.HomeScore is int hs && record.AwayScore is int aws)
+            {
+                if (isFinished && tracked.HomeScore == hs && tracked.AwayScore == aws && tracked.ResultSource == official)
+                    return new(matchId, source.SourceKey, ResultOutcomes.Unchanged, hs + "-" + aws);
+
+                if (source is IOfficialResultConfirmation confirmation)
+                {
+                    var c = await confirmation.ConfirmScoreAsync(record,
+                        new OfficialRoundContext(roundKey, utcNow, OfficialPurposes.Result, matchId), ct);
+                    if (!c.Ok) return new(matchId, source.SourceKey, ResultOutcomes.ConfirmationFetchFailed, c.Detail);
+                    var confirmed = c.Value;
+                    if (confirmed == null || confirmed.Value.Home != hs || confirmed.Value.Away != aws)
+                    {
+                        tracked.ResultVerificationStatus = "VerificationPending";
+                        await _db.SaveChangesAsync(ct);
+                        var pageScore = confirmed == null ? "skor yok" : confirmed.Value.Home + "-" + confirmed.Value.Away;
+                        return new(matchId, source.SourceKey, ResultOutcomes.VerificationPending,
+                            "liste " + hs + "-" + aws + " / maç sayfası " + pageScore);
+                    }
+                }
+
+                tracked.Status = MatchStatuses.Finished;
+                tracked.HomeScore = hs;
+                tracked.AwayScore = aws;
+                if (record.HalfTimeHome.HasValue && record.HalfTimeAway.HasValue)
+                {
+                    tracked.HalfTimeHomeScore = record.HalfTimeHome;
+                    tracked.HalfTimeAwayScore = record.HalfTimeAway;
+                }
+                tracked.ResultUpdatedAtUtc = utcNow;
+                tracked.ResultSource = official;
+                tracked.ResultVerificationStatus = "Verified";
+                await _db.SaveChangesAsync(ct);
+
+                // Maç başlığı/karar okuması skoru MatchLiveStats'tan da okur — iki kayıt aynı hizada tutulur.
+                if (_liveStats != null)
+                {
+                    try
+                    {
+                        await _liveStats.UpsertAsync(new MatchLiveStats
+                        {
+                            MatchId = matchId, HomeScore = hs, AwayScore = aws, Minute = 90, Phase = "FT", UpdatedAt = utcNow
+                        }, ct);
+                        await _liveStats.SaveChangesAsync(ct);
+                    }
+                    catch (Exception ex) { _log.LogWarning(ex, "[MATCH CENTRE] {MatchId} skor aynası yazılamadı", matchId); }
+                }
+                if (_standings != null)
+                {
+                    try { await _standings.RefreshForSettledMatchAsync(tracked.LeagueId, tracked.MatchDate, ct); }
+                    catch (Exception ex) { _log.LogWarning(ex, "[MATCH CENTRE] {MatchId} puan durumu yenilenemedi", matchId); }
+                }
+
+                _log.LogInformation("[MATCH CENTRE] {MatchId} resmî sonuç yazıldı: {Home}-{Away} ({Source})", matchId, hs, aws, official);
+                return new(matchId, source.SourceKey, ResultOutcomes.Applied, hs + "-" + aws);
+            }
+
+            if (isFinished) return null; // kesin sonuç geri alınmaz
+
+            string? newStatus = record.Status switch
+            {
+                OfficialMatchStatuses.Live when tracked.Status == MatchStatuses.NotStarted => MatchStatuses.Live,
+                OfficialMatchStatuses.Postponed => "Postponed",
+                OfficialMatchStatuses.Cancelled => "Cancelled",
+                _ => null
+            };
+            if (newStatus == null || string.Equals(tracked.Status, newStatus, StringComparison.OrdinalIgnoreCase)) return null;
+            tracked.Status = newStatus;
+            await _db.SaveChangesAsync(ct);
+            return new(matchId, source.SourceKey, ResultOutcomes.StatusApplied, newStatus);
         }
 
         /// <summary>

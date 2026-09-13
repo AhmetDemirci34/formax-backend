@@ -130,10 +130,19 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
         // var olan bu turun bir aşamasıdır. Kendi bütçesi, kendi kalıcı defteri ve
         // kendi aday kuralları vardır; video aşamasından bağımsız çalışır ve birinin
         // hatası diğerini durdurmaz.
+        //
+        // KAYNAK (13.09.2026, ürün kararı): olay ve istatistik API-Football'dan ALINMAZ.
+        // Varsayılan "Official": resmî lig maç merkezi (OfficialPostMatchDataService).
+        // Eski api-football aşaması yalnız açıkça "ApiFootball" yazılırsa çalışır.
         try
         {
-            await sp.GetRequiredService<PostMatch.PostMatchDataIngestionService>()
-                .RunCycleAsync(ct).ConfigureAwait(false);
+            var source = config.GetValue("PostMatch:Data:Source", "Official");
+            if (string.Equals(source, "ApiFootball", StringComparison.OrdinalIgnoreCase))
+                await sp.GetRequiredService<PostMatch.PostMatchDataIngestionService>()
+                    .RunCycleAsync(ct).ConfigureAwait(false);
+            else if (!string.Equals(source, "Disabled", StringComparison.OrdinalIgnoreCase))
+                await sp.GetRequiredService<OfficialSources.OfficialPostMatchDataService>()
+                    .RunCycleAsync(DateTime.UtcNow, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)

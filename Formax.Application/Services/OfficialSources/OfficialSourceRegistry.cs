@@ -24,6 +24,7 @@ namespace Formax.Application.Services.OfficialSources
         public const string PremierLeagueSdp = "premier-league-sdp";
         public const string SerieASdp = "seriea-sdp";
         public const string TffSite = "tff-site";
+        public const string BundesligaSite = "bundesliga-site";
 
         private static readonly string[] None = Array.Empty<string>();
 
@@ -66,11 +67,14 @@ namespace Formax.Application.Services.OfficialSources
                 "İstatistik alt kaynağı bulunamadı (404) — istatistik ÜRETİLMEZ."),
 
             // ── 78 · Bundesliga ──────────────────────────────────────────────────
-            new("bundesliga-site", "Bundesliga", new[] { 78 }, OfficialSourceTier.LeagueMatchCentre,
-                OfficialContentKinds.HtmlEmbeddedJson, new[] { "www.bundesliga.com" }, None,
-                OfficialSourceStatuses.NeedsManualReview,
-                "11.09.2026: aufstellung sayfası ng-state içinde startingEleven taşıyor; parser bağlanmadı. " +
-                "Veri ucu (wapp.bapi.bundesliga.com) anahtar istiyor — KULLANILMAZ."),
+            new(BundesligaSite, "DFL Bundesliga", new[] { 78 }, OfficialSourceTier.LeagueMatchCentre,
+                OfficialContentKinds.HtmlEmbeddedJson, new[] { "www.bundesliga.com" },
+                new[] { OfficialPurposes.Schedule, OfficialPurposes.Result },
+                OfficialSourceStatuses.Verified,
+                "13.09.2026: /de/bundesliga/spieltag herkese açık sayfası ng-state içinde haftanın maçlarını " +
+                "(matchStatus, plannedKickOff, score.fulltime/halftime, takım adları) tek istekte taşıyor. " +
+                "Kadro (aufstellung startingEleven) henüz bağlanmadı. Veri ucu (wapp.bapi.bundesliga.com) " +
+                "anahtar istiyor — KULLANILMAZ."),
 
             // ── 61 · Ligue 1 ─────────────────────────────────────────────────────
             new("ligue1-site", "Ligue 1", new[] { 61 }, OfficialSourceTier.LeagueMatchCentre,

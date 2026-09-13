@@ -1110,6 +1110,7 @@ namespace Formax.Infrastructure.Data
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialVenue).HasMaxLength(200);
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialStatus).HasMaxLength(32);
             modelBuilder.Entity<Match>().Property(x => x.ScheduleSource).HasMaxLength(80);
+            modelBuilder.Entity<Match>().Property(x => x.ResultVerificationStatus).HasMaxLength(32);
 
             // ── AI MAÇ ANALİZİ (arka planda üretilmiş, maç başına tek satır) ──
             modelBuilder.Entity<MatchAnalysisSnapshot>(entity =>

@@ -47,3 +47,56 @@ namespace Formax.Application.Services.OfficialSources
             OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default);
     }
 }
+
+namespace Formax.Application.Services.OfficialSources
+{
+    /// <summary>Resmî kaynaktan tek maç olayı — FORMAX olay sözlüğüyle (Goal/Card/subst/Var).</summary>
+    public sealed record OfficialMatchEvent(
+        string OfficialEventId,
+        int Minute,
+        int? ExtraMinute,
+        string Side,
+        string EventType,
+        string? Detail,
+        string? PlayerName,
+        string? AssistName);
+
+    /// <summary>
+    /// Takım istatistiği — kaynak bir alanı vermiyorsa NULL kalır (sıfır UYDURULMAZ).
+    /// </summary>
+    public sealed record OfficialTeamStatistics(
+        int? BallPossession, int? TotalShots, int? ShotsOnTarget, int? ShotsOffTarget, int? BlockedShots,
+        int? Corners, int? Offsides, int? Fouls, int? YellowCards, int? RedCards, int? GoalkeeperSaves,
+        int? TotalPasses, int? AccuratePasses, int? PassAccuracy)
+    {
+        public bool HasAnyMeasurement =>
+            BallPossession.HasValue || TotalShots.HasValue || ShotsOnTarget.HasValue || ShotsOffTarget.HasValue ||
+            BlockedShots.HasValue || Corners.HasValue || Offsides.HasValue || Fouls.HasValue || YellowCards.HasValue ||
+            RedCards.HasValue || GoalkeeperSaves.HasValue || TotalPasses.HasValue || AccuratePasses.HasValue || PassAccuracy.HasValue;
+    }
+
+    public sealed record OfficialMatchStatistics(OfficialTeamStatistics Home, OfficialTeamStatistics Away);
+
+    /// <summary>Bitmiş maçın resmî olay/istatistiği — yalnız kaynağın gerçekten yayımladığı alanlar.</summary>
+    public interface IOfficialPostMatchSource
+    {
+        string SourceKey { get; }
+
+        Task<OfficialRead<IReadOnlyList<OfficialMatchEvent>>> ReadEventsAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default);
+
+        /// <summary>Kaynak istatistik yayımlamıyorsa <see cref="OfficialReadOutcomes.NotSupported"/>.</summary>
+        Task<OfficialRead<OfficialMatchStatistics>> ReadStatisticsAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default);
+    }
+
+    /// <summary>
+    /// SONUÇ TEYİDİ — maç listesi "bitti" bayrağı taşımayan kaynakta (TFF) skor, aynı resmî
+    /// kaynağın maç sayfasıyla karşılaştırılır; uyuşmazsa sonuç kesinleştirilmez.
+    /// </summary>
+    public interface IOfficialResultConfirmation
+    {
+        Task<OfficialRead<(int Home, int Away)?>> ConfirmScoreAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default);
+    }
+}

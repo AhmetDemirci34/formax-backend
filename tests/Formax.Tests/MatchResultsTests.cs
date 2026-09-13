@@ -184,15 +184,15 @@ public class MatchResultsTests
     // ── 8. DETERMİNİSTİK SIRALAMA ─────────────────────────────────────────────
 
     [Fact]
-    public async Task Siralama_KickoffaGore_DeterministiktIr()
+    public async Task Siralama_EnSonBitenOnce_EsitlikteMatchIdAzalan()
     {
-        using var db = SeededDb(nameof(Siralama_KickoffaGore_DeterministiktIr));
+        using var db = SeededDb(nameof(Siralama_EnSonBitenOnce_EsitlikteMatchIdAzalan));
         db.Matches.AddRange(
             M(900053, "fx-c", new DateTime(2026, 8, 18, 16, 0, 0, DateTimeKind.Utc),
                 LockedCompetitions.SuperLig, MatchStatuses.Finished, Fener, Lyon, 1, 0, league: "Süper Lig"),
             M(900051, "fx-a", new DateTime(2026, 8, 18, 14, 0, 0, DateTimeKind.Utc),
                 LockedCompetitions.PremierLeague, MatchStatuses.Finished, Fener, Lyon, 2, 2, league: "Premier League"),
-            // Aynı dakikada başlayan iki maç — sıra lig id'si, sonra MatchId ile kesinleşir.
+            // Aynı dakikada başlayan iki maç — sıra MatchId azalan ile kesinleşir.
             M(900052, "fx-b", new DateTime(2026, 8, 18, 14, 0, 0, DateTimeKind.Utc),
                 LockedCompetitions.LaLiga, MatchStatuses.Finished, Fener, Lyon, 0, 0, league: "La Liga"));
         db.SaveChanges();
@@ -201,7 +201,7 @@ public class MatchResultsTests
         var first = await reader.GetResultsAsync(Aug18);
         var second = await reader.GetResultsAsync(Aug18);
 
-        Assert.Equal(new[] { 900051, 900052, 900053, Leg1Id }, first.Select(r => r.MatchId).ToArray());
+        Assert.Equal(new[] { Leg1Id, 900053, 900052, 900051 }, first.Select(r => r.MatchId).ToArray());
         Assert.Equal(first.Select(r => r.MatchId), second.Select(r => r.MatchId));
     }
 

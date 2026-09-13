@@ -144,7 +144,7 @@ public class FixtureResultWriteTests
     };
 
     private static (FixtureSyncJob job, SpyStandings standings) Build(
-        SportsFixtureResult incoming, Match stored)
+        SportsFixtureResult incoming, Match stored, bool? resultsFromApiFootball = null)
     {
         var repo = new FakeRepo
         {
@@ -162,7 +162,8 @@ public class FixtureResultWriteTests
             ["ApiFootball:Timezone"] = "UTC",
             // Uzlaştırma bu testlerin konusu değil — kapatılır ki tur sade kalsın.
             ["ApiFootball:ResultReconciliation:MaxDaysPerCycle"] = "0",
-            ["ApiFootball:ResultReconciliation:MaxFixtureLookupsPerCycle"] = "0"
+            ["ApiFootball:ResultReconciliation:MaxFixtureLookupsPerCycle"] = "0",
+            ["ApiFootball:Results:Enabled"] = resultsFromApiFootball?.ToString()
         }).Build();
 
         var services = new ServiceCollection();
@@ -272,5 +273,46 @@ public class FixtureResultWriteTests
         Assert.Equal(MatchStatuses.Cancelled, stored.Status);
         Assert.Null(stored.ResultUpdatedAtUtc);
         Assert.Empty(standings.RefreshedLeagues);
+    }
+
+    // ── ÜRÜN KARARI 13.09.2026: sonuç/durum API-Football'dan ALINMAZ ──────────
+
+    [Fact]
+    public async Task ApiFootballSonucKapaliyken_FinishedVeSkorYazilmaz()
+    {
+        var stored = Stored(MatchStatuses.NotStarted);
+        var (job, standings) = Build(Incoming("Finished", 3, 1), stored, resultsFromApiFootball: false);
+
+        await RunCycle(job);
+
+        Assert.Equal(MatchStatuses.NotStarted, stored.Status);
+        Assert.Equal((0, 0), (stored.HomeScore, stored.AwayScore));
+        Assert.Null(stored.ResultUpdatedAtUtc);
+        Assert.Null(stored.ResultSource);
+        Assert.Empty(standings.RefreshedLeagues);
+    }
+
+    [Fact]
+    public async Task ApiFootballSonucKapaliyken_DurumDegisikligiYazilmaz()
+    {
+        var stored = Stored(MatchStatuses.NotStarted);
+        var (job, _) = Build(Incoming("Postponed", null, null), stored, resultsFromApiFootball: false);
+
+        await RunCycle(job);
+
+        Assert.Equal(MatchStatuses.NotStarted, stored.Status);
+    }
+
+    [Fact]
+    public void UretimAyari_ApiFootballSonucKapali_OlayIstatistikResmi()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "global.json"))) dir = dir.Parent;
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName, "Formax.API", "appsettings.json")));
+        var root = doc.RootElement;
+
+        Assert.False(root.GetProperty("ApiFootball").GetProperty("Results").GetProperty("Enabled").GetBoolean());
+        Assert.Equal("Official", root.GetProperty("PostMatch").GetProperty("Data").GetProperty("Source").GetString());
     }
 }
