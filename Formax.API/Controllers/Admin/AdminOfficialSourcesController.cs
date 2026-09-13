@@ -83,6 +83,20 @@ namespace Formax.API.Controllers.Admin
             return Ok(new { sinceUtc = since, summary, rows });
         }
 
+        /// <summary>Maç merkezi turunu şimdi çalıştırır (kritik gelişme + resmî saat).</summary>
+        [HttpPost("match-centre/round")]
+        public async Task<IActionResult> MatchCentreRound([FromServices] Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob job, CancellationToken ct)
+            => Ok(await job.RunOnceAsync(ct));
+
+        /// <summary>Doğrulanmış kritik gelişmeler (sıfır dış istek).</summary>
+        [HttpGet("critical")]
+        public async Task<IActionResult> Critical([FromQuery] int? matchId, [FromQuery] int take = 100, CancellationToken ct = default)
+        {
+            var q = _db.MatchCriticalDevelopments.AsNoTracking();
+            if (matchId.HasValue) q = q.Where(d => d.MatchId == matchId.Value);
+            return Ok(await q.OrderByDescending(d => d.Id).Take(Math.Clamp(take, 1, 500)).ToListAsync(ct));
+        }
+
         /// <summary>Kadro turunu şimdi çalıştırır (aynı slot kuralı; takvim dışı istek üretmez).</summary>
         [HttpPost("lineups/round")]
         public async Task<IActionResult> LineupRound([FromServices] OfficialLineupCollector collector, CancellationToken ct)

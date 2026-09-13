@@ -28,6 +28,12 @@ namespace Formax.Domain.Entities
         /// <summary>Kaynağın bildirdiği başlama anı (UTC).</summary>
         public DateTime? OfficialKickoffUtc { get; set; }
 
+        /// <summary>Kaynağın en son bildirdiği stat adı — stat değişikliği yalnız iki resmî gözlem arasında aranır.</summary>
+        public string? OfficialVenue { get; set; }
+
+        /// <summary>Kaynağın en son bildirdiği durum (Scheduled/Live/Finished/Postponed/Cancelled/Suspended).</summary>
+        public string? OfficialStatus { get; set; }
+
         public DateTime LinkedAtUtc { get; set; }
 
         /// <summary>Eşlemenin kaynağa karşı en son yeniden doğrulandığı an.</summary>

@@ -336,6 +336,7 @@ public static class DependencyInjection
         services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
             Formax.Infrastructure.OfficialSources.Providers.TffSource>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialMatchCentreService>();
         // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
         services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();
 

@@ -943,6 +943,9 @@ internal class Program
         // yalnız resmî kaynaktan (OfficialLineupCollector, Infrastructure DI) toplanır.
         // Singleton + hosted: admin teşhis ucu (POST /admin/lineup/sync) AYNI örneği
         // çözüp tek maç için ingestion tetikleyebilsin diye (Odds ile aynı desen).
+        // RESMÎ MAÇ MERKEZİ — kritik gelişme + resmî başlama saati (admin tetiği aynı örnek).
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>());
         // AI MAÇ ANALİZİ — yaklaşan maçlar için arka planda kanıttan üretim (admin tetiği aynı örnek).
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.MatchAnalysisJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.MatchAnalysisJob>());

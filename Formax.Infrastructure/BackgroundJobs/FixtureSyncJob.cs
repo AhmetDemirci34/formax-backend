@@ -748,7 +748,10 @@ public sealed class FixtureSyncJob : BackgroundService
             if (existingMatches.TryGetValue(fixture.ExternalMatchId, out var existingMatch))
             {
                 // Update mutable fields only.
-                existingMatch.MatchDate   = fixture.MatchDate;
+                // RESMÎ SAAT GERİ ALINMAZ: başlama saati resmî maç merkezinden doğrulandıysa
+                // (ScheduleSource = "official:…") lisanslı sağlayıcının saati üzerine yazılmaz.
+                if (existingMatch.ScheduleSource?.StartsWith("official:", StringComparison.Ordinal) != true)
+                    existingMatch.MatchDate = fixture.MatchDate;
                 // TAKVİM GÜVENİLİRLİĞİ: sağlayıcı "TBD" dediyse saat hâlâ geçicidir.
                 // Kesinleşmiş bir kickoff, geçici bir yanıt yüzünden GERİ ALINMAZ.
                 if (fixture.KickoffProvisional)

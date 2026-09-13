@@ -82,6 +82,12 @@ namespace Formax.Domain.Entities
         public DateTime? ScheduleVerifiedAtUtc { get; set; }
 
         /// <summary>
+        /// Başlama saatinin kaynağı. "official:{kaynak}" ise saat resmî maç merkezinden doğrulanmıştır
+        /// ve lisanslı sağlayıcının takvim senkronu bu saati GERİ ALMAZ. Eski kayıtlarda null.
+        /// </summary>
+        public string? ScheduleSource { get; set; }
+
+        /// <summary>
         /// Takvim tazeleme için sağlayıcıya EN SON ne zaman soruldu (başarısız denemeler
         /// dâhil). Soğuma penceresi buradan değil kalıcı deneme defterinden hesaplanır;
         /// bu alan teşhis/görünürlük içindir.

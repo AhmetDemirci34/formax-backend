@@ -275,7 +275,8 @@ namespace Formax.Infrastructure.OfficialSources
             }
             else
             {
-                link.OfficialKickoffUtc = record.KickoffUtc;
+                // Resmî saat/stat/durum geçmişi maç merkezi turunundur (kritik gelişme karşılaştırması
+                // önceki gözleme dayanır); kadro turu yalnız bağlantının hâlâ geçerli olduğunu damgalar.
                 link.VerifiedAtUtc = utcNow;
             }
             await _db.SaveChangesAsync(ct);

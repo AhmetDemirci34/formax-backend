@@ -49,6 +49,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<OfficialSourceCacheEntry> OfficialSourceCache { get; set; } = null!;
         public DbSet<OfficialMatchLink> OfficialMatchLinks { get; set; } = null!;
         public DbSet<MatchAnalysisSnapshot> MatchAnalysisSnapshots { get; set; } = null!;
+        public DbSet<MatchCriticalDevelopment> MatchCriticalDevelopments { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1086,6 +1087,29 @@ namespace Formax.Infrastructure.Data
                 entity.HasIndex(x => new { x.MatchId, x.SourceKey }).IsUnique()
                       .HasDatabaseName("UX_OfficialMatchLinks_Match_Source");
             });
+
+            // ── KRİTİK GELİŞME (resmî yapılandırılmış veri; aynı kanıt tek satır) ──
+            modelBuilder.Entity<MatchCriticalDevelopment>(entity =>
+            {
+                entity.ToTable("MatchCriticalDevelopments");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.OfficialUrl).HasMaxLength(500);
+                entity.Property(x => x.DevelopmentType).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.AffectedPlayerId).HasMaxLength(120);
+                entity.Property(x => x.Severity).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.VerificationStatus).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.EvidenceHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.PreviousValue).HasMaxLength(200);
+                entity.Property(x => x.NewValue).HasMaxLength(200);
+                entity.Property(x => x.SummaryTr).HasMaxLength(400).IsRequired();
+                entity.Property(x => x.NotificationNote).HasMaxLength(200);
+                entity.HasIndex(x => new { x.MatchId, x.EvidenceHash }).IsUnique()
+                      .HasDatabaseName("UX_MatchCriticalDevelopments_Match_Evidence");
+            });
+            modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialVenue).HasMaxLength(200);
+            modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialStatus).HasMaxLength(32);
+            modelBuilder.Entity<Match>().Property(x => x.ScheduleSource).HasMaxLength(80);
 
             // ── AI MAÇ ANALİZİ (arka planda üretilmiş, maç başına tek satır) ──
             modelBuilder.Entity<MatchAnalysisSnapshot>(entity =>
