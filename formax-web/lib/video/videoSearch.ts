@@ -67,6 +67,24 @@ export function videoEmptyStateText(search?: VideoSearchDto | null): string {
  * sıralamaz, yalnız ilk oynatılabilir özeti ana karta alır. Ana özet "önemli anlar"
  * listesine TEKRAR düşmez.
  */
+/** Oynatıcının "gömme/bölge engeli" kodları (YouTube IFrame API: 101, 150, 152). */
+export function isEmbedOrRegionError(code: number): boolean {
+  return code === 101 || code === 150 || code === 152;
+}
+
+/**
+ * Oynatılabilir tam özet adayları — backend sırası korunur. İlk aday gösterilir; kullanıcının oynatıcısı
+ * gömme/bölge engeli bildirirse (oEmbed 200 bu engeli göstermez, 14.09.2026 ölçümü) aynı maçın bir
+ * sonraki doğrulanmış resmî özetine geçilir. Frontend yeni video üretmez; yalnız backend listesinden seçer.
+ */
+export function mainHighlightCandidates(videos: readonly MatchVideoDto[]): MatchVideoDto[] {
+  return videos.filter((v) => v.canPlayInApp && isMainHighlight(v.videoType));
+}
+
+export function nextCandidateAfterError(count: number, index: number, code: number): number | null {
+  return isEmbedOrRegionError(code) && index + 1 < count ? index + 1 : null;
+}
+
 export function arrangeVideos(videos: readonly MatchVideoDto[]) {
   const main = videos.find((v) => v.canPlayInApp && isMainHighlight(v.videoType)) ?? null;
   const moments = videos.filter((v) => isMoment(v.videoType) && v !== main);

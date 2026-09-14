@@ -105,7 +105,7 @@ namespace Formax.Application.Services.Matches
             @"(\bgol\b|\bgolu\b|goller|\bgoal\b|goals|penalti|penalty|kirmizi kart|red card|" +
             @"sari kart|yellow card|\bvar\b|ozet|ozetler|highlight|highlights|" +
             @"sazetak|resumen|resume|zusammenfassung|sintesi|melhores momentos|" +
-            @"gecis|kurtaris|save|maç sonucu|mac sonucu|full match|extended)", Opts);
+            @"gecis|kurtaris|save|maç sonucu|mac sonucu|full match|extended|highights|hightlights|higlights)", Opts);
 
         /// <summary>
         /// Maçla ilgisiz kulüp içeriği. Ölçüldü: resmi kanallarda maç günü bile

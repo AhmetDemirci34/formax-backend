@@ -2,12 +2,18 @@
 
 import { TeamCrest } from "@/components/ui/TeamCrest";
 import { formatMatchDateTR } from "@/lib/matchClock";
-import { arrangeVideos, videoEmptyStateText } from "@/lib/video/videoSearch";
+import { useState } from "react";
+import {
+  arrangeVideos,
+  mainHighlightCandidates,
+  nextCandidateAfterError,
+  videoEmptyStateText,
+} from "@/lib/video/videoSearch";
 import { eventLabel } from "@/lib/matches/eventLabels";
 import { hasVerifiedLineup } from "@/lib/lineup/lineupStatus";
 import { VideoPlayerCard } from "./VideoPlayerCard";
 import { LineupPanel } from "@/components/match-center/lineup/LineupPanel";
-import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto } from "@/types/api";
+import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto, MatchVideoDto } from "@/types/api";
 
 /**
  * BİTMİŞ MAÇ ÖZETİ — kilitli ekran (02.09.2026 ürün kararı).
@@ -176,7 +182,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         <Panel title="Maç Özeti">
           {main ? (
             <div className="p-3">
-              <VideoPlayerCard video={main} />
+              <MainHighlightPlayer candidates={mainHighlightCandidates(videos)} />
             </div>
           ) : (
             <>
@@ -254,6 +260,34 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
           <Empty text={match.standing.standingsNotice} />
         </Panel>
       )}
+    </div>
+  );
+}
+
+/**
+ * ANA ÖZET OYNATICISI — oynatıcı gömme/bölge engeli bildirirse aynı maçın bir sonraki doğrulanmış resmî
+ * özetine geçer ve bunu açıkça yazar. Aday kalmazsa kartın kendi dürüst hata metni kalır.
+ */
+function MainHighlightPlayer({ candidates }: { candidates: MatchVideoDto[] }) {
+  const [index, setIndex] = useState(0);
+  const video = candidates[Math.min(index, candidates.length - 1)];
+  if (!video) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {index > 0 && (
+        <p className="text-[11px] leading-relaxed text-white/70" data-testid="video-fallback-note">
+          Önceki resmî video bu bölgede ya da uygulama içinde oynatılamadı; aynı maçın başka bir resmî kaynağı gösteriliyor.
+        </p>
+      )}
+      <VideoPlayerCard
+        key={video.sourcePageUrl}
+        video={video}
+        autoStart={index > 0}
+        onPlaybackError={(code) => {
+          const next = nextCandidateAfterError(candidates.length, index, code);
+          if (next !== null) setIndex(next);
+        }}
+      />
     </div>
   );
 }

@@ -9,6 +9,8 @@ import {
   VIDEO_CHECKING_TEXT,
   VIDEO_NOT_FOUND_TEXT,
   arrangeVideos,
+  mainHighlightCandidates,
+  nextCandidateAfterError,
   videoEmptyStateText,
 } from "@/lib/video/videoSearch";
 import { nextPlaybackState, parsePlayerMessage, playbackErrorText } from "@/lib/video/youtubePlayback";
@@ -550,5 +552,24 @@ describe("bitmiş maç: kalıcı video keşfi durumları", () => {
     for (const src of files) {
       expect(src).not.toMatch(/video-discovery|\/discover|queue\/run|catalog\/discover/);
     }
+  });
+});
+
+// ── GERÇEK OYNATICI ENGELİNDE YEDEK RESMÎ ÖZET (14.09.2026 ölçümü: Serie A İtalyanca sürüm 150) ──
+
+describe("ana özet: oynatıcı engelinde yedek aday", () => {
+  it("oynatılabilir tam özetler backend sırasıyla aday olur; gol klibi ve engelli video aday değildir", () => {
+    const it1 = video({ title: "COMO-PARMA IT" });
+    const en = video({ title: "COMO-PARMA EN" });
+    const goal = video({ title: "gol", videoType: "Goal" });
+    const blocked = video({ title: "engelli", canPlayInApp: false, embedUrl: null });
+    expect(mainHighlightCandidates([it1, goal, blocked, en]).map((v) => v.title)).toEqual(["COMO-PARMA IT", "COMO-PARMA EN"]);
+  });
+
+  it("yalnız gömme/bölge engeli kodunda ve aday varsa bir sonrakine geçilir", () => {
+    expect(nextCandidateAfterError(2, 0, 150)).toBe(1);
+    expect(nextCandidateAfterError(2, 0, 101)).toBe(1);
+    expect(nextCandidateAfterError(2, 1, 150)).toBeNull();   // aday kalmadı → dürüst hata metni
+    expect(nextCandidateAfterError(2, 0, 100)).toBeNull();   // kaldırılmış video yedeğe geçirmez
   });
 });

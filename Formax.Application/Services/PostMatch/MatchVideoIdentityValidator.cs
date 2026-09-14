@@ -146,7 +146,13 @@ namespace Formax.Application.Services.PostMatch
                     MatchVideoRejectionReasons.MultipleMatchesInTitle);
 
             // ── 8. TÜR ───────────────────────────────────────────────────────────
-            var type = ClassifyType(folded);
+            // TÜR VE ÖZET İŞARETİ YALNIZ BAŞLIKTAN (14.09.2026 ölçümü): beIN açıklamaları özet etiketleri taşıyor;
+            // "Ermal Krasniqi'nin oğlu … galibiyetinin ardından" kısa videosu açıklama yüzünden özet sayılmıştı.
+            // Kısa dikey video (#shorts) tam maç özeti olamaz.
+            var type = ClassifyType(foldedTitle);
+            if (type is MatchVideoTypes.MatchHighlights or MatchVideoTypes.ExtendedHighlights
+                && foldedTitle.Contains("#shorts", StringComparison.Ordinal))
+                return Reject("kısa video (#shorts) tam maç özeti değildir", MatchVideoRejectionReasons.NotMatchHighlights);
             if (type == null)
                 return Reject("maç görüntüsü değil (özet/gol/önemli an türlerinden biri değil)",
                     MatchVideoRejectionReasons.NoHighlightMarker);
@@ -155,7 +161,7 @@ namespace Formax.Application.Services.PostMatch
             // "gol" kelimesi TEK BAŞINA hiçbir zaman kabul üretmez. Otomatik kabul için
             // başlıkta gerçek bir özet işareti (Özet / Highlights / …) bulunmalıdır;
             // yoksa kayıt insan gözüne bırakılır, kullanıcıya gösterilmez.
-            if (!HighlightMarker.IsMatch(folded))
+            if (!HighlightMarker.IsMatch(foldedTitle))
                 return Reject("başlıkta gerçek özet işareti yok (yalnız 'gol' geçmesi yetmez)",
                     MatchVideoRejectionReasons.NoHighlightMarker);
 
@@ -189,7 +195,9 @@ namespace Formax.Application.Services.PostMatch
         private static readonly Regex HighlightMarker = new(
             @"(\bozet\b|ozeti\b|ozetler|highlight|highlights|extended highlights|" +
             @"full highlights|goals ?(&|and) ?highlights|resumen|\bresume\b|compacto|" +
-            @"sazetak|zusammenfassung|sintesi|melhores momentos)", Opts);
+            @"sazetak|zusammenfassung|sintesi|melhores momentos|" +
+            // Resmî kanallarda ölçülen yazım hataları — kontrollü liste (Aston Villa FC: "Premier League Highights").
+            @"highights|hightlights|higlights)", Opts);
 
         /// <summary>
         /// Ortak metin normalizasyonu (diakritiksiz, küçük harf, Türkçe "İ" tuzağı çözülmüş).
@@ -288,7 +296,10 @@ namespace Formax.Application.Services.PostMatch
         private static readonly Regex NonFootage = new(
             @"(\bfc ?2[0-9]\b|\bfifa ?2[0-9]\b|efootball|\bpes ?20[0-9]{2}\b|simulation|simulasyon|gameplay|career mode|kariyer modu|" +
             @"\breaction\b|\breacts\b|\btepki|prediction|\bpreview\b|\bonizleme|\bprevia\b|pre-?match|coach cam|" +
-            @"fan ?cam|montage|\bmontaj|taraftar|\bnews\b|\bhaberi?\b|son dakika)", Opts);
+            @"fan ?cam|montage|\bmontaj|taraftar|\bnews\b|\bhaberi?\b|son dakika|" +
+            // ÖLÇÜLDÜ (14.09.2026): beIN SPORTS Türkiye "Gaziantep FK - Fenerbahçe Maç Sonu Teknik Direktör … Açıklamaları"
+            // videoları özet diye kabul edilmişti (açıklama metnindeki "özet" etiketi yüzünden).
+            @"\baciklama|teknik direktor|\bbasin\b|press conference|post-?match interview)", Opts);
 
         /// <summary>Başlık "2024/25" ya da "2024-25" gibi bir sezon yazıyorsa maçın sezonu olmalı.</summary>
         public static bool MentionsOtherSeason(string foldedText, DateTime matchDateUtc)
@@ -332,7 +343,7 @@ namespace Formax.Application.Services.PostMatch
         // Çok dilli: resmî kaynaklar özeti kendi dillerinde yayımlar.
         private static readonly Regex Highlights = new(
             @"(\bozet\b|ozeti\b|ozetler|highlight|resumen|\bresume\b|compacto|sazetak|" +
-            @"zusammenfassung|sintesi|melhores momentos)", Opts);
+            @"zusammenfassung|sintesi|melhores momentos|highights|hightlights|higlights)", Opts);
 
         private static readonly Regex GoalClip = new(
             @"(\bgol\b|\bgolu\b|goller|\bgoal\b|\bgoals\b|\bbut de\b)", Opts);

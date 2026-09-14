@@ -374,12 +374,32 @@ public class VideoDiscoveryEngineTests
     [InlineData("Aston Villa 1-2 Nottingham Forest | Highlights 2024/25", null, "sezon")]
     [InlineData("Aston Villa v Nottingham Forest | FC 26 Simulation Highlights", null, "oyun")]
     [InlineData("Liam Delap's Reaction | Aston Villa vs Nottingham Forest | Highlights", null, "oyun")]
+    [InlineData("Aston Villa - Nottingham Forest Maç Sonu Teknik Direktör Unai Emery'nin Açıklamaları | Özet", null, "oyun")]
     public void SahteKanal_FarkliSezon_OyunVeTepkiVideosu_Reddedilir(string title, string? channel, string reason)
     {
         var sources = new StubCatalog(ForestClub).Current();
         var v = MatchVideoIdentityValidator.Validate(Cand(title, channel ?? ForestClub.YouTubeChannelId!), Villa(), sources);
         Assert.False(v.Accepted);
         Assert.Contains(reason, v.Reason);
+    }
+
+    [Fact]
+    public void OzetIsaretiYalnizAciklamadaysa_KisaSosyalVideoOzetSayilmaz_YazimHatasiKontrolluListede()
+    {
+        // 14.09.2026 canlı yanlış kabul: beIN kısa videosu açıklamadaki "özet" etiketi yüzünden MatchHighlights olmuştu.
+        var amed = new VideoFixtureIdentity(105089, "fx", new DateTime(2026, 9, 13, 17, 0, 0, DateTimeKind.Utc),
+            10, 11, "Amed", "Başakşehir", Array.Empty<DateTime>(), 203, 5, 0);
+        var shortClip = new OfficialVideoCandidate("YouTube", "UCPe9vNjHF1kEExT5kHwc7aw", "FkpOuq6JxlY",
+            "🟢🔴 Ermal Krasniqi'nin oğlu, İstanbul Başakşehir galibiyetinin ardından sahada hünerlerini sergiledi",
+            "Amed SF - Başakşehir maç özeti ve goller #özet #highlights", new DateTime(2026, 9, 14, 14, 26, 0, DateTimeKind.Utc),
+            "https://www.youtube.com/watch?v=FkpOuq6JxlY", null, null);
+        Assert.False(MatchVideoIdentityValidator.Validate(shortClip, amed).Accepted);
+
+        var shorts = shortClip with { ExternalVideoId = "s2", Title = "Amed SF - Başakşehir Özet #shorts" };
+        Assert.False(MatchVideoIdentityValidator.Validate(shorts, amed).Accepted);
+
+        var sources = new StubCatalog(ForestClub).Current();
+        Assert.True(MatchVideoIdentityValidator.Validate(Cand("Villa 1-2 Nott'm Forest | Premier League Highights"), Villa(), sources).Accepted);
     }
 
     [Fact]

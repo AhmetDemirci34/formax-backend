@@ -31,8 +31,20 @@ export const VIDEO_TYPE_LABEL: Record<string, string> = {
  *    boş siyah kutu ya da içinde hata kartı olan "aktif" bir player bırakılmaz.
  *  • Bölgesel kısıt ayrı bir cümledir: "oynatılamıyor" ≠ "senin bölgende oynatılamıyor".
  */
-export function VideoPlayerCard({ video, compact = false }: { video: MatchVideoDto; compact?: boolean }) {
-  const [state, setState] = useState<PlaybackState>("idle");
+export function VideoPlayerCard({
+  video,
+  compact = false,
+  onPlaybackError,
+  autoStart = false,
+}: {
+  video: MatchVideoDto;
+  compact?: boolean;
+  /** Oynatıcı hata kodu bildirdiğinde (ör. 150) üst bileşene haber verir. */
+  onPlaybackError?: (code: number) => void;
+  /** Kullanıcı zaten oynat'a bastıysa yedek adayda poster atlanır. */
+  autoStart?: boolean;
+}) {
+  const [state, setState] = useState<PlaybackState>(autoStart ? "loading" : "idle");
   const [errorCode, setErrorCode] = useState<number | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const label = VIDEO_TYPE_LABEL[video.videoType] ?? video.videoType;
@@ -45,13 +57,16 @@ export function VideoPlayerCard({ video, compact = false }: { video: MatchVideoD
       if (!YOUTUBE_ORIGINS.has(ev.origin)) return;
       if (frameRef.current && ev.source !== frameRef.current.contentWindow) return;
       for (const s of parsePlayerMessage(ev.data)) {
-        if (s.kind === "error") setErrorCode(s.code);
+        if (s.kind === "error") {
+          setErrorCode(s.code);
+          onPlaybackError?.(s.code);
+        }
         setState((cur) => nextPlaybackState(cur, s));
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [state]);
+  }, [state, onPlaybackError]);
 
   /** iframe yüklendiğinde oynatıcıya "olayları bana bildir" denir (IFrame API protokolü). */
   const subscribe = () => {
