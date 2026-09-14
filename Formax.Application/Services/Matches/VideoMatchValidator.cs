@@ -67,8 +67,9 @@ namespace Formax.Application.Services.Matches
                 (sourceFolded.Contains(t, StringComparison.Ordinal) ||
                  t.Contains(sourceFolded, StringComparison.Ordinal));
 
-            var hasHome = NewsTextNormalizer.Mentions(folded, ctx.HomeTeam) || SourceIs(ctx.HomeTeam);
-            var hasAway = NewsTextNormalizer.Mentions(folded, ctx.AwayTeam) || SourceIs(ctx.AwayTeam);
+            // Kontrollü takma ad tablosu ("Nott'm Forest", "Man Utd"…) — serbest benzerlik değil.
+            var hasHome = PostMatch.TeamNameAliases.Mentions(folded, ctx.HomeTeam) || SourceIs(ctx.HomeTeam);
+            var hasAway = PostMatch.TeamNameAliases.Mentions(folded, ctx.AwayTeam) || SourceIs(ctx.AwayTeam);
             if (!hasHome || !hasAway)
                 return new Result(false, "her iki takım adı doğrulanamadı");
 

@@ -33,10 +33,13 @@ namespace Formax.Infrastructure.PostMatch
         private readonly IVideoEmbedVerifier _embedVerifier;
         private readonly ILogger<MatchVideoRegistrar> _log;
 
+        private readonly IOfficialVideoSourceCatalog? _catalog;
+
         public MatchVideoRegistrar(
-            FormaxDbContext db, IVideoEmbedVerifier embedVerifier, ILogger<MatchVideoRegistrar> log)
+            FormaxDbContext db, IVideoEmbedVerifier embedVerifier, ILogger<MatchVideoRegistrar> log,
+            IOfficialVideoSourceCatalog? catalog = null)
         {
-            _db = db; _embedVerifier = embedVerifier; _log = log;
+            _db = db; _embedVerifier = embedVerifier; _log = log; _catalog = catalog;
         }
 
         /// <summary>
@@ -82,7 +85,8 @@ namespace Formax.Infrastructure.PostMatch
                 return new MatchVideoRegistration(false, "Rejected", "maç veya fikstür kimliği bulunamadı");
 
             // ── KİMLİK ───────────────────────────────────────────────────────────
-            var verdict = MatchVideoIdentityValidator.Validate(candidate, fixture);
+            // Resmî kaynak listesi = yayın hakkı tohumları + otomatik doğrulanmış katalog.
+            var verdict = MatchVideoIdentityValidator.Validate(candidate, fixture, _catalog?.Current());
             if (!verdict.Accepted || verdict.Source == null || verdict.VideoType == null)
                 return new MatchVideoRegistration(false, "Rejected", verdict.Reason);
 

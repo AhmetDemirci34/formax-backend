@@ -43,6 +43,22 @@ namespace Formax.Infrastructure.PostMatch
                 .Select(m => new { m.Id, m.HomeTeamId, m.AwayTeamId, m.HomeScore, m.AwayScore, m.HalfTimeHomeScore, m.HalfTimeAwayScore })
                 .ToListAsync(ct).ConfigureAwait(false);
 
+            // ESKİ MAÇ BACKFILL (sayfalı): analizi hiç yazılmamış eski bitmiş maçlar tur başına bir sayfa.
+            // Eski maçın detay ekranı boş kalmasın; bütün geçmiş tek seferde belleğe alınmaz.
+            var page = Math.Max(0, _config.GetValue("PostMatch:Summary:BackfillBatch", 100));
+            if (page > 0)
+            {
+                var horizon = utcNow.AddDays(-400);
+                var older = await _db.Matches.AsNoTracking()
+                    .Where(m => m.Status == MatchStatuses.Finished && m.MatchDate < since && m.MatchDate >= horizon
+                                && locked.Contains(m.LeagueId)
+                                && !_db.MatchPostMatchSummaries.Any(s => s.MatchId == m.Id))
+                    .OrderByDescending(m => m.MatchDate).Take(page)
+                    .Select(m => new { m.Id, m.HomeTeamId, m.AwayTeamId, m.HomeScore, m.AwayScore, m.HalfTimeHomeScore, m.HalfTimeAwayScore })
+                    .ToListAsync(ct).ConfigureAwait(false);
+                matches.AddRange(older);
+            }
+
             var written = 0;
             foreach (var m in matches)
             {

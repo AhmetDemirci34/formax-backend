@@ -37,8 +37,29 @@ export function isGoalClip(videoType: string): boolean {
  * Video boş durumunun metni — YALNIZ defterden.
  * Defter bilgisi hiç gelmediyse (eski backend / okunamadı) "bulunamadı" DENMEZ.
  */
+export const VIDEO_NOT_AVAILABLE_YET_TEXT = `${VIDEO_NOT_FOUND_TEXT} Arka planda resmî kaynaklar kontrol edilmeye devam ediyor.`;
+export const VIDEO_SOURCE_BLOCKED_TEXT =
+  "Bu maçın resmî videosu bulundu ancak yayıncı uygulama içinde oynatmaya izin vermiyor.";
+export const VIDEO_FAILED_TEXT = "Video kontrolü teknik bir hata nedeniyle tamamlanamadı; yeniden denenecek.";
+
+/**
+ * Backend kalıcı keşif kuyruğunun durumları (14.09.2026):
+ * Searching | FullHighlightsAvailable | GoalClipsAvailable | NotAvailableYet | SourceBlocked | Failed.
+ * Eski "Checking"/"NotFound" değerleri geriye uyum için aynı anlama eşlenir.
+ */
 export function videoEmptyStateText(search?: VideoSearchDto | null): string {
-  return search?.status === "NotFound" ? VIDEO_NOT_FOUND_TEXT : VIDEO_CHECKING_TEXT;
+  switch (search?.status) {
+    case "NotAvailableYet":
+      return VIDEO_NOT_AVAILABLE_YET_TEXT;
+    case "NotFound":
+      return VIDEO_NOT_FOUND_TEXT;
+    case "SourceBlocked":
+      return VIDEO_SOURCE_BLOCKED_TEXT;
+    case "Failed":
+      return VIDEO_FAILED_TEXT;
+    default:
+      return VIDEO_CHECKING_TEXT;
+  }
 }
 
 /**

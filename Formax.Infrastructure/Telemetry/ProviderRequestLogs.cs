@@ -133,7 +133,9 @@ namespace Formax.Infrastructure.Telemetry
             string? ExternalFixtureId,
             /// <summary>HTTP durum kodu, "cache" ya da hata türü.</summary>
             string Result,
-            int CandidateCount);
+            int CandidateCount,
+            /// <summary>Sorgu dizesi (ör. channel_id=UC…) — keşif defterinde arama ifadesi olarak saklanır.</summary>
+            string Query = "");
 
         public sealed record VerdictEntry(
             DateTime AtUtc,
@@ -166,14 +168,15 @@ namespace Formax.Infrastructure.Telemetry
         public void RecordRequest(string provider, string url, int? matchId, string? externalFixtureId,
             string result, int candidateCount)
         {
-            string host = "?", path = "?";
+            string host = "?", path = "?", query = "";
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
                 host = uri.Host;
                 path = uri.AbsolutePath;
+                query = uri.Query.TrimStart('?');
             }
 
-            var e = new RequestEntry(DateTime.UtcNow, provider, host, path, matchId, externalFixtureId, result, candidateCount);
+            var e = new RequestEntry(DateTime.UtcNow, provider, host, path, matchId, externalFixtureId, result, candidateCount, query);
             _requests.Put(e);
             _logger.LogInformation(
                 "[VIDEO-REQ] provider={Provider} host={Host} path={Path} match={MatchId} fixture={Fixture} result={Result} candidates={Count}",

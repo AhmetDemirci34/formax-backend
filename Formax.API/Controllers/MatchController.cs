@@ -214,7 +214,9 @@ namespace Formax.API.Controllers
         {
             try
             {
+                var handler = System.Diagnostics.Stopwatch.StartNew();
                 var result = await _useCase.ExecuteAsync(matchId, cancellationToken);
+                HttpContext.Items[Formax.API.Middleware.DetailTimingMiddleware.HandlerMsKey] = handler.ElapsedMilliseconds;
 
                 if (result == null)
                     return NotFound(new { error = "Match not found", matchId });

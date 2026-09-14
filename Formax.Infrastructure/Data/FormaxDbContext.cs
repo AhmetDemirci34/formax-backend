@@ -51,6 +51,9 @@ namespace Formax.Infrastructure.Data
         public DbSet<MatchAnalysisSnapshot> MatchAnalysisSnapshots { get; set; } = null!;
         public DbSet<MatchCriticalDevelopment> MatchCriticalDevelopments { get; set; } = null!;
         public DbSet<MatchPostMatchSummary> MatchPostMatchSummaries { get; set; } = null!;
+        public DbSet<OfficialVideoSourceRecord> OfficialVideoSourceCatalog { get; set; } = null!;
+        public DbSet<MatchVideoDiscoveryQueueItem> MatchVideoDiscoveryQueue { get; set; } = null!;
+        public DbSet<MatchVideoDiscoveryAttempt> MatchVideoDiscoveryAttempts { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1118,6 +1121,59 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Generator).HasMaxLength(32).IsRequired();
                 entity.HasIndex(x => x.MatchId).IsUnique()
                       .HasDatabaseName("UX_MatchPostMatchSummaries_Match");
+            });
+            // ── RESMÎ VİDEO KAYNAK KATALOĞU + KALICI KEŞİF KUYRUĞU/DEFTERİ ──
+            modelBuilder.Entity<OfficialVideoSourceRecord>(entity =>
+            {
+                entity.ToTable("OfficialVideoSourceCatalog");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Key).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.Publisher).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.Platform).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.YouTubeChannelId).HasMaxLength(64);
+                entity.Property(x => x.FeedUrl).HasMaxLength(400);
+                entity.Property(x => x.ClubName).HasMaxLength(160);
+                entity.Property(x => x.LeagueIds).HasMaxLength(100);
+                entity.Property(x => x.Status).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.DiscoveredVia).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.WikidataId).HasMaxLength(32);
+                entity.Property(x => x.OfficialWebsite).HasMaxLength(300);
+                entity.Property(x => x.VerificationEvidence).HasMaxLength(1000).IsRequired();
+                entity.HasIndex(x => x.Key).IsUnique().HasDatabaseName("UX_OfficialVideoSourceCatalog_Key");
+                entity.HasIndex(x => x.YouTubeChannelId).HasDatabaseName("IX_OfficialVideoSourceCatalog_Channel");
+            });
+            modelBuilder.Entity<MatchVideoDiscoveryQueueItem>(entity =>
+            {
+                entity.ToTable("MatchVideoDiscoveryQueue");
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.ExternalFixtureId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.State).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.LastOutcome).HasMaxLength(64);
+                entity.Property(x => x.LastError).HasMaxLength(400);
+                entity.Property(x => x.LockOwner).HasMaxLength(64);
+                entity.Property(x => x.EnqueueReason).HasMaxLength(24).IsRequired();
+                entity.HasIndex(x => new { x.NextAttemptUtc, x.EndUtc }).HasDatabaseName("IX_MatchVideoDiscoveryQueue_Due");
+            });
+            modelBuilder.Entity<MatchVideoDiscoveryAttempt>(entity =>
+            {
+                entity.ToTable("MatchVideoDiscoveryAttempts");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ExternalFixtureId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.RowKind).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.SourceKey).HasMaxLength(80);
+                entity.Property(x => x.SourceKind).HasMaxLength(24);
+                entity.Property(x => x.SourceChannelOrDomain).HasMaxLength(200);
+                entity.Property(x => x.SearchExpression).HasMaxLength(300);
+                entity.Property(x => x.ErrorType).HasMaxLength(64);
+                entity.Property(x => x.CandidateUrl).HasMaxLength(600);
+                entity.Property(x => x.CandidateTitle).HasMaxLength(300);
+                entity.Property(x => x.VideoType).HasMaxLength(32);
+                entity.Property(x => x.VerificationStatus).HasMaxLength(32);
+                entity.Property(x => x.EmbedResult).HasMaxLength(200);
+                entity.Property(x => x.Evidence).HasMaxLength(600);
+                entity.Property(x => x.RejectionReason).HasMaxLength(300);
+                entity.HasIndex(x => new { x.MatchId, x.AttemptedAtUtc }).HasDatabaseName("IX_MatchVideoDiscoveryAttempts_Match");
             });
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialVenue).HasMaxLength(200);
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialStatus).HasMaxLength(32);

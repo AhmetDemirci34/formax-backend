@@ -41,7 +41,8 @@ namespace Formax.Application.Services.PostMatch
         /// <summary>Bu maçın son düdüğü (yayın tarihi bununla karşılaştırılır).</summary>
         public static DateTime EndOf(DateTime kickoffUtc) => kickoffUtc + MatchDuration;
 
-        public static MatchVideoVerdict Validate(OfficialVideoCandidate candidate, VideoFixtureIdentity fixture)
+        public static MatchVideoVerdict Validate(OfficialVideoCandidate candidate, VideoFixtureIdentity fixture,
+            IReadOnlyList<OfficialVideoSource>? sources = null)
         {
             if (candidate is null || fixture is null)
                 return Reject("aday veya maç kimliği yok");
@@ -53,8 +54,8 @@ namespace Formax.Application.Services.PostMatch
             // Kanal KİMLİĞİ ile eşleşir. "official" yazan başlık, doğrulanmış görünen
             // kanal adı veya yüksek izlenme sayısı kanıt DEĞİLDİR.
             var source = string.Equals(candidate.Platform, "YouTube", StringComparison.OrdinalIgnoreCase)
-                ? OfficialVideoSources.ByYouTubeChannel(candidate.SourceIdentifier)
-                : OfficialVideoSources.ByKey(candidate.SourceIdentifier);
+                ? OfficialVideoSources.ByYouTubeChannel(candidate.SourceIdentifier, sources)
+                : OfficialVideoSources.ByKey(candidate.SourceIdentifier, sources);
 
             if (source == null)
                 return Reject("kaynak resmî izin listesinde değil");
@@ -119,6 +120,20 @@ namespace Formax.Application.Services.PostMatch
             // Trabzonspor | Stadyum" programı, başlığında "gol" geçtiği için GOL KLİBİ
             // sayılmış ve İKİ ayrı maça birden bağlanmıştı. Resmî kanalda olmak, maç
             // görüntüsü olmak DEĞİLDİR.
+            // ── 6A. MAÇ GÖRÜNTÜSÜ OLMAYAN TÜRLER ─────────────────────────────────
+            // Oyun/simülasyon, tepki, tahmin/ön izleme, taraftar montajı ve haber videosu resmî kanalda
+            // bile maç özeti değildir (ölçüldü: Forest kanalı "Liam Delap's Reaction", Serie A kanalı
+            // "PRE-MATCH LIVE", "COACH CAM").
+            // Yalnız BAŞLIK: resmî özet açıklamaları "news/subscribe" gibi genel kelimeler taşıyabilir.
+            var foldedTitle = NewsTextNormalizer.Fold(candidate.Title);
+            if (NonFootage.IsMatch(foldedTitle))
+                return Reject("maç görüntüsü değil (oyun/tepki/tahmin/montaj/haber içeriği)",
+                    MatchVideoRejectionReasons.NotMatchHighlights);
+
+            // ── 6B. FARKLI SEZON ─────────────────────────────────────────────────
+            if (MentionsOtherSeason(foldedTitle, fixture.MatchDateUtc))
+                return Reject("başlıktaki sezon maçın sezonuyla uyuşmuyor");
+
             if (StudioContent.IsMatch(folded))
                 return Reject("stüdyo/program içeriği (maç görüntüsü değil)",
                     MatchVideoRejectionReasons.NotMatchHighlights);
@@ -267,7 +282,27 @@ namespace Formax.Application.Services.PostMatch
         }
 
         private static IReadOnlyList<string> ScoreTokens(string? team)
-            => NewsTextNormalizer.TeamTokens(team).Where(t => t.Length >= 4).ToList();
+            => NewsTextNormalizer.TeamTokens(team).Where(t => t.Length >= 4)
+                   .Concat(TeamNameAliases.For(team)).Distinct(StringComparer.Ordinal).ToList();
+
+        private static readonly Regex NonFootage = new(
+            @"(\bfc ?2[0-9]\b|\bfifa ?2[0-9]\b|efootball|\bpes ?20[0-9]{2}\b|simulation|simulasyon|gameplay|career mode|kariyer modu|" +
+            @"\breaction\b|\breacts\b|\btepki|prediction|\bpreview\b|\bonizleme|\bprevia\b|pre-?match|coach cam|" +
+            @"fan ?cam|montage|\bmontaj|taraftar|\bnews\b|\bhaberi?\b|son dakika)", Opts);
+
+        /// <summary>Başlık "2024/25" ya da "2024-25" gibi bir sezon yazıyorsa maçın sezonu olmalı.</summary>
+        public static bool MentionsOtherSeason(string foldedText, DateTime matchDateUtc)
+        {
+            var start = matchDateUtc.Month >= 7 ? matchDateUtc.Year : matchDateUtc.Year - 1;
+            foreach (Match m in Regex.Matches(foldedText, @"\b(20[0-9]{2})\s*[/-]\s*(20)?([0-9]{2})\b", Opts))
+            {
+                var y1 = int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                var y2 = int.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+                if (y2 != (y1 + 1) % 100) continue;           // sezon kalıbı değil (skor/tarih)
+                if (y1 != start) return true;
+            }
+            return false;
+        }
 
         /// <summary>Takımın en ayırt edici tek parçası ("fenerbahce", "lyon").</summary>
         private static string? BestToken(string? team)

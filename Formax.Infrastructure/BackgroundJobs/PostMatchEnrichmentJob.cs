@@ -181,109 +181,14 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
             _logger.LogWarning(ex, "[POST-MATCH SUMMARY] analiz metni asamasi basarisiz.");
         }
 
-        // ── AŞAMA 2: RESMÎ VİDEO ──────────────────────────────────────────────
-        if (!config.GetValue("PostMatch:Video:Enabled", true)) return 0;
-
-        var maxMatches = Math.Max(0, config.GetValue("PostMatch:Video:MaxMatchesPerCycle", 10));
-        if (maxMatches == 0) return 0;
-
-        var dailyCap = Math.Max(0, config.GetValue("PostMatch:Video:MaxRunsPerUtcDay", 200));
-        var nowUtc = DateTime.UtcNow;
-
-        var candidates = await BuildCandidatesAsync(db, config, nowUtc, ct).ConfigureAwait(false);
-        if (candidates.Count == 0) return 0;
-
-        var processed = 0;
-        foreach (var m in candidates)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (processed >= maxMatches) break;
-
-            var extId = m.ExternalMatchId!;
-            var matchEnd = m.MatchDate + Application.Services.PostMatch.MatchVideoIdentityValidator.MatchDuration;
-
-            // Zaten oynatılabilir bir kaydı varsa iş bitmiştir; aramaya devam edilmez.
-            var alreadyPlayable = await db.MatchVideos.AsNoTracking()
-                .AnyAsync(v => v.MatchId == m.Id && v.CanPlayInApp, ct).ConfigureAwait(false);
-            if (alreadyPlayable) continue;
-
-            // KALICI DEFTER — gün sınırından bağımsız TOPLAM deneme sayısı okunur.
-            var ledger = await db.FixtureRefreshAttempts.AsNoTracking()
-                .Where(a => a.ExternalMatchId == extId && a.Purpose == FixtureRefreshPurposes.PostMatchVideo)
-                .Select(a => new { a.AttemptCount, a.LastAttemptUtc })
-                .ToListAsync(ct).ConfigureAwait(false);
-
-            var attempts = ledger.Sum(a => a.AttemptCount);
-            DateTime? last = ledger.Count == 0 ? null : ledger.Max(a => a.LastAttemptUtc);
-
-            if (!IsDue(matchEnd, attempts, last, nowUtc)) continue;
-
-            // Atomik rezervasyon: iki süreç aynı maçı aynı anda aramaz.
-            if (!repo.TryReserveFixtureAttempt(
-                    extId, FixtureRefreshPurposes.PostMatchVideo,
-                    TimeSpan.FromHours(1), dailyCap, nowUtc))
-                continue;
-
-            var stored = 0;
-            var outcome = "NoData";
-            var blocked = false;
-            try
-            {
-                var identity = await registrar.BuildIdentityAsync(m.Id, ct).ConfigureAwait(false);
-                if (identity != null)
-                {
-                    var found = await provider.DiscoverAsync(identity, ct).ConfigureAwait(false);
-
-                    // TUR TAMAMLANDI MI? Hiçbir yapılandırılmış sağlayıcı aramasını hatasız
-                    // bitiremediyse (rate limit / plan / erişilemeyen kaynak) bu bir
-                    // "bulunamadı" DEĞİLDİR: deneme SAYILMAZ.
-                    if (provider is IVideoDiscoveryDiagnostics diag && !diag.LastRunCompleted)
-                    {
-                        blocked = true;
-                        // LastOutcome kolonu 32 karakter: kısa SABİT kod yazılır; sağlayıcı
-                        // bazındaki ayrıntı video istek kaydında ve logda durur.
-                        outcome = diag.LastOutcomes.Any(o => o.Note.StartsWith("rate-limit", StringComparison.Ordinal))
-                            ? BlockedRateLimited
-                            : BlockedUnreachable;
-                        _logger.LogWarning("[POST-MATCH VIDEO] {MatchId} turu engellendi (deneme sayilmadi): {Detail}",
-                            m.Id, string.Join(" | ", diag.LastOutcomes.Select(o => o.Provider + "=" + o.Note)));
-                    }
-
-                    foreach (var candidate in found)
-                    {
-                        var result = await registrar.RegisterAsync(m.Id, candidate, ct).ConfigureAwait(false);
-                        if (result.Stored) stored++;
-                        videoLog?.RecordVerdict(new Telemetry.VideoDiscoveryRequestLog.VerdictEntry(
-                            DateTime.UtcNow, candidate.ProviderName, m.Id, extId,
-                            candidate.SourceIdentifier, candidate.ExternalVideoId, candidate.Title,
-                            result.Stored, result.Status, result.Reason));
-                    }
-                }
-                if (stored > 0) { outcome = "Applied"; blocked = false; }
-                else if (!blocked && attempts + 1 >= MaxAttempts)
-                    // Hak bitti: "aradık, resmî video bulunamadı" DÜRÜST sonucu saklanır.
-                    outcome = MatchVideoVerificationStatuses.Unavailable;
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                // Beklenmeyen hata da bir arama sonucu değildir: sayılmaz.
-                blocked = true;
-                outcome = BlockedError;
-                _logger.LogWarning(ex, "[POST-MATCH VIDEO] {MatchId} icin arama basarisiz.", m.Id);
-            }
-
-            if (blocked)
-                repo.RecordFixtureAttemptBlocked(extId, FixtureRefreshPurposes.PostMatchVideo, nowUtc, outcome);
-            else
-                repo.RecordFixtureAttemptOutcome(extId, FixtureRefreshPurposes.PostMatchVideo, nowUtc, outcome);
-            processed++;
-        }
-
-        await repo.SaveChangesAsync(ct).ConfigureAwait(false);
-        if (processed > 0)
-            _logger.LogInformation("[POST-MATCH VIDEO] {Count} mac icin video arandi.", processed);
-        return processed;
+        // ── AŞAMA 2: RESMÎ VİDEO — KALICI KUYRUK (14.09.2026) ─────────────────
+        //
+        // Eski 4 denemelik FixtureRefreshAttempts takvimi yerine MatchVideoDiscoveryQueue: bugün/dün biten
+        // maçlar + sayfalı backfill; plan 15 dk…24 sa, sonra günde bir, sonra haftada bir; restart kalıcı.
+        // Kuyruk 15 dk çözünürlükte çalışmalı; bu tur 30 dk'da bir döndüğü için video aşaması ayrı işe
+        // (MatchVideoDiscoveryJob, 5 dk) taşındı. Bu tur artık video aramaz.
+        await Task.CompletedTask;
+        return 0;
     }
 
     /// <summary>

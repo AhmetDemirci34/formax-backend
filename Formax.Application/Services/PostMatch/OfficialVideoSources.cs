@@ -27,7 +27,9 @@ namespace Formax.Application.Services.PostMatch
         /// Lig/yayinci kaynaginin YAYIN KAPSAMI (kanonik LeagueId). null = kapsam sinirsiz (UEFA, TRT gibi
         /// mevcut kayitlar). Kapsam disi maçta kanal HIC okunmaz: ilgisiz akislar dis istek harcamasin.
         /// </summary>
-        IReadOnlyList<int>? LeagueIds = null);
+        IReadOnlyList<int>? LeagueIds = null,
+        /// <summary>Kulüp kaynağının kanonik takım kimliği (katalogdan). Doluysa maç tarafı kimlikle çözülür.</summary>
+        int? TeamId = null);
 
     /// <summary>
     /// RESMÎ KAYNAK İZİN LİSTESİ — bir videonun "resmî" sayılmasının TEK ölçütü.
@@ -83,51 +85,13 @@ namespace Formax.Application.Services.PostMatch
                 "TRT SPOR — macin Turkiye resmi yayincisinin kanali.",
                 OfficialVideoSourceTiers.Broadcaster),
 
-            // ── LİG, KULÜP VE YAYINCI KANALLARI (13.09.2026) ─────────────────────────────
-            // Kimlikler kanalların KENDİ sayfasındaki canonical bağlantıdan okundu (youtube.com/@handle →
-            // <link rel="canonical" …/channel/UC…>) ve RSS akışının gerçek içeriğiyle karşılaştırıldı.
-            // Tuzak: @NFFC tutamacı Nottingham Forest DEĞİL (2009 tarihli kişisel kanal) — resmî kanal
-            // @NottinghamForestFC. Kulüp kanalları yalnız o kulübün maçında okunur.
-            new OfficialVideoSource("premier-league-youtube", "Premier League", "YouTube",
-                "UCG5qGWdu8nIRZqJ_GgDwQ-w", true,
-                "Premier League resmi YouTube kanali.",
-                OfficialVideoSourceTiers.League, LeagueIds: new[] { 39 }),
-
-            new OfficialVideoSource("laliga-youtube", "LALIGA", "YouTube",
-                "UCTv-XvfzLX3i4IGWAm4sbmA", true,
-                "LALIGA resmi YouTube kanali (RESUMEN LALIGA EA SPORTS).",
-                OfficialVideoSourceTiers.League, LeagueIds: new[] { 140 }),
-
-            new OfficialVideoSource("serie-a-youtube", "Serie A", "YouTube",
-                "UCBJeMCIeLQos7wacox4hmLQ", true,
-                "Serie A resmi YouTube kanali.",
-                OfficialVideoSourceTiers.League, LeagueIds: new[] { 135 }),
-
+            // YAYIN HAKKI SAHİBİ TOHUMU. Lig ve kulüp kanalları artık BURADA YAZILMAZ: resmî kaynak kataloğu
+            // (OfficialVideoSourceCatalog) Wikidata + kulübün kendi sitesi kanıtıyla otomatik keşfeder.
             // Türkiye resmî yayıncısı — akışında ölçülen kapsam: Süper Lig ve Ligue 1 özetleri.
             new OfficialVideoSource("bein-sports-turkiye", "beIN SPORTS Türkiye", "YouTube",
                 "UCPe9vNjHF1kEExT5kHwc7aw", true,
                 "beIN SPORTS Turkiye resmi YouTube kanali.",
                 OfficialVideoSourceTiers.Broadcaster, LeagueIds: new[] { 203, 61 }),
-
-            new OfficialVideoSource("aston-villa", "Aston Villa FC", "YouTube",
-                "UCICNP0mvtr0prFwGUQIABfQ", true,
-                "Aston Villa Football Club resmi YouTube kanali.",
-                OfficialVideoSourceTiers.Club, "Aston Villa"),
-
-            new OfficialVideoSource("nottingham-forest", "Nottingham Forest FC", "YouTube",
-                "UCyAxjuAr8f_BFDGCO3Htbxw", true,
-                "Nottingham Forest FC resmi YouTube kanali (@NottinghamForestFC).",
-                OfficialVideoSourceTiers.Club, "Nottingham Forest"),
-
-            new OfficialVideoSource("rc-celta", "RC Celta", "YouTube",
-                "UCCJLVZYqRb_85b2Flpg04cg", true,
-                "RC Celta resmi YouTube kanali.",
-                OfficialVideoSourceTiers.Club, "Celta Vigo"),
-
-            new OfficialVideoSource("malaga-cf", "Málaga CF", "YouTube",
-                "UCo_PhWZulZooYfQRo00vU-Q", true,
-                "Malaga CF resmi YouTube kanali.",
-                OfficialVideoSourceTiers.Club, "Malaga"),
 
             // TRT SPOR resmî sitesi — video sitemap'i yayımlar (sitemap_video.xml).
             // GÖMMEYE KAPALI: video sayfaları "X-Frame-Options: SAMEORIGIN" gönderir
@@ -139,16 +103,16 @@ namespace Formax.Application.Services.PostMatch
         };
 
         /// <summary>YouTube kanal kimliğinden resmî kaynak; listede yoksa null.</summary>
-        public static OfficialVideoSource? ByYouTubeChannel(string? channelId)
+        public static OfficialVideoSource? ByYouTubeChannel(string? channelId, IReadOnlyList<OfficialVideoSource>? sources = null)
             => string.IsNullOrWhiteSpace(channelId)
                 ? null
-                : All.FirstOrDefault(s => string.Equals(s.YouTubeChannelId, channelId, StringComparison.Ordinal));
+                : (sources ?? All).FirstOrDefault(s => string.Equals(s.YouTubeChannelId, channelId, StringComparison.Ordinal));
 
         /// <summary>Anahtardan resmî kaynak; listede yoksa null.</summary>
-        public static OfficialVideoSource? ByKey(string? key)
+        public static OfficialVideoSource? ByKey(string? key, IReadOnlyList<OfficialVideoSource>? sources = null)
             => string.IsNullOrWhiteSpace(key)
                 ? null
-                : All.FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase));
+                : (sources ?? All).FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// KEŞİF SIRASI — kademeye göre. Maç bağlamı verilirse ev sahibi kulüp
@@ -158,11 +122,12 @@ namespace Formax.Application.Services.PostMatch
         /// federasyon hem kulüp yayımladığında federasyonunki ana kayıttır.
         /// </summary>
         public static IReadOnlyList<OfficialVideoSource> DiscoverableYouTubeChannels(
-            string? homeTeamName = null, string? awayTeamName = null, int? leagueId = null)
-            => All.Where(s => s.Platform == "YouTube"
+            string? homeTeamName = null, string? awayTeamName = null, int? leagueId = null,
+            IReadOnlyList<OfficialVideoSource>? sources = null, int? homeTeamId = null, int? awayTeamId = null)
+            => (sources ?? All).Where(s => s.Platform == "YouTube"
                            && s.AllowsInAppEmbed
                            && !string.IsNullOrWhiteSpace(s.YouTubeChannelId)
-                           && IsRelevant(s, homeTeamName, awayTeamName, leagueId))
+                           && IsRelevant(s, homeTeamName, awayTeamName, leagueId, homeTeamId, awayTeamId))
                   .OrderBy(s => EffectiveTier(s, homeTeamName, awayTeamName))
                   .ThenBy(s => s.Key, StringComparer.Ordinal)
                   .ToList();
@@ -171,9 +136,13 @@ namespace Formax.Application.Services.PostMatch
         /// Kaynak BU maç için okunmalı mı? Kulüp kanalı yalnız kendi maçında; kapsamı tanımlı lig/yayıncı
         /// kanalı yalnız kapsamındaki ligde. Maç bağlamı verilmezse (teşhis/test) eleme yapılmaz.
         /// </summary>
-        public static bool IsRelevant(OfficialVideoSource source, string? homeTeamName, string? awayTeamName, int? leagueId)
+        public static bool IsRelevant(OfficialVideoSource source, string? homeTeamName, string? awayTeamName, int? leagueId,
+            int? homeTeamId = null, int? awayTeamId = null)
         {
             if (source.LeagueIds is { Count: > 0 } leagues && leagueId is int l && !leagues.Contains(l)) return false;
+            // Katalog kulübü: takım KİMLİĞİ ile (ad benzerliği değil).
+            if (source.TeamId is int tid && (homeTeamId != null || awayTeamId != null))
+                return tid == homeTeamId || tid == awayTeamId;
             if (source.Tier == OfficialVideoSourceTiers.Club && !string.IsNullOrWhiteSpace(source.ClubName)
                 && (homeTeamName != null || awayTeamName != null))
                 return NameMatches(source.ClubName!, homeTeamName) || NameMatches(source.ClubName!, awayTeamName);
@@ -192,6 +161,8 @@ namespace Formax.Application.Services.PostMatch
             if (source.Tier != OfficialVideoSourceTiers.Club) return source.Tier;
 
             var club = source.ClubName;
+            if (source.TeamId is int && club != null && (NameMatches(club, homeTeamName) || NameMatches(club, awayTeamName)))
+                return NameMatches(club, homeTeamName) ? OfficialVideoSourceTiers.Club : OfficialVideoSourceTiers.AwayClub;
             if (string.IsNullOrWhiteSpace(club)) return OfficialVideoSourceTiers.LicensedSportsOutlet;
 
             if (NameMatches(club, homeTeamName)) return OfficialVideoSourceTiers.Club;

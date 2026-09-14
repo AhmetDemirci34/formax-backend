@@ -167,9 +167,25 @@ internal class Program
         });
 
         // ---------------- DB ----------------
-        builder.Services.AddDbContext<FormaxDbContext>(options =>
+        // THREAD POOL TABANI (ölçüldü 14.09.2026): ~24 arka plan servisi ve /detail senkron EF ile iş parçacığı
+        // bloklar. Minimum aşılınca pool saniyede ~1 iş parçacığı ekliyor ve DB'siz /health bile 12 sn bekliyordu.
+        // Taban, eşzamanlı bloklayabilen iş sayısına göre ayarlanır; /detail ayrıca özel iş parçacığında koşar.
+        {
+            var minWorkers = builder.Configuration.GetValue("Runtime:ThreadPoolMinWorkerThreads", 64);
+            System.Threading.ThreadPool.GetMinThreads(out var curWorkers, out var curIo);
+            System.Threading.ThreadPool.SetMinThreads(Math.Max(curWorkers, minWorkers), curIo);
+        }
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.RuntimeHealthMonitor>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.Telemetry.RuntimeHealthMonitor>());
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.DbTimingInterceptor>();
+        builder.Services.AddSingleton<Formax.Application.Interfaces.IBlockingWorkScheduler>(_ =>
+            new Formax.Infrastructure.Concurrency.DedicatedThreadWorkScheduler(
+                builder.Configuration.GetValue("Runtime:DetailWorkerThreads", Math.Max(4, Environment.ProcessorCount)), "formax-detail"));
+
+        builder.Services.AddDbContext<FormaxDbContext>((sp, options) =>
         {
             options.UseSqlServer(builder.Configuration.GetConnectionString("FormaxDB"));
+            options.AddInterceptors(sp.GetRequiredService<Formax.Infrastructure.Telemetry.DbTimingInterceptor>());
         });
 
         builder.Services.AddInfrastructure();
@@ -727,6 +743,8 @@ internal class Program
 
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>());
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.MatchVideoDiscoveryJob>();
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialVideoSourceCatalogJob>();
 
         // ---------------- Phase 7 — SOCIAL DISCOVERY (resmi sosyal medya) ----------------
         // Platform-genişletilebilir ISocialProvider koleksiyonu (yeni platform = yeni satır).
@@ -1240,6 +1258,8 @@ internal class Program
             using (Formax.Application.AI.LLM.LlmCallMeter.Begin("request:" + path))
                 await next();
         });
+
+        app.UseMiddleware<Formax.API.Middleware.DetailTimingMiddleware>();
 
         app.UseCors("Frontend");
 

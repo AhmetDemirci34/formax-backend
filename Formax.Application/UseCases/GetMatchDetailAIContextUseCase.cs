@@ -66,6 +66,8 @@ namespace Formax.Application.UseCases
         // İç kaynaklı puan durumu (saatlik projeksiyon + cache). Okuma hesap tetiklemez.
         private readonly ILeagueStandingsService _standingsService;
         private readonly Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> _logger;
+        // Senkron çekirdek (Execute) thread pool dışında koşar — bkz. IBlockingWorkScheduler.
+        private readonly IBlockingWorkScheduler? _blocking;
 
         public GetMatchDetailAIContextUseCase(
             IMatchReadRepository matchReadRepository,
@@ -98,8 +100,10 @@ namespace Formax.Application.UseCases
             Formax.Application.Services.News.Feed.MatchNewsFeedService newsFeedService,
             ILeagueSeasonResolver seasonResolver,
             ILeagueStandingsService standingsService,
-            Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> logger)
+            Microsoft.Extensions.Logging.ILogger<GetMatchDetailAIContextUseCase> logger,
+            IBlockingWorkScheduler? blocking = null)
         {
+            _blocking = blocking;
             _seasonResolver = seasonResolver;
             _standingsService = standingsService;
             _newsFeedService = newsFeedService;
@@ -340,7 +344,7 @@ namespace Formax.Application.UseCases
                 // Bu okuma hiçbir sağlayıcıya, arama motoruna veya YouTube'a çıkmaz.
                 Videos       = finishedVideos,
                 // ARAMA DURUMU — kalıcı defterden; saatten türetilmez. Sıfır dış istek.
-                VideoSearch  = isFinished ? BuildVideoSearch(match.ExternalMatchId, match.MatchDate, finishedVideos) : null,
+                VideoSearch  = isFinished ? BuildVideoSearch(match.Id, match.MatchDate, finishedVideos) : null,
                 // MAÇ SONRASI ANALİZ — arka planda doğrulanmış veriden yazılmış satır okunur (LLM 0).
                 PostMatchSummary = isFinished ? BuildPostMatchSummary(match.Id) : null,
                 // İSTATİSTİK — ÖNCE KANONİK KAYIT (nullable ölçümler), sonra eski tablo.
@@ -428,9 +432,20 @@ namespace Formax.Application.UseCases
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
 
-            var detail = Execute(matchId);
+            // Senkron çekirdek özel iş parçacığında: bekleyen istek thread pool iş parçacığı tutmaz.
+            long syncOnly = 0;
+            var detail = _blocking == null
+                ? Execute(matchId)
+                : await _blocking.RunAsync(() =>
+                {
+                    var inner = System.Diagnostics.Stopwatch.StartNew();
+                    try { return Execute(matchId); }
+                    finally { syncOnly = inner.ElapsedMilliseconds; }
+                }, ct);
             if (detail == null) return null;
             var tSync = sw.ElapsedMilliseconds;
+            var queueWait = _blocking == null ? 0 : Math.Max(0, tSync - syncOnly);
+            ct.ThrowIfCancellationRequested();
 
             // SON DAKİKA — maçın gerçek haberleri (DB okuması; LLM/dış kaynak yok).
             var formaxMatchId = _matchIdFactory.Create(
@@ -443,8 +458,8 @@ namespace Formax.Application.UseCases
             detail.Analysis = isFinished ? null : await _analysisReader.GetAsync(matchId, ct);
 
             _logger.LogInformation(
-                "[DETAIL-PROF] match={MatchId} sync={Sync}ms news={News}ms analysis(db)={Analysis}ms total={Total}ms llm=0",
-                matchId, tSync, tNews - tSync, sw.ElapsedMilliseconds - tNews, sw.ElapsedMilliseconds);
+                "[DETAIL-PROF] match={MatchId} queueWait={Queue}ms sync={Sync}ms news={News}ms analysis(db)={Analysis}ms total={Total}ms llm=0",
+                matchId, queueWait, tSync - queueWait, tNews - tSync, sw.ElapsedMilliseconds - tNews, sw.ElapsedMilliseconds);
 
             return detail;
         }
@@ -966,22 +981,32 @@ namespace Formax.Application.UseCases
         /// RESMÎ ÖZET ARAMASININ DURUMU — kural <see cref="Services.PostMatch.PostMatchVideoSearchStatus"/>.
         /// Defter okuması salt DB'dir; bu metot hiçbir sağlayıcıya çıkmaz.
         /// </summary>
-        private VideoSearchDto BuildVideoSearch(string? externalMatchId, DateTime kickoffUtc, IReadOnlyList<MatchVideoDto> videos)
+        private VideoSearchDto BuildVideoSearch(int matchId, DateTime kickoffUtc, IReadOnlyList<MatchVideoDto> videos)
         {
-            var ledger = string.IsNullOrWhiteSpace(externalMatchId)
-                ? Services.PostMatch.FixtureAttemptSummary.None
-                : _fixtureSync.GetFixtureAttemptSummary(externalMatchId!, FixtureRefreshPurposes.PostMatchVideo);
+            // KALICI KUYRUK (salt DB). Kayıtlı videolar durumun önündedir: oynatılabilir tam özet varsa
+            // kuyruk henüz güncellenmemiş olsa da ekran player gösterir.
+            var queue = _postMatchData.GetVideoDiscovery(matchId);
+            var full = videos.Any(v => v.CanPlayInApp && (v.VideoType == MatchVideoTypes.MatchHighlights || v.VideoType == MatchVideoTypes.ExtendedHighlights));
+            var goals = videos.Any(v => v.CanPlayInApp && (v.VideoType == MatchVideoTypes.Goal || v.VideoType == "Penalty"));
+            var blocked = videos.Any(v => !v.CanPlayInApp);
+            var end = Services.PostMatch.MatchVideoIdentityValidator.EndOf(kickoffUtc);
 
-            var hasPlayable = videos.Any(v => v.CanPlayInApp);
-            var (status, reason) = Services.PostMatch.PostMatchVideoSearchStatus.ResolveWithReason(
-                hasPlayable, ledger, Services.PostMatch.MatchVideoIdentityValidator.EndOf(kickoffUtc), DateTime.UtcNow);
+            var status = full ? Services.PostMatch.VideoDiscoveryStates.FullHighlightsAvailable
+                : goals ? Services.PostMatch.VideoDiscoveryStates.GoalClipsAvailable
+                : queue != null ? queue.State
+                : blocked ? Services.PostMatch.VideoDiscoveryStates.SourceBlocked
+                // Kuyruğa henüz alınmamış yeni biten maç: ilk gün "aranıyor", daha eskisi "henüz bulunamadı".
+                : DateTime.UtcNow - end < TimeSpan.FromHours(24) ? Services.PostMatch.VideoDiscoveryStates.Searching
+                : Services.PostMatch.VideoDiscoveryStates.NotAvailableYet;
+
             return new VideoSearchDto
             {
                 Status = status,
-                Reason = reason,
-                AttemptsMade = ledger.Attempts,
-                MaxAttempts = Services.PostMatch.PostMatchVideoSchedule.MaxAttempts,
-                LastAttemptUtc = ledger.LastAttemptUtc
+                AttemptsMade = queue?.AttemptCount ?? 0,
+                MaxAttempts = Services.PostMatch.VideoDiscoverySchedule.SearchingAttempts,
+                LastAttemptUtc = queue?.LastAttemptUtc,
+                NextAttemptUtc = queue?.NextAttemptUtc,
+                Reason = queue?.LastError
             };
         }
 

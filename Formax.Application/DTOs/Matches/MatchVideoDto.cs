@@ -80,6 +80,9 @@ namespace Formax.Application.DTOs.Matches
         /// deneme yok — süresiz "kontrol ediliyor" denmez). Diğer durumlarda null.
         /// </summary>
         public string? Reason { get; init; }
+
+        /// <summary>Kuyruktaki bir sonraki planlı deneme (tam özet bulunduysa null).</summary>
+        public System.DateTime? NextAttemptUtc { get; init; }
     }
 
     /// <summary>Bitmiş maç analiz metni — yalnız DB satırından.</summary>

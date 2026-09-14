@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Formax.Application.DTOs.Matches;
@@ -66,14 +67,16 @@ public class FinishedMatchSummaryAndVideoTests
     [Fact]
     public void KanalSecimi_YalnizMacinLigiVeKulupleri()
     {
-        var keys = OfficialVideoSources.DiscoverableYouTubeChannels("Aston Villa", "Nottingham Forest", 39)
+        // Kulüp kanalları artık elle yazılmaz; katalog kaydı (TeamId) maçın taraflarıyla eşleşir.
+        var keys = OfficialVideoSources.DiscoverableYouTubeChannels("Aston Villa", "Nottingham Forest", 39,
+                CatalogSources, homeTeamId: 1, awayTeamId: 2)
             .Select(s => s.Key).ToList();
 
-        Assert.Contains("aston-villa", keys);
-        Assert.Contains("nottingham-forest", keys);
-        Assert.Contains("premier-league-youtube", keys);
-        Assert.DoesNotContain("rc-celta", keys);
-        Assert.DoesNotContain("laliga-youtube", keys);
+        Assert.Contains("club:1", keys);
+        Assert.Contains("club:2", keys);
+        Assert.Contains("league:39", keys);
+        Assert.DoesNotContain("club:1904", keys);
+        Assert.DoesNotContain("league:140", keys);
         Assert.DoesNotContain("fenerbahce", keys);
         Assert.DoesNotContain("bein-sports-turkiye", keys);
     }
@@ -96,6 +99,17 @@ public class FinishedMatchSummaryAndVideoTests
     // ── 4. YANLIŞ MAÇ / TARİH / YÖN / SKOR REDDEDİLİR ─────────────────────────
 
     private const string ForestChannel = "UCyAxjuAr8f_BFDGCO3Htbxw";
+
+    /// <summary>Otomatik kaynak kataloğunun üreteceği doğrulanmış kayıtlar (tohumlarla birleşik).</summary>
+    private static readonly IReadOnlyList<OfficialVideoSource> CatalogSources = OfficialVideoSources.All.Concat(new[]
+    {
+        new OfficialVideoSource("club:1", "Aston Villa Football Club", "YouTube", "UCICNP0mvtr0prFwGUQIABfQ", true, "t", OfficialVideoSourceTiers.Club, "Aston Villa", null, 1),
+        new OfficialVideoSource("club:2", "Nottingham Forest FC", "YouTube", ForestChannel, true, "t", OfficialVideoSourceTiers.Club, "Nottingham Forest", null, 2),
+        new OfficialVideoSource("club:1904", "RC Celta", "YouTube", "UCCJLVZYqRb_85b2Flpg04cg", true, "t", OfficialVideoSourceTiers.Club, "Celta Vigo", null, 1904),
+        new OfficialVideoSource("club:1909", "Málaga CF", "YouTube", "UCo_PhWZulZooYfQRo00vU-Q", true, "t", OfficialVideoSourceTiers.Club, "Malaga", null, 1909),
+        new OfficialVideoSource("league:39", "Premier League", "YouTube", "UCG5qGWdu8nIRZqJ_GgDwQ-w", true, "t", OfficialVideoSourceTiers.League, null, new[] { 39 }),
+        new OfficialVideoSource("league:140", "LALIGA", "YouTube", "UCTv-XvfzLX3i4IGWAm4sbmA", true, "t", OfficialVideoSourceTiers.League, null, new[] { 140 }),
+    }).ToList();
     private static readonly DateTime VillaKickoff = new(2026, 9, 12, 14, 0, 0, DateTimeKind.Utc);
 
     private static VideoFixtureIdentity VillaForest() => new(
@@ -111,8 +125,7 @@ public class FinishedMatchSummaryAndVideoTests
     {
         var v = MatchVideoIdentityValidator.Validate(
             Candidate("IGOR JESUS LATE WINNER! 🇧🇷 | Aston Villa 1-2 Nottingham Forest | Premier League Highlights 🎬",
-                new DateTime(2026, 9, 12, 21, 0, 28, DateTimeKind.Utc)),
-            VillaForest());
+                new DateTime(2026, 9, 12, 21, 0, 28, DateTimeKind.Utc)), VillaForest(), CatalogSources);
 
         Assert.True(v.Accepted, v.Reason);
         Assert.Equal(MatchVideoTypes.MatchHighlights, v.VideoType);
@@ -123,8 +136,7 @@ public class FinishedMatchSummaryAndVideoTests
     {
         var v = MatchVideoIdentityValidator.Validate(
             Candidate("Aston Villa 2-1 Nottingham Forest | Premier League Highlights",
-                new DateTime(2026, 9, 12, 21, 0, 0, DateTimeKind.Utc)),
-            VillaForest());
+                new DateTime(2026, 9, 12, 21, 0, 0, DateTimeKind.Utc)), VillaForest(), CatalogSources);
 
         Assert.False(v.Accepted);
         Assert.Contains("skor", v.Reason);
@@ -135,8 +147,7 @@ public class FinishedMatchSummaryAndVideoTests
     {
         var v = MatchVideoIdentityValidator.Validate(
             Candidate("Nottingham Forest 2-1 Aston Villa | Premier League Highlights",
-                new DateTime(2026, 9, 12, 21, 0, 0, DateTimeKind.Utc)),
-            VillaForest());
+                new DateTime(2026, 9, 12, 21, 0, 0, DateTimeKind.Utc)), VillaForest(), CatalogSources);
 
         Assert.False(v.Accepted);
         Assert.Contains("ters", v.Reason);
@@ -147,9 +158,9 @@ public class FinishedMatchSummaryAndVideoTests
     {
         const string title = "Aston Villa 1-2 Nottingham Forest | Premier League Highlights";
         Assert.False(MatchVideoIdentityValidator.Validate(
-            Candidate(title, VillaKickoff.AddMinutes(30)), VillaForest()).Accepted);
+            Candidate(title, VillaKickoff.AddMinutes(30)), VillaForest(), CatalogSources).Accepted);
         Assert.False(MatchVideoIdentityValidator.Validate(
-            Candidate(title, VillaKickoff.AddDays(20)), VillaForest()).Accepted);
+            Candidate(title, VillaKickoff.AddDays(20)), VillaForest(), CatalogSources).Accepted);
     }
 
     [Fact]
@@ -160,13 +171,13 @@ public class FinishedMatchSummaryAndVideoTests
 
         var celta = MatchVideoIdentityValidator.Validate(
             Candidate("Celta vs Málaga (1-1) | Resumen y highlights | Celta",
-                new DateTime(2026, 9, 13, 21, 0, 13, DateTimeKind.Utc), "UCCJLVZYqRb_85b2Flpg04cg"), fixture);
+                new DateTime(2026, 9, 13, 21, 0, 13, DateTimeKind.Utc), "UCCJLVZYqRb_85b2Flpg04cg"), fixture, CatalogSources);
         var malaga = MatchVideoIdentityValidator.Validate(
             Candidate("RESUMEN J5 | RC Celta 1-1 Málaga CF | Highlights LaLiga EA Sports",
-                new DateTime(2026, 9, 13, 15, 29, 7, DateTimeKind.Utc), "UCo_PhWZulZooYfQRo00vU-Q"), fixture);
+                new DateTime(2026, 9, 13, 15, 29, 7, DateTimeKind.Utc), "UCo_PhWZulZooYfQRo00vU-Q"), fixture, CatalogSources);
         var wrongScore = MatchVideoIdentityValidator.Validate(
             Candidate("Celta vs Málaga (2-0) | Resumen y highlights | Celta",
-                new DateTime(2026, 9, 13, 21, 0, 13, DateTimeKind.Utc), "UCCJLVZYqRb_85b2Flpg04cg"), fixture);
+                new DateTime(2026, 9, 13, 21, 0, 13, DateTimeKind.Utc), "UCCJLVZYqRb_85b2Flpg04cg"), fixture, CatalogSources);
 
         Assert.True(celta.Accepted, celta.Reason);
         Assert.True(malaga.Accepted, malaga.Reason);
@@ -296,6 +307,26 @@ public class FinishedMatchSummaryAndVideoTests
         Assert.Single(events);
         Assert.Contains("kendi kalesine", s.Text);
         Assert.DoesNotContain("belirleyen", s.Text);
+    }
+
+    [Fact]
+    public void YedektenGirenOyuncununGolu_KayittakiSirayaGoreYazilir_GirisYonuTersOkunmaz()
+    {
+        // 20370: Igor Jesus 75' GİRDİ (AssistName = giren), 88' gol attı; Dan Ndoye 75' ÇIKTI.
+        var records = new[]
+        {
+            Ev(46, "Goal", "Normal Goal", "Nottingham Forest", "Liam Delap"),
+            new MatchEventRecord { Minute = 75, EventType = "subst", Detail = "Substitution", TeamName = "Nottingham Forest",
+                PlayerName = "Dan Ndoye", AssistName = "Igor Jesus" },
+            Ev(74, "Goal", "Normal Goal", "Aston Villa", "Alysson"),
+            Ev(88, "Goal", "Normal Goal", "Nottingham Forest", "Igor Jesus"),
+        };
+        var s = PostMatchSummaryComposer.Compose(new PostMatchSummaryInput("Aston Villa", "Nottingham Forest", 1, 2, 0, 0,
+            PostMatchSummaryComposer.FromRecords(records, "Aston Villa", "Nottingham Forest"), null));
+
+        Assert.Contains("Igor Jesus 75' oyuna girdi ve 88' gol attı.", s.Text);
+        Assert.DoesNotContain("Dan Ndoye 75' oyuna girdi", s.Text);
+        Assert.InRange(s.Sentences.Count, 2, 4);
     }
 
     [Fact]

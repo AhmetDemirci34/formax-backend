@@ -495,3 +495,60 @@ describe("bitmiş maç: goller ve maç sonrası analiz", () => {
     expect(html).not.toContain("Giren: Gianluca Busio");
   });
 });
+
+// ── KALICI VİDEO KEŞFİ DURUMLARI (14.09.2026) ───────────────────────────────
+
+describe("bitmiş maç: kalıcı video keşfi durumları", () => {
+  const render = (status: string, videos: MatchVideoDto[] = []) =>
+    renderToStaticMarkup(
+      <FinishedMatchSummary match={finishedMatch({ videos, videoSearch: { status, attemptsMade: 3, maxAttempts: 8 } })} />
+    );
+
+  it("Searching → 'kontrol ediliyor'", () => {
+    expect(render("Searching")).toContain("Resmî video kontrol ediliyor.");
+  });
+
+  it("NotAvailableYet → dürüst 'bulunamadı' + kontrollerin sürdüğü; sonsuz 'kontrol ediliyor' yok", () => {
+    const html = render("NotAvailableYet");
+    expect(html).toContain("Uygulama içinde oynatılabilir resmî video bulunamadı.");
+    expect(html).toContain("kontrol edilmeye devam ediyor");
+    expect(html).not.toContain("Resmî video kontrol ediliyor.");
+  });
+
+  it("SourceBlocked → engel açıkça söylenir, oynatıcı kurulmaz, resmî kaynak bağlantısı gösterilir", () => {
+    const html = render("SourceBlocked", [video({ title: "Forest özet", canPlayInApp: false, embedUrl: null })]);
+    expect(html).toContain("yayıncı uygulama içinde oynatmaya izin vermiyor");
+    expect(html).not.toContain("<iframe");
+    expect(html).toContain("Resmî kaynakta izle");
+  });
+
+  it("Failed → teknik hata ve yeniden deneme bilgisi", () => {
+    expect(render("Failed")).toContain("yeniden denenecek");
+  });
+
+  it("FullHighlightsAvailable → MAÇ ÖZETİ oynatıcısı; GoalClipsAvailable → GOLLER", () => {
+    expect(render("FullHighlightsAvailable", [video({ title: "Tam özet" })])).toContain("Tam özet — oynat");
+    const goals = render("GoalClipsAvailable", [video({ title: "Gol klibi", videoType: "Goal" })]);
+    expect(goals).toContain(">Goller</h3>");
+    expect(goals).not.toContain(">Maç Özeti</h3>");
+  });
+
+  it("hiçbir durumda 'Önemli Anları İzle' butonu görünmez", () => {
+    for (const s of ["Searching", "FullHighlightsAvailable", "GoalClipsAvailable", "NotAvailableYet", "SourceBlocked", "Failed"]) {
+      expect(render(s, [video({ title: "x" })])).not.toContain("Önemli Anları İzle");
+    }
+  });
+
+  it("maç sayfası açılışı video keşfi/yeniden arama isteği atmaz (yalnız /detail)", () => {
+    const root = path.resolve(__dirname, "..");
+    const files = [
+      "app/match/[id]/page.tsx",
+      "components/match-center/views/FinishedMatchSummary.tsx",
+      "components/match-center/views/VideoPlayerCard.tsx",
+      "lib/video/videoSearch.ts",
+    ].map((f) => fs.readFileSync(path.join(root, f), "utf8"));
+    for (const src of files) {
+      expect(src).not.toMatch(/video-discovery|\/discover|queue\/run|catalog\/discover/);
+    }
+  });
+});

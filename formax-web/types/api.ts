@@ -753,12 +753,24 @@ export interface MatchEventDto {
  * Ekran "bulunamadı" kararını YALNIZ bundan verir; saatten türetmez.
  */
 export interface VideoSearchDto {
-  status: "Found" | "Checking" | "NotFound" | string;
+  status:
+    | "Searching"
+    | "FullHighlightsAvailable"
+    | "GoalClipsAvailable"
+    | "NotAvailableYet"
+    | "SourceBlocked"
+    | "Failed"
+    | "Found"
+    | "Checking"
+    | "NotFound"
+    | string;
   attemptsMade: number;
   maxAttempts: number;
   lastAttemptUtc?: string | null;
   /** NotFound gerekçesi: "Exhausted" (dört deneme bitti) | "NoAttemptFor24h" (bir gündür yeni deneme yok). */
   reason?: string | null;
+  /** Kalıcı kuyruktaki sonraki planlı deneme (tam özet bulunduysa null). */
+  nextAttemptUtc?: string | null;
 }
 
 /** Bitmiş maç analiz metni — arka planda doğrulanmış skor/olay/istatistikten; sayfa üretmez. */

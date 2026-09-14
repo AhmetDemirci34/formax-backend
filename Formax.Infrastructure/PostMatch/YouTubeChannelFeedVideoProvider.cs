@@ -46,10 +46,12 @@ namespace Formax.Infrastructure.PostMatch
 
         public YouTubeChannelFeedVideoProvider(
             IHttpClientFactory httpFactory, IMemoryCache cache, ILogger<YouTubeChannelFeedVideoProvider> log,
-            Telemetry.VideoDiscoveryRequestLog? requests = null)
+            Telemetry.VideoDiscoveryRequestLog? requests = null, IOfficialVideoSourceCatalog? catalog = null)
         {
-            _httpFactory = httpFactory; _cache = cache; _log = log; _requests = requests;
+            _httpFactory = httpFactory; _cache = cache; _log = log; _requests = requests; _catalog = catalog;
         }
+
+        private readonly IOfficialVideoSourceCatalog? _catalog;
 
         /// <summary>Tek kanal akışının sonucu — başarısız okuma "boş akış" ile karışmasın.</summary>
         private sealed record FeedRead(IReadOnlyList<OfficialVideoCandidate> Entries, bool Ok, bool RateLimited);
@@ -73,7 +75,8 @@ namespace Formax.Infrastructure.PostMatch
             var rateLimited = false;
 
             foreach (var source in OfficialVideoSources.DiscoverableYouTubeChannels(
-                         fixture.HomeTeamName, fixture.AwayTeamName, fixture.LeagueId))
+                         fixture.HomeTeamName, fixture.AwayTeamName, fixture.LeagueId,
+                         _catalog?.Current(), fixture.HomeTeamId, fixture.AwayTeamId))
             {
                 ct.ThrowIfCancellationRequested();
                 var read = await GetChannelFeedAsync(source.YouTubeChannelId!, fixture, ct).ConfigureAwait(false);

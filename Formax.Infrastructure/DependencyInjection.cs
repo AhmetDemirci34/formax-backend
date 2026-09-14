@@ -261,6 +261,20 @@ public static class DependencyInjection
         // (02.09.2026 ürün kararı) kaldırılmıştır: ne toplayan job vardır, ne okuyan uç.
         // MatchPostContentLinks tablosu ve geçmiş satırları silinmemiştir; yalnız
         // beslenmez ve okunmaz.
+        // Nezaket katmanı: host aralığı + devre kesici + robots.txt (video ve kaynak keşfi istemcileri).
+        services.AddSingleton<Formax.Infrastructure.PostMatch.HostRateLimiter>();
+        services.AddSingleton<Formax.Infrastructure.PostMatch.RobotsTxtPolicy>();
+        services.AddTransient<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
+        // YouTube Data API zincirden ÇIKARILDI (ürün kuralı: anahtar istenmez, Data API kullanılmaz).
+        services.AddSingleton<Formax.Infrastructure.PostMatch.OfficialVideoSourceCatalog>();
+        services.AddSingleton<IOfficialVideoSourceCatalog>(sp => sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialVideoSourceCatalog>());
+        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialVideoSourceDiscoveryService>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoDiscoveryQueueService>();
+        services.AddHttpClient(Formax.Infrastructure.PostMatch.OfficialVideoSourceDiscoveryService.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(30);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxVideoSourceCatalog/1.0 (+https://github.com/AhmetDemirci34/formax-backend)");
+        }).AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
         services.AddHttpClient("postmatch-video", c =>
         {
             // Bu istemci YALNIZ resmî video uçlarına (YouTube kanal akışı + oembed) gider.
@@ -268,7 +282,7 @@ public static class DependencyInjection
             // dokunmamalıdır.
             c.Timeout = TimeSpan.FromSeconds(15);
             c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxPostMatchVideo/1.0");
-        });
+        }).AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
         services.AddScoped<IMatchVideoReader, Formax.Infrastructure.PostMatch.MatchVideoReader>();
         services.AddScoped<IVideoEmbedVerifier, Formax.Infrastructure.PostMatch.YouTubeEmbedVerifier>();
         services.AddScoped<IMatchVideoRegistrar, Formax.Infrastructure.PostMatch.MatchVideoRegistrar>();
@@ -284,7 +298,6 @@ public static class DependencyInjection
         // IOfficialMatchVideoProvider zincirin kendisidir.
         services.AddScoped<Formax.Infrastructure.Picks.UserPickSettlementService>();
         services.AddScoped<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.YouTubeDataApiVideoProvider>();
         services.AddScoped<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>();
         services.AddScoped<IOfficialMatchVideoProvider>(sp =>
         {
@@ -296,7 +309,6 @@ public static class DependencyInjection
             var members = new IOfficialMatchVideoProvider[]
             {
                 sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>(),
-                sp.GetRequiredService<Formax.Infrastructure.PostMatch.YouTubeDataApiVideoProvider>(),
                 sp.GetRequiredService<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>()
             };
 

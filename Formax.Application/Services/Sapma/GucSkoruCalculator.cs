@@ -61,7 +61,7 @@ namespace Formax.Application.Services.Sapma
             var homeTeam = GetTeamCached(match.HomeTeamId);
             var awayTeam = GetTeamCached(match.AwayTeamId);
 
-            var league = _leagueBaselineCache ??= ComputeLeagueBaseline();
+            var league = _leagueBaselineCache ??= SharedLeagueBaseline();
 
             var homeStrength = GetTeamStrengthCached(match.HomeTeamId, true, homeTeam, league);
             var awayStrength = GetTeamStrengthCached(match.AwayTeamId, false, awayTeam, league);
@@ -211,6 +211,24 @@ namespace Formax.Application.Services.Sapma
                 .OrderByDescending(m => m.MatchDate)
                 .Take(LeagueSampleMatches)
                 .Select(m => new LeagueScoreSample { HomeScore = m.HomeScore, AwayScore = m.AwayScore });
+
+        // SÜREÇ ÇAPINDA TEK UÇUŞ: 200 bitmiş maçın gol ortalaması dakikalar içinde anlamlı değişmez. Eşzamanlı
+        // /detail istekleri ve SapmaSnapshotJob aynı taramayı ayrı ayrı çalıştırmasın diye 5 dk paylaşılır.
+        private static readonly object BaselineGate = new();
+        private static LeagueBaseline? _sharedBaseline;
+        private static DateTime _sharedBaselineUtc;
+        private static readonly TimeSpan BaselineTtl = TimeSpan.FromMinutes(5);
+
+        private LeagueBaseline SharedLeagueBaseline()
+        {
+            lock (BaselineGate)
+            {
+                if (_sharedBaseline != null && DateTime.UtcNow - _sharedBaselineUtc < BaselineTtl) return _sharedBaseline;
+                _sharedBaseline = ComputeLeagueBaseline();
+                _sharedBaselineUtc = DateTime.UtcNow;
+                return _sharedBaseline;
+            }
+        }
 
         private LeagueBaseline ComputeLeagueBaseline()
         {

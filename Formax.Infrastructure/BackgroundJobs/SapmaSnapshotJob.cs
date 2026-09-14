@@ -31,19 +31,26 @@ namespace Formax.Infrastructure.BackgroundJobs
 
             await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
 
-            while (!stoppingToken.IsCancellationRequested)
+            // KENDİ İŞ PARÇACIĞINDA (14.09.2026): SapmaMotor her maç için sync-over-async çağırıyor; dakikada
+            // 50 maç bu bloklamayı thread pool'da yapınca pool açlığına katkı veriyordu. Döngü uzun ömürlü
+            // özel iş parçacığında koşar; hesap ve sonuç birebir aynıdır.
+            await Task.Factory.StartNew(() =>
             {
-                try
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    await RunOnce(stoppingToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "[SAPMA SNAPSHOT JOB] hata");
-                }
+                    try
+                    {
+                        RunOnce(stoppingToken).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "[SAPMA SNAPSHOT JOB] hata");
+                    }
 
-                await Task.Delay(LoopDelay, stoppingToken);
-            }
+                    if (stoppingToken.WaitHandle.WaitOne(LoopDelay)) break;
+                }
+            }, stoppingToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         private async Task RunOnce(CancellationToken ct)

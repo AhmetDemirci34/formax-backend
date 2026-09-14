@@ -48,6 +48,8 @@ namespace Formax.Application.Services.PostMatch
             public const string YellowCard = "YellowCard";
             public const string SecondYellow = "SecondYellow";
             public const string RedCard = "RedCard";
+            /// <summary>Oyuna GİREN oyuncu (kanonik sözleşme: AssistName = giren).</summary>
+            public const string SubIn = "SubIn";
         }
 
         private const int MaxSentences = 4;
@@ -59,10 +61,15 @@ namespace Formax.Application.Services.PostMatch
             var list = new List<PostMatchFactEvent>();
             foreach (var r in records ?? Array.Empty<MatchEventRecord>())
             {
-                var kind = KindOf(r.EventType, r.Detail);
+                var isSub = string.Equals(r.EventType, "subst", StringComparison.OrdinalIgnoreCase)
+                            || (r.Detail ?? "").StartsWith("Substitution", StringComparison.OrdinalIgnoreCase);
+                var kind = isSub ? Kinds.SubIn : KindOf(r.EventType, r.Detail);
                 if (kind == null) continue;
+                // Değişiklikte olgu GİREN oyuncudur (AssistName); gireni bilinmeyen değişiklik metne girmez.
+                var who = isSub ? r.AssistName : r.PlayerName;
+                if (isSub && string.IsNullOrWhiteSpace(who)) continue;
                 var ev = new PostMatchFactEvent(r.Minute, r.ExtraMinute, SideOf(r.TeamName, homeTeam, awayTeam), kind,
-                    string.IsNullOrWhiteSpace(r.PlayerName) ? null : r.PlayerName.Trim());
+                    string.IsNullOrWhiteSpace(who) ? null : who.Trim());
 
                 // Yalnız BİREBİR aynı kayıt tekilleştirilir. Kanonik kayıtlar zaten olay kimliğiyle tekildir;
                 // "≤2 dk kaymış tekrar" kuralı gerçek iki golü birleştiriyordu (ölçüldü: 15383, Mastantuono 29' ve 30').
@@ -114,7 +121,8 @@ namespace Formax.Application.Services.PostMatch
                 if (flow != null) sentences.Add(flow);
             }
 
-            // 4) KIRMIZI KART ya da İSTATİSTİK (tek cümle).
+            // 4) EK OLGULAR — öncelik sırasıyla, cümle bütçesi dolana kadar:
+            //    kırmızı kart → yedekten girip gol atan oyuncu → istatistik → sarı kart sayısı.
             var reds = input.Events.Where(e => e.Kind is Kinds.RedCard or Kinds.SecondYellow).ToList();
             if (sentences.Count < MaxSentences && reds.Count > 0)
             {
@@ -122,7 +130,21 @@ namespace Formax.Application.Services.PostMatch
                     $"{Minute(r)} {r.Player ?? "oyuncu adı kayıtlı değil"} ({TeamOf(r.Side, home, away) ?? "takım kayıtlı değil"}" +
                     (r.Kind == Kinds.SecondYellow ? ", ikinci sarıdan" : "") + ")")) + ".");
             }
-            else if (sentences.Count < MaxSentences && input.Stats is { } st)
+
+            // Yedekten gol: aynı oyuncu (aynı taraf) önce oyuna girmiş, sonra gol atmış — sıra kayıttan okunur.
+            var subScorers = goals
+                .Where(g => g.Kind != Kinds.OwnGoal && g.Player != null)
+                .Select(g => (Goal: g, Sub: input.Events.FirstOrDefault(s => s.Kind == Kinds.SubIn && s.Player == g.Player
+                                                                            && s.Side == g.Side && Abs(s) <= Abs(g))))
+                .Where(x => x.Sub != null)
+                .GroupBy(x => x.Goal.Player).Select(grp => grp.First()).ToList();
+            if (sentences.Count < MaxSentences && consistent && subScorers.Count > 0)
+            {
+                sentences.Add(string.Join("; ", subScorers.Select(x =>
+                    $"{x.Goal.Player} {Minute(x.Sub!)} oyuna girdi ve {Minute(x.Goal)} gol attı")) + ".");
+            }
+
+            if (sentences.Count < MaxSentences && input.Stats is { } st)
             {
                 var parts = new List<string>();
                 if (st.ShotsOnTargetHome is int sh && st.ShotsOnTargetAway is int sa) parts.Add($"isabetli şut {sh}-{sa}");
@@ -130,6 +152,10 @@ namespace Formax.Application.Services.PostMatch
                 if (parts.Count > 0)
                     sentences.Add($"İstatistikte ({home}-{away} sırasıyla) " + string.Join(", ", parts) + ".");
             }
+
+            var yellows = input.Events.Count(e => e.Kind == Kinds.YellowCard);
+            if (sentences.Count < MaxSentences && yellows > 0 && input.Stats == null)
+                sentences.Add($"Kayıtlı olaylarda {yellows} sarı kart var.");
 
             var evidence = JsonSerializer.Serialize(input);
             return new PostMatchSummaryResult(sentences.Take(MaxSentences).ToList(), Sha256(evidence), evidence);

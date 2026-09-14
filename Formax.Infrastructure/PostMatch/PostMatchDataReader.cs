@@ -35,5 +35,8 @@ namespace Formax.Infrastructure.PostMatch
 
         public MatchPostMatchSummary? GetSummary(int matchId)
             => _db.MatchPostMatchSummaries.AsNoTracking().FirstOrDefault(s => s.MatchId == matchId);
+
+        public MatchVideoDiscoveryQueueItem? GetVideoDiscovery(int matchId)
+            => _db.MatchVideoDiscoveryQueue.AsNoTracking().FirstOrDefault(q => q.MatchId == matchId);
     }
 }

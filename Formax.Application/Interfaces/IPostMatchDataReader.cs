@@ -20,5 +20,8 @@ namespace Formax.Application.Interfaces
 
         /// <summary>Arka planda yazılmış maç sonrası analiz metni. Yoksa null — sayfa ÜRETMEZ.</summary>
         MatchPostMatchSummary? GetSummary(int matchId);
+
+        /// <summary>Kalıcı video keşif kuyruğundaki satır (durum, deneme, sonraki deneme). Yoksa null.</summary>
+        MatchVideoDiscoveryQueueItem? GetVideoDiscovery(int matchId);
     }
 }
