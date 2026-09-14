@@ -73,7 +73,7 @@ namespace Formax.Infrastructure.PostMatch
             var rateLimited = false;
 
             foreach (var source in OfficialVideoSources.DiscoverableYouTubeChannels(
-                         fixture.HomeTeamName, fixture.AwayTeamName))
+                         fixture.HomeTeamName, fixture.AwayTeamName, fixture.LeagueId))
             {
                 ct.ThrowIfCancellationRequested();
                 var read = await GetChannelFeedAsync(source.YouTubeChannelId!, fixture, ct).ConfigureAwait(false);

@@ -166,6 +166,21 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
             _logger.LogWarning(ex, "[PICK SETTLEMENT] sonuclandirma asamasi basarisiz.");
         }
 
+        // ── AŞAMA 1C: MAÇ SONRASI ANALİZ METNİ ────────────────────────────────
+        //
+        // Veri aşamasından SONRA çalışır: yeni yazılan resmî olaylar aynı turda metne girer.
+        // Girdi yalnız DB'dir (skor, devre, olay, istatistik); dış istek ve LLM çağrısı yok.
+        try
+        {
+            await sp.GetRequiredService<PostMatch.PostMatchSummaryService>()
+                .RunCycleAsync(DateTime.UtcNow, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[POST-MATCH SUMMARY] analiz metni asamasi basarisiz.");
+        }
+
         // ── AŞAMA 2: RESMÎ VİDEO ──────────────────────────────────────────────
         if (!config.GetValue("PostMatch:Video:Enabled", true)) return 0;
 

@@ -242,6 +242,8 @@ public static class DependencyInjection
         services.AddScoped<IMatchLiveStatsRepository, MatchLiveStatsRepository>();
         // Bitmiş maçın KANONİK olay/istatistik okuyucusu — salt DB, sağlayıcıya çıkmaz.
         services.AddScoped<IPostMatchDataReader, Formax.Infrastructure.PostMatch.PostMatchDataReader>();
+        // Bitmiş maç analiz metni — yalnız arka plan turundan yazılır (DB girdisi, LLM yok).
+        services.AddScoped<Formax.Infrastructure.PostMatch.PostMatchSummaryService>();
         services.AddScoped<IMatchMomentumRepository, MatchMomentumRepository>();
         services.AddScoped<IMatchLiveEventIngestionRepository, MatchLiveEventIngestionRepository>();
 

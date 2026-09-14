@@ -94,5 +94,31 @@ namespace Formax.Application.Services.PostMatch
                 ? NotFound
                 : Checking;
         }
+
+        public const string ReasonExhausted = "Exhausted";
+        public const string ReasonNoAttemptFor24h = "NoAttemptFor24h";
+
+        /// <summary>
+        /// Bir gün boyunca YENİ deneme yapılmamış arama "kontrol ediliyor" OLAMAZ (13.09.2026 ürün
+        /// kuralı): takvimin en uzun aralığı 18 saattir, dolayısıyla 24 saat sessizlik aramanın
+        /// fiilen durduğunu gösterir (iş maçı seçmemiş, pencere dışına düşmüş ya da takılmış).
+        /// </summary>
+        public static readonly TimeSpan StaleAfter = TimeSpan.FromHours(24);
+
+        /// <summary>
+        /// Ekran durumu + gerekçe. Sessizlik ölçüsü: son GERÇEK deneme anı; hiç deneme yoksa
+        /// ilk bakışın zamanı (maç bitişi + <see cref="PostMatchVideoSchedule.FirstCheckAfterFullTime"/>).
+        /// </summary>
+        public static (string Status, string? Reason) ResolveWithReason(
+            bool hasPlayableVideo, FixtureAttemptSummary ledger, DateTime matchEndUtc, DateTime nowUtc)
+        {
+            ledger ??= FixtureAttemptSummary.None;
+            var status = Resolve(hasPlayableVideo, ledger);
+            if (status == Found) return (Found, null);
+            if (status == NotFound) return (NotFound, ReasonExhausted);
+
+            var lastActivity = ledger.LastAttemptUtc ?? matchEndUtc + PostMatchVideoSchedule.FirstCheckAfterFullTime;
+            return nowUtc - lastActivity > StaleAfter ? (NotFound, ReasonNoAttemptFor24h) : (Checking, null);
+        }
     }
 }

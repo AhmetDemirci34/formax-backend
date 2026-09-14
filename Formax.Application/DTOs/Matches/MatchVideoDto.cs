@@ -74,5 +74,19 @@ namespace Formax.Application.DTOs.Matches
         public int MaxAttempts { get; init; }
 
         public System.DateTime? LastAttemptUtc { get; init; }
+
+        /// <summary>
+        /// NotFound gerekçesi: "Exhausted" (dört gerçek deneme bitti) | "NoAttemptFor24h" (bir gündür yeni
+        /// deneme yok — süresiz "kontrol ediliyor" denmez). Diğer durumlarda null.
+        /// </summary>
+        public string? Reason { get; init; }
+    }
+
+    /// <summary>Bitmiş maç analiz metni — yalnız DB satırından.</summary>
+    public sealed class PostMatchSummaryDto
+    {
+        public System.Collections.Generic.IReadOnlyList<string> Sentences { get; init; } = System.Array.Empty<string>();
+        public string Generator { get; init; } = "Deterministic";
+        public System.DateTime GeneratedAtUtc { get; init; }
     }
 }

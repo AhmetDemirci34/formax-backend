@@ -67,7 +67,11 @@ namespace Formax.Infrastructure.PostMatch
 
             return new VideoFixtureIdentity(
                 match.Id, match.ExternalMatchId!, match.MatchDate,
-                match.HomeTeamId, match.AwayTeamId, home!, away!, otherLegs);
+                match.HomeTeamId, match.AwayTeamId, home!, away!, otherLegs,
+                match.LeagueId,
+                // Skor yalnız maç bittiyse kanıttır; bitmemiş maçın 0-0 varsayılanı karşılaştırılmaz.
+                match.Status == MatchStatuses.Finished ? match.HomeScore : null,
+                match.Status == MatchStatuses.Finished ? match.AwayScore : null);
         }
 
         public async Task<MatchVideoRegistration> RegisterAsync(

@@ -8,9 +8,9 @@
 
 import type { MatchVideoDto, VideoSearchDto } from "@/types/api";
 
-export const VIDEO_CHECKING_TEXT = "Resmî maç özeti kontrol ediliyor.";
-export const VIDEO_NOT_FOUND_TEXT =
-  "Bu maç için uygulama içinde oynatılabilen resmî özet videosu bulunamadı.";
+// Metin "video" der, "maç özeti" demez: arama tam özeti ve gol kliplerini birlikte kapsar.
+export const VIDEO_CHECKING_TEXT = "Resmî video kontrol ediliyor.";
+export const VIDEO_NOT_FOUND_TEXT = "Uygulama içinde oynatılabilir resmî video bulunamadı.";
 
 /** Ana özet türleri — büyük karta yalnız bunlar çıkar. */
 export function isMainHighlight(videoType: string): boolean {
@@ -26,6 +26,11 @@ export function isMoment(videoType: string): boolean {
     videoType === "VAR" ||
     videoType === "ImportantMoment"
   );
+}
+
+/** GOLLER bölümüne giren AYRI gol klipleri — tam özet ASLA bu listeye girmez. */
+export function isGoalClip(videoType: string): boolean {
+  return videoType === "Goal" || videoType === "Penalty";
 }
 
 /**
@@ -45,5 +50,8 @@ export function arrangeVideos(videos: readonly MatchVideoDto[]) {
   const main = videos.find((v) => v.canPlayInApp && isMainHighlight(v.videoType)) ?? null;
   const moments = videos.filter((v) => isMoment(v.videoType) && v !== main);
   const blocked = main ? [] : videos.filter((v) => !v.canPlayInApp && isMainHighlight(v.videoType));
-  return { main, moments, blocked };
+  // GOLLER: yalnız OYNATILABİLİR gol klipleri (gömme/bölge engelli klip bu başlığa girmez).
+  const goals = moments.filter((v) => v.canPlayInApp && isGoalClip(v.videoType));
+  const otherMoments = moments.filter((v) => !isGoalClip(v.videoType));
+  return { main, moments, goals, otherMoments, blocked };
 }

@@ -195,13 +195,26 @@ namespace Formax.Application.Services.Sapma
             return Clamp01to100((int)Math.Round(raw));
         }
 
-        private LeagueBaseline ComputeLeagueBaseline()
-        {
-            var sample = _matchReadRepository.Query()
+        /// <summary>
+        /// LİG ORTALAMASI ÖRNEKLEMİ — yalnız iki skor kolonu okunur.
+        ///
+        /// ÖLÇÜLDÜ (13.09.2026, SQL Server Express): sorgu eskiden bütün Match satırını ve iki
+        /// takım JOIN'ini taşıyordu. Matches'teki 7 nvarchar(max) kolonu sıralama tahminini
+        /// şişirdiği için her çalıştırma 214–252 MB bellek izni istiyor, 2 MB kullanıyordu.
+        /// Aynı anda ikinci bir çağrı (maç detayı + SapmaSnapshotJob) RESOURCE_SEMAPHORE
+        /// kuyruğunda 30 sn bekleyip "Execution Timeout Expired" ile düşüyordu; tekrar
+        /// isteği kuyruk boşaldığı için 0,2 sn'de açılıyordu. Projeksiyonla izin 1,3 MB'dır.
+        /// </summary>
+        public static IQueryable<LeagueScoreSample> LeagueBaselineSampleQuery(IQueryable<Match> matches)
+            => matches
                 .Where(m => m.Status == "Finished")
                 .OrderByDescending(m => m.MatchDate)
                 .Take(LeagueSampleMatches)
-                .ToList();
+                .Select(m => new LeagueScoreSample { HomeScore = m.HomeScore, AwayScore = m.AwayScore });
+
+        private LeagueBaseline ComputeLeagueBaseline()
+        {
+            var sample = LeagueBaselineSampleQuery(_matchReadRepository.Query()).ToList();
 
             if (sample.Count == 0)
                 return new LeagueBaseline { AvgGoalsForPerTeamPerMatch = 1.2 };
@@ -283,6 +296,13 @@ namespace Formax.Application.Services.Sapma
         private sealed class LeagueBaseline
         {
             public double AvgGoalsForPerTeamPerMatch { get; set; }
+        }
+
+        /// <summary>Lig ortalaması için okunan tek satır: yalnız skorlar.</summary>
+        public sealed class LeagueScoreSample
+        {
+            public int HomeScore { get; set; }
+            public int AwayScore { get; set; }
         }
     }
 }

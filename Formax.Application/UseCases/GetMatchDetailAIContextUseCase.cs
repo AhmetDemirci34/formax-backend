@@ -340,7 +340,9 @@ namespace Formax.Application.UseCases
                 // Bu okuma hiçbir sağlayıcıya, arama motoruna veya YouTube'a çıkmaz.
                 Videos       = finishedVideos,
                 // ARAMA DURUMU — kalıcı defterden; saatten türetilmez. Sıfır dış istek.
-                VideoSearch  = isFinished ? BuildVideoSearch(match.ExternalMatchId, finishedVideos) : null,
+                VideoSearch  = isFinished ? BuildVideoSearch(match.ExternalMatchId, match.MatchDate, finishedVideos) : null,
+                // MAÇ SONRASI ANALİZ — arka planda doğrulanmış veriden yazılmış satır okunur (LLM 0).
+                PostMatchSummary = isFinished ? BuildPostMatchSummary(match.Id) : null,
                 // İSTATİSTİK — ÖNCE KANONİK KAYIT (nullable ölçümler), sonra eski tablo.
                 // Kanonik satırda sağlayıcının vermediği ölçüm null kalır ve o satır hiç
                 // gösterilmez; eski tabloda her alan int olduğu için "veri yok" ile
@@ -964,19 +966,35 @@ namespace Formax.Application.UseCases
         /// RESMÎ ÖZET ARAMASININ DURUMU — kural <see cref="Services.PostMatch.PostMatchVideoSearchStatus"/>.
         /// Defter okuması salt DB'dir; bu metot hiçbir sağlayıcıya çıkmaz.
         /// </summary>
-        private VideoSearchDto BuildVideoSearch(string? externalMatchId, IReadOnlyList<MatchVideoDto> videos)
+        private VideoSearchDto BuildVideoSearch(string? externalMatchId, DateTime kickoffUtc, IReadOnlyList<MatchVideoDto> videos)
         {
             var ledger = string.IsNullOrWhiteSpace(externalMatchId)
                 ? Services.PostMatch.FixtureAttemptSummary.None
                 : _fixtureSync.GetFixtureAttemptSummary(externalMatchId!, FixtureRefreshPurposes.PostMatchVideo);
 
             var hasPlayable = videos.Any(v => v.CanPlayInApp);
+            var (status, reason) = Services.PostMatch.PostMatchVideoSearchStatus.ResolveWithReason(
+                hasPlayable, ledger, Services.PostMatch.MatchVideoIdentityValidator.EndOf(kickoffUtc), DateTime.UtcNow);
             return new VideoSearchDto
             {
-                Status = Services.PostMatch.PostMatchVideoSearchStatus.Resolve(hasPlayable, ledger),
+                Status = status,
+                Reason = reason,
                 AttemptsMade = ledger.Attempts,
                 MaxAttempts = Services.PostMatch.PostMatchVideoSchedule.MaxAttempts,
                 LastAttemptUtc = ledger.LastAttemptUtc
+            };
+        }
+
+        /// <summary>Maç sonrası analiz metni — yalnız arka planda yazılmış DB satırı; üretim YOK.</summary>
+        private PostMatchSummaryDto? BuildPostMatchSummary(int matchId)
+        {
+            var row = _postMatchData.GetSummary(matchId);
+            if (row == null || string.IsNullOrWhiteSpace(row.Text)) return null;
+            return new PostMatchSummaryDto
+            {
+                Sentences = row.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                Generator = row.Generator,
+                GeneratedAtUtc = row.GeneratedAtUtc
             };
         }
 

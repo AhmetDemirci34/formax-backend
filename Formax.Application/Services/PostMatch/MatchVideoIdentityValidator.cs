@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Formax.Application.Services.Matches;
@@ -78,14 +79,25 @@ namespace Formax.Application.Services.PostMatch
                     AwayTeam   = fixture.AwayTeamName,
                     KickoffUtc = fixture.MatchDateUtc
                 },
-                sourceTeam: source.Publisher);
+                // Kulüp kanalında kulübün KANONİK adı ("RC Celta" yayıncı adı "Celta Vigo" ile eşleşmez).
+                sourceTeam: source.ClubName ?? source.Publisher);
             if (!basic.Accepted) return Reject(basic.Reason);
 
             // ── 4. EV/DEPLASMAN YÖNÜ ─────────────────────────────────────────────
             var folded = NewsTextNormalizer.Fold((candidate.Title ?? "") + " " + (candidate.Description ?? ""));
-            var direction = ReadDirection(folded, fixture.HomeTeamName, fixture.AwayTeamName);
+            var titleScore = ReadScore(folded, fixture.HomeTeamName, fixture.AwayTeamName);
+            var direction = titleScore.Direction != Direction.NotAsserted
+                ? titleScore.Direction
+                : ReadDirection(folded, fixture.HomeTeamName, fixture.AwayTeamName);
             if (direction == Direction.Reversed)
                 return Reject("başlıktaki ev/deplasman sırası maçın yönüyle ters");
+
+            // ── 4B. SKOR ─────────────────────────────────────────────────────────
+            // Başlık "Ev X-Y Deplasman" yazıyorsa bu bir iddiadır ve KAYITLI sonuçla aynı olmalıdır:
+            // aynı iki takımın başka bir maçının (rövanş, kupa, geçen sezon) özeti burada elenir.
+            if (titleScore.Direction == Direction.Match && fixture.HomeScore is int hs && fixture.AwayScore is int aws
+                && (titleScore.Home != hs || titleScore.Away != aws))
+                return Reject($"başlıktaki skor {titleScore.Home}-{titleScore.Away} kayıtlı sonuçla ({hs}-{aws}) uyuşmuyor");
 
             // ── 5. AYAK AYRIMI ───────────────────────────────────────────────────
             // Diğer ayağın bitişine DAHA YAKIN ve o ayak da oynanmışsa, video o ayağındır.
@@ -222,6 +234,40 @@ namespace Formax.Application.Services.PostMatch
                 return Direction.Reversed;
             return Direction.NotAsserted;
         }
+
+        /// <summary>
+        /// Başlıktaki skor kalıbı: "Ev 1-2 Deplasman" ya da "Ev vs Deplasman (1-2)". Skor her zaman
+        /// başlığın yazdığı takım sırasına göre okunur ve maçın ev/deplasman yönüne çevrilir.
+        /// Takım adı bütün ayırt edici parçalarıyla denenir ("aston villa", "villa").
+        /// </summary>
+        public static (Direction Direction, int? Home, int? Away) ReadScore(string foldedText, string homeName, string awayName)
+        {
+            var homeTokens = ScoreTokens(homeName);
+            var awayTokens = ScoreTokens(awayName);
+            foreach (var h in homeTokens)
+                foreach (var a in awayTokens)
+                {
+                    if (TryScore(foldedText, h, a, out var x, out var y)) return (Direction.Match, x, y);
+                    if (TryScore(foldedText, a, h, out x, out y)) return (Direction.Reversed, y, x);
+                }
+            return (Direction.NotAsserted, null, null);
+        }
+
+        private static bool TryScore(string text, string first, string second, out int x, out int y)
+        {
+            x = y = 0;
+            const string score = @"(\d{1,2})\s*[-–—:]\s*(\d{1,2})";
+            var inline = Regex.Match(text, Regex.Escape(first) + @"\s*" + score + @"\s*" + Regex.Escape(second), Opts);
+            var trailing = inline.Success ? inline
+                : Regex.Match(text, Regex.Escape(first) + @"\s*(?:-|–|—|vs\.?|v\.?|x)\s*" + Regex.Escape(second) + @"\s*\(?\s*" + score, Opts);
+            if (!trailing.Success) return false;
+            x = int.Parse(trailing.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            y = int.Parse(trailing.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private static IReadOnlyList<string> ScoreTokens(string? team)
+            => NewsTextNormalizer.TeamTokens(team).Where(t => t.Length >= 4).ToList();
 
         /// <summary>Takımın en ayırt edici tek parçası ("fenerbahce", "lyon").</summary>
         private static string? BestToken(string? team)

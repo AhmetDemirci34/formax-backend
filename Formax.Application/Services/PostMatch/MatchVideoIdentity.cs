@@ -61,7 +61,12 @@ namespace Formax.Application.Services.PostMatch
         int AwayTeamId,
         string HomeTeamName,
         string AwayTeamName,
-        IReadOnlyList<DateTime> OtherLegDatesUtc);
+        IReadOnlyList<DateTime> OtherLegDatesUtc,
+        /// <summary>Kanonik LeagueId — lig/yayıncı kanalının kapsam seçimi için.</summary>
+        int? LeagueId = null,
+        /// <summary>Kayıtlı SONUÇ — başlıkta skor yazıyorsa onunla karşılaştırılır. Bilinmiyorsa null.</summary>
+        int? HomeScore = null,
+        int? AwayScore = null);
 
     /// <summary>Doğrulama sonucu. <paramref name="Reason"/> ret hâlinde KÖK NEDENDİR.</summary>
     public sealed record MatchVideoVerdict(

@@ -137,7 +137,9 @@ public class PostMatchScreenContractTests
         var screen = Screen();
 
         Assert.Contains("{events.length > 0 && (", screen, StringComparison.Ordinal);
-        Assert.Contains("{moments.length > 0 && (", screen, StringComparison.Ordinal);
+        // 13.09.2026: gol klipleri ayrı GOLLER bölümüdür; diğer klipler ayrı bölümdür.
+        Assert.Contains("{goals.length > 0 && (", screen, StringComparison.Ordinal);
+        Assert.Contains("{otherMoments.length > 0 && (", screen, StringComparison.Ordinal);
         Assert.Contains("{stats && stats.rows.length > 0 && (", screen, StringComparison.Ordinal);
     }
 
@@ -149,9 +151,9 @@ public class PostMatchScreenContractTests
         // ÜÇ DURUM (07.09.2026): tek bir "henüz bulunmuyor" metni, denemeler sürerken
         // de bittiğinde de aynı şeyi söylüyordu. Maç biteli 40 dakika olmuşken
         // "bulunamadı" demek yanlıştır — daha hiç bakılmamıştır.
-        const string searching = "Resmî maç özeti kontrol ediliyor.";
-        const string exhausted =
-            "Bu maç için uygulama içinde oynatılabilen resmî özet videosu bulunamadı.";
+        // 13.09.2026: metin "video" der — arama tam özeti ve gol kliplerini birlikte kapsar.
+        const string searching = "Resmî video kontrol ediliyor.";
+        const string exhausted = "Uygulama içinde oynatılabilir resmî video bulunamadı.";
         Assert.Contains(searching, screen, StringComparison.Ordinal);
         Assert.Contains(exhausted, screen, StringComparison.Ordinal);
 
@@ -166,7 +168,8 @@ public class PostMatchScreenContractTests
         // Genel "ayrıntı yok" mesajı ile video boş durumu AYNI ANDA çıkamaz: biri
         // hasAnyDetail false iken, diğeri true iken render edilir.
         Assert.Contains("{!hasAnyDetail && (", screen, StringComparison.Ordinal);
-        Assert.Contains("{hasAnyDetail && (", screen, StringComparison.Ordinal);
+        // 13.09.2026: yalnız gol klibi varsa boş "Maç Özeti" kutusu da çizilmez (GOLLER yeterli).
+        Assert.Contains("{hasAnyDetail && showSummaryVideoPanel && (", screen, StringComparison.Ordinal);
     }
 
     // ── 14-15. PUAN DURUMU KARARI BACKEND'İNDİR ──────────────────────────────

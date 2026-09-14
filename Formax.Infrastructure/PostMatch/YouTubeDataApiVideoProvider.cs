@@ -75,7 +75,7 @@ namespace Formax.Infrastructure.PostMatch
 
             var results = new List<OfficialVideoCandidate>();
             var channels = OfficialVideoSources.DiscoverableYouTubeChannels(
-                fixture.HomeTeamName, fixture.AwayTeamName);
+                fixture.HomeTeamName, fixture.AwayTeamName, fixture.LeagueId);
 
             foreach (var source in channels)
             {

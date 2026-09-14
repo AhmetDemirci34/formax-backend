@@ -48,6 +48,12 @@ public class MatchDetailDto
     public VideoSearchDto? VideoSearch { get; set; }
 
     /// <summary>
+    /// MAÇ SONRASI ANALİZ METNİ — arka planda doğrulanmış skor/devre/olay/istatistikten yazılır
+    /// (MatchPostMatchSummaries). Maç öncesi AI yorumu DEĞİLDİR. Sayfa açılışı üretmez; yoksa null.
+    /// </summary>
+    public PostMatchSummaryDto? PostMatchSummary { get; set; }
+
+    /// <summary>
     /// MAÇ İSTATİSTİKLERİ — yalnız GERÇEK veri varsa dolu, aksi hâlde null.
     ///
     /// Depoda satır olması veri olduğu anlamına gelmez: bütün alanları sıfır olan bir

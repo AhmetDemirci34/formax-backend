@@ -22,7 +22,12 @@ namespace Formax.Application.Services.PostMatch
         /// <summary>Hak sahipligi kademesi — bkz. <see cref="OfficialVideoSourceTiers"/>.</summary>
         int Tier = OfficialVideoSourceTiers.LicensedSportsOutlet,
         /// <summary>Kulup kaynaklarinda kulubun adi; ev/deplasman kademesi bununla cozulur.</summary>
-        string? ClubName = null);
+        string? ClubName = null,
+        /// <summary>
+        /// Lig/yayinci kaynaginin YAYIN KAPSAMI (kanonik LeagueId). null = kapsam sinirsiz (UEFA, TRT gibi
+        /// mevcut kayitlar). Kapsam disi maçta kanal HIC okunmaz: ilgisiz akislar dis istek harcamasin.
+        /// </summary>
+        IReadOnlyList<int>? LeagueIds = null);
 
     /// <summary>
     /// RESMÎ KAYNAK İZİN LİSTESİ — bir videonun "resmî" sayılmasının TEK ölçütü.
@@ -78,6 +83,52 @@ namespace Formax.Application.Services.PostMatch
                 "TRT SPOR — macin Turkiye resmi yayincisinin kanali.",
                 OfficialVideoSourceTiers.Broadcaster),
 
+            // ── LİG, KULÜP VE YAYINCI KANALLARI (13.09.2026) ─────────────────────────────
+            // Kimlikler kanalların KENDİ sayfasındaki canonical bağlantıdan okundu (youtube.com/@handle →
+            // <link rel="canonical" …/channel/UC…>) ve RSS akışının gerçek içeriğiyle karşılaştırıldı.
+            // Tuzak: @NFFC tutamacı Nottingham Forest DEĞİL (2009 tarihli kişisel kanal) — resmî kanal
+            // @NottinghamForestFC. Kulüp kanalları yalnız o kulübün maçında okunur.
+            new OfficialVideoSource("premier-league-youtube", "Premier League", "YouTube",
+                "UCG5qGWdu8nIRZqJ_GgDwQ-w", true,
+                "Premier League resmi YouTube kanali.",
+                OfficialVideoSourceTiers.League, LeagueIds: new[] { 39 }),
+
+            new OfficialVideoSource("laliga-youtube", "LALIGA", "YouTube",
+                "UCTv-XvfzLX3i4IGWAm4sbmA", true,
+                "LALIGA resmi YouTube kanali (RESUMEN LALIGA EA SPORTS).",
+                OfficialVideoSourceTiers.League, LeagueIds: new[] { 140 }),
+
+            new OfficialVideoSource("serie-a-youtube", "Serie A", "YouTube",
+                "UCBJeMCIeLQos7wacox4hmLQ", true,
+                "Serie A resmi YouTube kanali.",
+                OfficialVideoSourceTiers.League, LeagueIds: new[] { 135 }),
+
+            // Türkiye resmî yayıncısı — akışında ölçülen kapsam: Süper Lig ve Ligue 1 özetleri.
+            new OfficialVideoSource("bein-sports-turkiye", "beIN SPORTS Türkiye", "YouTube",
+                "UCPe9vNjHF1kEExT5kHwc7aw", true,
+                "beIN SPORTS Turkiye resmi YouTube kanali.",
+                OfficialVideoSourceTiers.Broadcaster, LeagueIds: new[] { 203, 61 }),
+
+            new OfficialVideoSource("aston-villa", "Aston Villa FC", "YouTube",
+                "UCICNP0mvtr0prFwGUQIABfQ", true,
+                "Aston Villa Football Club resmi YouTube kanali.",
+                OfficialVideoSourceTiers.Club, "Aston Villa"),
+
+            new OfficialVideoSource("nottingham-forest", "Nottingham Forest FC", "YouTube",
+                "UCyAxjuAr8f_BFDGCO3Htbxw", true,
+                "Nottingham Forest FC resmi YouTube kanali (@NottinghamForestFC).",
+                OfficialVideoSourceTiers.Club, "Nottingham Forest"),
+
+            new OfficialVideoSource("rc-celta", "RC Celta", "YouTube",
+                "UCCJLVZYqRb_85b2Flpg04cg", true,
+                "RC Celta resmi YouTube kanali.",
+                OfficialVideoSourceTiers.Club, "Celta Vigo"),
+
+            new OfficialVideoSource("malaga-cf", "Málaga CF", "YouTube",
+                "UCo_PhWZulZooYfQRo00vU-Q", true,
+                "Malaga CF resmi YouTube kanali.",
+                OfficialVideoSourceTiers.Club, "Malaga"),
+
             // TRT SPOR resmî sitesi — video sitemap'i yayımlar (sitemap_video.xml).
             // GÖMMEYE KAPALI: video sayfaları "X-Frame-Options: SAMEORIGIN" gönderir
             // (ölçüldü 11.09.2026). HLS akışını doğrudan oynatmak yayıncının oynatıcısını
@@ -107,13 +158,27 @@ namespace Formax.Application.Services.PostMatch
         /// federasyon hem kulüp yayımladığında federasyonunki ana kayıttır.
         /// </summary>
         public static IReadOnlyList<OfficialVideoSource> DiscoverableYouTubeChannels(
-            string? homeTeamName = null, string? awayTeamName = null)
+            string? homeTeamName = null, string? awayTeamName = null, int? leagueId = null)
             => All.Where(s => s.Platform == "YouTube"
                            && s.AllowsInAppEmbed
-                           && !string.IsNullOrWhiteSpace(s.YouTubeChannelId))
+                           && !string.IsNullOrWhiteSpace(s.YouTubeChannelId)
+                           && IsRelevant(s, homeTeamName, awayTeamName, leagueId))
                   .OrderBy(s => EffectiveTier(s, homeTeamName, awayTeamName))
                   .ThenBy(s => s.Key, StringComparer.Ordinal)
                   .ToList();
+
+        /// <summary>
+        /// Kaynak BU maç için okunmalı mı? Kulüp kanalı yalnız kendi maçında; kapsamı tanımlı lig/yayıncı
+        /// kanalı yalnız kapsamındaki ligde. Maç bağlamı verilmezse (teşhis/test) eleme yapılmaz.
+        /// </summary>
+        public static bool IsRelevant(OfficialVideoSource source, string? homeTeamName, string? awayTeamName, int? leagueId)
+        {
+            if (source.LeagueIds is { Count: > 0 } leagues && leagueId is int l && !leagues.Contains(l)) return false;
+            if (source.Tier == OfficialVideoSourceTiers.Club && !string.IsNullOrWhiteSpace(source.ClubName)
+                && (homeTeamName != null || awayTeamName != null))
+                return NameMatches(source.ClubName!, homeTeamName) || NameMatches(source.ClubName!, awayTeamName);
+            return true;
+        }
 
         /// <summary>
         /// MAÇ BAĞLAMINDAKİ KADEME. Kulüp kaynağı, maçtaki konumuna göre 4 (ev) ya da

@@ -17,5 +17,8 @@ namespace Formax.Application.Interfaces
 
         /// <summary>Maçın kanonik takım istatistikleri (ev + deplasman). Yoksa boş liste.</summary>
         IReadOnlyList<MatchTeamStatistic> GetTeamStatistics(int matchId);
+
+        /// <summary>Arka planda yazılmış maç sonrası analiz metni. Yoksa null — sayfa ÜRETMEZ.</summary>
+        MatchPostMatchSummary? GetSummary(int matchId);
     }
 }

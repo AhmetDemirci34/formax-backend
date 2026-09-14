@@ -32,5 +32,8 @@ namespace Formax.Infrastructure.PostMatch
             => _db.MatchTeamStatistics.AsNoTracking()
                 .Where(s => s.MatchId == matchId)
                 .ToList();
+
+        public MatchPostMatchSummary? GetSummary(int matchId)
+            => _db.MatchPostMatchSummaries.AsNoTracking().FirstOrDefault(s => s.MatchId == matchId);
     }
 }

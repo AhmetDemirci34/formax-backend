@@ -50,6 +50,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<OfficialMatchLink> OfficialMatchLinks { get; set; } = null!;
         public DbSet<MatchAnalysisSnapshot> MatchAnalysisSnapshots { get; set; } = null!;
         public DbSet<MatchCriticalDevelopment> MatchCriticalDevelopments { get; set; } = null!;
+        public DbSet<MatchPostMatchSummary> MatchPostMatchSummaries { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1106,6 +1107,17 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.NotificationNote).HasMaxLength(200);
                 entity.HasIndex(x => new { x.MatchId, x.EvidenceHash }).IsUnique()
                       .HasDatabaseName("UX_MatchCriticalDevelopments_Match_Evidence");
+            });
+            // ── BİTMİŞ MAÇ ANALİZ METNİ (arka planda, doğrulanmış veriden; maç başına tek satır) ──
+            modelBuilder.Entity<MatchPostMatchSummary>(entity =>
+            {
+                entity.ToTable("MatchPostMatchSummaries");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.InputHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Text).HasMaxLength(1200).IsRequired();
+                entity.Property(x => x.Generator).HasMaxLength(32).IsRequired();
+                entity.HasIndex(x => x.MatchId).IsUnique()
+                      .HasDatabaseName("UX_MatchPostMatchSummaries_Match");
             });
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialVenue).HasMaxLength(200);
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialStatus).HasMaxLength(32);

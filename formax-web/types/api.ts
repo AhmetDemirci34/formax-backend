@@ -757,6 +757,15 @@ export interface VideoSearchDto {
   attemptsMade: number;
   maxAttempts: number;
   lastAttemptUtc?: string | null;
+  /** NotFound gerekçesi: "Exhausted" (dört deneme bitti) | "NoAttemptFor24h" (bir gündür yeni deneme yok). */
+  reason?: string | null;
+}
+
+/** Bitmiş maç analiz metni — arka planda doğrulanmış skor/olay/istatistikten; sayfa üretmez. */
+export interface PostMatchSummaryDto {
+  sentences: string[];
+  generator: string;
+  generatedAtUtc: string;
 }
 
 /**
@@ -819,6 +828,8 @@ export interface MatchDetailDto {
   videos?: MatchVideoDto[];
   /** Resmî özet aramasının kalıcı defterdeki durumu (yalnız bitmiş maçta). */
   videoSearch?: VideoSearchDto | null;
+  /** Maç sonrası analiz (yalnız bitmiş maçta, DB satırı varsa). Maç öncesi AI yorumu DEĞİLDİR. */
+  postMatchSummary?: PostMatchSummaryDto | null;
   scoreBreakdown?: MatchScoreBreakdownDto | null;
   events?: MatchEventDto[];
   /** Yalnız gerçek veri varsa dolu; aksi hâlde null ve bölüm hiç render edilmez. */

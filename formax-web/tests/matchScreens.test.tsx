@@ -420,3 +420,78 @@ describe("önemli anlar aksiyonu", () => {
     expect(html).not.toMatch(forbidden);
   });
 });
+
+// ── BİTMİŞ MAÇ: GOLLER, VİDEO DURUMU VE MAÇ SONRASI ANALİZ (13.09.2026) ─────
+
+describe("bitmiş maç: goller ve maç sonrası analiz", () => {
+  it("gol klibi tam maç özeti olarak etiketlenmez; yalnız GOLLER başlığında görünür", () => {
+    const goal = video({ title: "Delap golü", videoType: "Goal" });
+    const { main, goals } = arrangeVideos([goal]);
+    expect(main).toBeNull();
+    expect(goals).toEqual([goal]);
+
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary
+        match={finishedMatch({ videos: [goal], videoSearch: { status: "Found", attemptsMade: 1, maxAttempts: 4 } })}
+      />
+    );
+    expect(html).toContain(">Goller</h3>");
+    expect(html).not.toContain(">Maç Özeti</h3>");
+    expect(html).not.toContain(VIDEO_CHECKING_TEXT);
+    expect(html).not.toContain(VIDEO_NOT_FOUND_TEXT);
+  });
+
+  it("gömme veya bölge engelli klip oynatılabilir gol sayılmaz", () => {
+    const blockedGoal = video({ title: "Engelli gol", videoType: "Goal", canPlayInApp: false, embedUrl: null });
+    const { goals } = arrangeVideos([blockedGoal]);
+    expect(goals).toEqual([]);
+  });
+
+  it("bir gündür deneme yapılmayan arama 'kontrol ediliyor' değil, 'bulunamadı' gösterir", () => {
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary
+        match={finishedMatch({
+          videoSearch: { status: "NotFound", reason: "NoAttemptFor24h", attemptsMade: 1, maxAttempts: 4 },
+        })}
+      />
+    );
+    expect(html).toContain("Uygulama içinde oynatılabilir resmî video bulunamadı.");
+    expect(html).not.toContain(VIDEO_CHECKING_TEXT);
+  });
+
+  it("gerçek denemeler sürerken metin 'Resmî video kontrol ediliyor' olur", () => {
+    expect(VIDEO_CHECKING_TEXT).toBe("Resmî video kontrol ediliyor.");
+  });
+
+  it("maç sonrası analiz yalnız backend'in DB metnini gösterir; yoksa bölüm hiç çizilmez", () => {
+    const sentences = [
+      "Nottingham Forest, Aston Villa deplasmanında 1-2 kazandı; ilk yarı 0-0 tamamlanmıştı.",
+      "Goller: 90+4' Igor Jesus (Nottingham Forest).",
+    ];
+    const withText = renderToStaticMarkup(
+      <FinishedMatchSummary
+        match={finishedMatch({ postMatchSummary: { sentences, generator: "Deterministic", generatedAtUtc: "2026-09-13T22:00:00Z" } })}
+      />
+    );
+    expect(withText).toContain("Maç Sonrası Analiz");
+    expect(withText).toContain("Aston Villa deplasmanında 1-2 kazandı");
+
+    const without = renderToStaticMarkup(<FinishedMatchSummary match={finishedMatch({ postMatchSummary: null })} />);
+    expect(without).not.toContain("Maç Sonrası Analiz");
+  });
+
+  it("oyuncu değişikliğinde giren/çıkan backend alanlarından ters çevrilmeden basılır", () => {
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary
+        match={finishedMatch({
+          events: [
+            { minute: 44, eventType: "subst", detail: "Substitution", label: "Oyuncu Değişikliği", kind: "Substitution", playerIn: "Þórir Helgason", playerOut: "Gianluca Busio", team: "Venezia" },
+          ],
+        })}
+      />
+    );
+    expect(html).toContain("Giren: Þórir Helgason");
+    expect(html).toContain("Çıkan: Gianluca Busio");
+    expect(html).not.toContain("Giren: Gianluca Busio");
+  });
+});

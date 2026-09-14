@@ -16,7 +16,8 @@ import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto } from "@/types/
  * Kullanıcı tek bir şey ister: maçta ne olduğunu hızlı ve doğru görmek.
  *
  * KAPSAM (kapalı liste): lig/aşama → tarih → TR saati → stadyum → takımlar → MS →
- * İY/2Y/MS → resmî maç özeti videosu → varsa ayrı gol/önemli an klipleri →
+ * İY/2Y/MS → maç sonrası analiz metni (arka planda doğrulanmış skor/olay/istatistikten;
+ * maç öncesi AI yorumu DEĞİL) → resmî maç özeti videosu → varsa ayrı GOLLER klipleri →
  * varsa doğrulanmış olaylar → varsa doğrulanmış istatistikler → yalnız uygun lig
  * maçında puan durumu.
  *
@@ -40,7 +41,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   // ANA VİDEO = oynatılabilen ilk özet; önemli anlar yalnız AYRI klipler (ana özet
   // TEKRAR düşmez); ana video yoksa oynatılamayan ama gerçek resmî kaynaklar. Backend
   // sıralaması korunur — kural lib/video/videoSearch.arrangeVideos'tadır.
-  const { main, moments, blocked } = arrangeVideos(videos);
+  const { main, goals, otherMoments, blocked } = arrangeVideos(videos);
 
   // ARAMA DURUMU KALICI DEFTERDEN (11.09.2026 ürün kuralı): "bulunamadı" YALNIZ backend
   // dört gerçek denemenin tamamlandığını söylediğinde. Maçtan sonra geçen süre tek başına
@@ -60,8 +61,16 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   // durumu zaten aynı anlamı verdiği için ikisi ASLA birlikte gösterilmez.
   // Arama durumu (videoSearch) da bir ayrıntıdır: "kontrol ediliyor" cümlesi, genel
   // "ayrıntı yok" mesajının yerine geçer ve ikisi yine ASLA birlikte gösterilmez.
+  // MAÇ SONRASI ANALİZ — yalnız arka planda yazılmış DB metni; ekran cümle ÜRETMEZ.
+  const analysis = match.postMatchSummary?.sentences?.filter((x) => x.trim().length > 0) ?? [];
+
+  // Tam özet yoksa ama oynatılabilir gol klipleri varsa ekran GOLLER der; boş "Maç Özeti"
+  // kutusu ve "kontrol ediliyor" cümlesi o hâlde basılmaz (gol klibi tam özet sayılmaz).
+  const showSummaryVideoPanel = !!main || blocked.length > 0 || goals.length === 0;
+
   const hasAnyDetail =
-    videos.length > 0 || events.length > 0 || !!stats || showStandings || showLineup || !!match.videoSearch;
+    videos.length > 0 || events.length > 0 || !!stats || showStandings || showLineup || !!match.videoSearch ||
+    analysis.length > 0;
 
   return (
     <div className="flex min-h-0 w-full max-w-full flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 pb-28">
@@ -149,8 +158,21 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         </p>
       )}
 
+      {/* ── MAÇ SONRASI ANALİZ — doğrulanmış skor/olay/istatistikten kısa metin ── */}
+      {analysis.length > 0 && (
+        <Panel title="Maç Sonrası Analiz">
+          <div className="flex flex-col gap-1.5 px-3 py-3" data-testid="post-match-analysis">
+            {analysis.map((line, i) => (
+              <p key={i} className="break-words text-[12.5px] leading-relaxed text-white/85">
+                {line}
+              </p>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       {/* ── MAÇ ÖZETİ ─────────────────────────────────────────────────────── */}
-      {hasAnyDetail && (
+      {hasAnyDetail && showSummaryVideoPanel && (
         <Panel title="Maç Özeti">
           {main ? (
             <div className="p-3">
@@ -158,7 +180,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
             </div>
           ) : (
             <>
-              <Empty text={videoEmptyText} />
+              {goals.length === 0 && <Empty text={videoEmptyText} />}
               {blocked.length > 0 && (
                 <ul className="flex flex-col gap-2 px-3 pb-3">
                   {blocked.map((v) => (
@@ -173,11 +195,24 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         </Panel>
       )}
 
-      {/* ── GOLLER VE ÖNEMLİ ANLAR — yalnız AYRI klipler ──────────────────── */}
-      {moments.length > 0 && (
-        <Panel title="Goller ve Önemli Anlar">
+      {/* ── GOLLER — yalnız oynatılabilir AYRI gol klipleri (tam özet değildir) ── */}
+      {goals.length > 0 && (
+        <Panel title="Goller">
           <ul className="flex flex-col gap-2.5 p-3">
-            {moments.map((v) => (
+            {goals.map((v) => (
+              <li key={v.sourcePageUrl}>
+                <VideoPlayerCard video={v} compact />
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {/* ── DİĞER RESMÎ KLİPLER (kart/VAR/önemli an) — yalnız AYRI klipler ──── */}
+      {otherMoments.length > 0 && (
+        <Panel title="Önemli Anlar">
+          <ul className="flex flex-col gap-2.5 p-3">
+            {otherMoments.map((v) => (
               <li key={v.sourcePageUrl}>
                 <VideoPlayerCard video={v} compact />
               </li>
