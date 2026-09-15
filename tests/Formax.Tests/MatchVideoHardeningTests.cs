@@ -176,6 +176,7 @@ public class MatchVideoHardeningTests
             EmbedUrl = canPlay ? $"https://www.youtube-nocookie.com/embed/{videoId}" : null,
             VideoType = MatchVideoTypes.MatchHighlights,
             IsOfficial = true, IsEmbeddable = canPlay, CanPlayInApp = canPlay,
+            DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test",
             VerificationStatus = status, RejectionReason = reason
         };
 
@@ -250,26 +251,26 @@ public class MatchVideoHardeningTests
                 OfficialPublisher = "TRT SPOR", SourcePageUrl = "https://www.youtube.com/watch?v=YYZYPAkPKs0",
                 EmbedUrl = "https://www.youtube-nocookie.com/embed/YYZYPAkPKs0",
                 VideoType = MatchVideoTypes.MatchHighlights, IsOfficial = true, IsEmbeddable = true,
-                CanPlayInApp = true, VerificationStatus = MatchVideoVerificationStatuses.Verified },
+                CanPlayInApp = true, DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test", VerificationStatus = MatchVideoVerificationStatuses.Verified },
             new MatchVideo { Id = 4, MatchId = Leg2, ExternalFixtureId = "1622630",
                 ExternalVideoId = "sz4AJjiol84",
                 Title = "Şampiyonlar Ligi Play Off 2. Maç | Lyon - Fenerbahçe (Özet) X Petrol Ofisi",
                 OfficialPublisher = "TRT SPOR", SourcePageUrl = "https://www.youtube.com/watch?v=sz4AJjiol84",
                 EmbedUrl = "https://www.youtube-nocookie.com/embed/sz4AJjiol84",
                 VideoType = MatchVideoTypes.MatchHighlights, IsOfficial = true, IsEmbeddable = true,
-                CanPlayInApp = true, VerificationStatus = MatchVideoVerificationStatuses.Verified },
+                CanPlayInApp = true, DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test", VerificationStatus = MatchVideoVerificationStatuses.Verified },
             new MatchVideo { Id = 5, MatchId = Bjk, ExternalFixtureId = "fx-bjk",
                 ExternalVideoId = "29GROlpBfYo", Title = StudioTitle,
                 OfficialPublisher = "TRT SPOR", SourcePageUrl = "https://www.youtube.com/watch?v=29GROlpBfYo",
                 EmbedUrl = "https://www.youtube-nocookie.com/embed/29GROlpBfYo",
                 VideoType = MatchVideoTypes.Goal, IsOfficial = true, IsEmbeddable = true,
-                CanPlayInApp = true, VerificationStatus = MatchVideoVerificationStatuses.Verified },
+                CanPlayInApp = true, DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test", VerificationStatus = MatchVideoVerificationStatuses.Verified },
             new MatchVideo { Id = 6, MatchId = Amed, ExternalFixtureId = "fx-amed",
                 ExternalVideoId = "29GROlpBfYo", Title = StudioTitle,
                 OfficialPublisher = "TRT SPOR", SourcePageUrl = "https://www.youtube.com/watch?v=29GROlpBfYo",
                 EmbedUrl = "https://www.youtube-nocookie.com/embed/29GROlpBfYo",
                 VideoType = MatchVideoTypes.Goal, IsOfficial = true, IsEmbeddable = true,
-                CanPlayInApp = true, VerificationStatus = MatchVideoVerificationStatuses.Verified });
+                CanPlayInApp = true, DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test", VerificationStatus = MatchVideoVerificationStatuses.Verified });
         db.SaveChanges();
         return db;
     }

@@ -66,7 +66,7 @@ namespace Formax.Application.UseCases.Live
             var recentEvents = new List<MatchEvent>();
 
             var unifiedContext =
-                _userExperienceContextFactory.CreateUnifiedAiReadContext(
+                await _userExperienceContextFactory.CreateUnifiedAiReadContextAsync(
                     matchId,
                     aiReadContext,
                     ctx,

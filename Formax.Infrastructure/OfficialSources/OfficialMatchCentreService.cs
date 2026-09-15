@@ -70,10 +70,15 @@ namespace Formax.Infrastructure.OfficialSources
             // Geriye 3 gün: sonucu kesinleşmemiş (NotStarted/Live kalmış) yakın maçlar da resmî listeyle kapanır.
             var from = utcNow.AddDays(-3);
             var to = utcNow.AddDays(3);
+            // Başlama saati geçmiş ama hâlâ NotStarted/Live kalmış maçlar 10 güne kadar geriye bakılarak kapanır
+            // (ölçüldü 15.09.2026: 11.09 Sevilla–Valencia 3 günlük pencerenin dışında NotStarted kalmıştı).
+            var staleFrom = utcNow.AddDays(-10);
 
             var matches = (await _db.Matches
                     .Include(m => m.HomeTeam).Include(m => m.AwayTeam)
-                    .Where(m => m.MatchDate >= from && m.MatchDate <= to)
+                    .Where(m => (m.MatchDate >= from && m.MatchDate <= to)
+                                || (m.MatchDate >= staleFrom && m.MatchDate < from
+                                    && (m.Status == MatchStatuses.NotStarted || m.Status == MatchStatuses.Live)))
                     .ToListAsync(ct))
                 .Where(m => CoveragePolicy.Allows(allow, m.LeagueId))
                 .ToList();
@@ -258,6 +263,35 @@ namespace Formax.Infrastructure.OfficialSources
                 if (isFinished && tracked.HomeScore == hs && tracked.AwayScore == aws && tracked.ResultSource == official)
                     return new(matchId, source.SourceKey, ResultOutcomes.Unchanged, hs + "-" + aws);
 
+                // ── ÇELİŞKİ — başka kaynaktan kesinleşmiş farklı skor körlemesine ezilmez ─────────────
+                // Resmî skor iki ayrı turda (≥ 8 dk arayla) aynı kalırsa uygulanır; ilk gözlem yalnız kayda geçer.
+                var observation = new MatchResultObservation
+                {
+                    MatchId = matchId, SourceKey = source.SourceKey, OfficialStatus = record.Status, OfficialHomeScore = hs, OfficialAwayScore = aws,
+                    ExistingStatus = tracked.Status, ExistingHomeScore = tracked.HomeScore, ExistingAwayScore = tracked.AwayScore,
+                    ExistingSource = tracked.ResultSource, ObservedAtUtc = utcNow
+                };
+                if (isFinished && tracked.ResultSource != official && (tracked.HomeScore != hs || tracked.AwayScore != aws))
+                {
+                    var prior = await _db.MatchResultObservations.AsNoTracking()
+                        .Where(o => o.MatchId == matchId && o.SourceKey == source.SourceKey && o.Decision == "ConflictRecorded")
+                        .OrderByDescending(o => o.ObservedAtUtc).FirstOrDefaultAsync(ct);
+                    var confirmed = prior != null && prior.OfficialHomeScore == hs && prior.OfficialAwayScore == aws
+                                    && utcNow - prior.ObservedAtUtc >= TimeSpan.FromMinutes(8);
+                    if (!confirmed)
+                    {
+                        observation.Decision = "ConflictRecorded";
+                        _db.MatchResultObservations.Add(observation);
+                        tracked.ResultVerificationStatus = "Conflict";
+                        await _db.SaveChangesAsync(ct);
+                        _log.LogWarning("[MATCH CENTRE] {MatchId} sonuç çelişkisi: kayıtlı {EH}-{EA} ({ES}) / resmî {H}-{A} ({Source}) — ikinci gözlem bekleniyor",
+                            matchId, tracked.HomeScore, tracked.AwayScore, tracked.ResultSource, hs, aws, official);
+                        return new(matchId, source.SourceKey, "ResultConflict", $"kayıtlı {tracked.HomeScore}-{tracked.AwayScore} / resmî {hs}-{aws}");
+                    }
+                    observation.Decision = "ConflictResolvedAfterConfirmation";
+                }
+                else observation.Decision = "Applied";
+
                 if (source is IOfficialResultConfirmation confirmation)
                 {
                     var c = await confirmation.ConfirmScoreAsync(record,
@@ -285,7 +319,17 @@ namespace Formax.Infrastructure.OfficialSources
                 tracked.ResultUpdatedAtUtc = utcNow;
                 tracked.ResultSource = official;
                 tracked.ResultVerificationStatus = "Verified";
+                _db.MatchResultObservations.Add(observation);
                 await _db.SaveChangesAsync(ct);
+
+                // Maç SONUÇLAR'a geçti: video keşfi aynı anda kuyruğa girer (planı maç bitişinden). Maç sonu analizi
+                // PostMatchEnrichmentJob'un bir sonraki turunda (son 96 saat penceresi) yazılır; sayfa açılışı üretmez.
+                try
+                {
+                    await Formax.Infrastructure.PostMatch.MatchVideoDiscoveryQueueService.EnsureQueuedAfterResultAsync(_db, tracked, utcNow, ct);
+                    await _db.SaveChangesAsync(ct);
+                }
+                catch (Exception ex) { _log.LogWarning(ex, "[MATCH CENTRE] {MatchId} video kuyruğu açılamadı", matchId); }
 
                 // Maç başlığı/karar okuması skoru MatchLiveStats'tan da okur — iki kayıt aynı hizada tutulur.
                 if (_liveStats != null)

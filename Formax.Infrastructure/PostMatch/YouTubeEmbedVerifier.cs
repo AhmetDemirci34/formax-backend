@@ -38,7 +38,7 @@ namespace Formax.Infrastructure.PostMatch
         public async Task<EmbedVerification> VerifyAsync(
             OfficialVideoCandidate candidate, OfficialVideoSource source, CancellationToken ct = default)
         {
-            if (!source.AllowsInAppEmbed)
+            if (!source.AllowsInAppEmbed && !string.Equals(candidate.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
                 return new EmbedVerification(false, null, null, source.Why);
 
             if (!string.Equals(candidate.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
@@ -56,7 +56,11 @@ namespace Formax.Infrastructure.PostMatch
 
                 if (res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                     return new EmbedVerification(false, null, null,
-                        $"yayıncı gömmeyi kapatmış (oembed {(int)res.StatusCode})");
+                        $"yayıncı gömmeyi kapatmış ya da video gizli (oembed {(int)res.StatusCode})", Unavailable: true);
+
+                if (res.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
+                    return new EmbedVerification(false, null, null,
+                        $"video kaldırılmış/bulunamadı (oembed {(int)res.StatusCode})", Unavailable: true);
 
                 if (!res.IsSuccessStatusCode)
                     return new EmbedVerification(false, null, null,
@@ -65,11 +69,14 @@ namespace Formax.Infrastructure.PostMatch
                 var body = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(body);
                 var thumb = doc.RootElement.TryGetProperty("thumbnail_url", out var t) ? t.GetString() : null;
+                var title = doc.RootElement.TryGetProperty("title", out var tt) ? tt.GetString() : null;
+                var author = doc.RootElement.TryGetProperty("author_name", out var an) ? an.GetString() : null;
+                var authorUrl = doc.RootElement.TryGetProperty("author_url", out var au) ? au.GetString() : null;
 
                 // Yalnız çerezsiz gömme adresi kullanılır: kullanıcı izleme çerezi
                 // toplamadan, FORMAX ekranının içinde oynatır.
                 var embedUrl = $"https://www.youtube-nocookie.com/embed/{candidate.ExternalVideoId}";
-                return new EmbedVerification(true, embedUrl, thumb, "oembed 200 — gömmeye açık");
+                return new EmbedVerification(true, embedUrl, thumb, $"oembed 200 — gömmeye açık; kanal={author}", title, author, authorUrl);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)

@@ -39,7 +39,7 @@ namespace Formax.Infrastructure.PostMatch
                 using var scope = _scopes.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<FormaxDbContext>();
                 var records = db.OfficialVideoSourceCatalog.AsNoTracking()
-                    .Where(r => r.Status == StatusVerified).ToList();
+                    .Where(r => r.Status == StatusVerified || r.WebsiteStatus == StatusVerified).ToList();
                 _current = Merge(OfficialVideoSources.All, records);
                 _loadedAt = DateTime.UtcNow;
                 return _current;
@@ -54,7 +54,7 @@ namespace Formax.Infrastructure.PostMatch
             var keys = new HashSet<string>(list.Select(s => s.Key), StringComparer.OrdinalIgnoreCase);
             foreach (var r in records)
             {
-                if (r.Status != StatusVerified || !keys.Add(r.Key)) continue;
+                if ((r.Status != StatusVerified && r.WebsiteStatus != StatusVerified) || !keys.Add(r.Key)) continue;
                 if (r.YouTubeChannelId != null && !channels.Add(r.YouTubeChannelId)) continue;
                 list.Add(ToSource(r));
             }
@@ -62,7 +62,8 @@ namespace Formax.Infrastructure.PostMatch
         }
 
         public static OfficialVideoSource ToSource(OfficialVideoSourceRecord r)
-            => new(r.Key, r.Publisher, r.Platform, r.YouTubeChannelId, r.AllowsInAppEmbed,
+            => new(r.Key, r.Publisher, r.WebsiteStatus == StatusVerified ? "Web" : r.Platform, r.YouTubeChannelId,
+                r.AllowsInAppEmbed || r.WebsiteStatus == StatusVerified,
                 r.VerificationEvidence, r.Tier, r.ClubName,
                 string.IsNullOrWhiteSpace(r.LeagueIds)
                     ? null

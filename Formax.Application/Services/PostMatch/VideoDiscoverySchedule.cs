@@ -6,7 +6,7 @@ namespace Formax.Application.Services.PostMatch
     /// KALICI VİDEO KEŞFİ — tekrar planı ve ekran durumu. Saf fonksiyonlar; iş ve detay ucu aynı kuralı okur.
     ///
     /// Plan (maç bitişinden itibaren): 15 dk, 30 dk, 60 dk, 2 sa, 4 sa, 8 sa, 12 sa, 24 sa; sonra 7 gün
-    /// boyunca günde bir; sonra haftada bir. Geçmiş maçlarda (backfill) plan saatleri çoktan geçmiştir;
+    /// boyunca günde bir; sonra 30. güne kadar haftada iki kez (3,5 günde bir); sonra haftada bir — video bulunana dek. Geçmiş maçlarda (backfill) plan saatleri çoktan geçmiştir;
     /// bu yüzden bir deneme, önceki GERÇEK denemeden en az ilgili aralık kadar sonra yapılır — geçmiş maç
     /// tek turda 15 kez art arda taranmaz.
     /// </summary>
@@ -19,6 +19,15 @@ namespace Formax.Application.Services.PostMatch
         };
 
         public const int DailyAttempts = 7;
+
+        /// <summary>İlk 24 saat + 7 gün sonrası, 30. güne kadar haftada iki kez.</summary>
+        public static readonly TimeSpan TwiceWeeklyGap = TimeSpan.FromHours(84);
+
+        /// <summary>30. günden sonra.</summary>
+        public static readonly TimeSpan WeeklyGap = TimeSpan.FromDays(7);
+
+        /// <summary>Haftada iki denemenin süreceği son gün (maç bitişine göre).</summary>
+        public static readonly TimeSpan TwiceWeeklyUntil = TimeSpan.FromDays(30);
 
         /// <summary>İlk günün aktif arama turu sayısı; bitene kadar ekran "aranıyor" der.</summary>
         public static int SearchingAttempts => FirstDayOffsets.Length;
@@ -33,8 +42,11 @@ namespace Formax.Application.Services.PostMatch
             if (attemptIndex < FirstDayOffsets.Length) return endUtc + FirstDayOffsets[attemptIndex];
             var daily = attemptIndex - FirstDayOffsets.Length + 1;
             if (daily <= DailyAttempts) return endUtc + TimeSpan.FromHours(24) + TimeSpan.FromDays(daily);
-            var weekly = daily - DailyAttempts;
-            return endUtc + TimeSpan.FromHours(24) + TimeSpan.FromDays(DailyAttempts) + TimeSpan.FromDays(7 * weekly);
+            var afterDaily = endUtc + TimeSpan.FromHours(24) + TimeSpan.FromDays(DailyAttempts);
+            var twiceWeeklyCount = (int)Math.Floor((TwiceWeeklyUntil - (afterDaily - endUtc)).Ticks / (double)TwiceWeeklyGap.Ticks);
+            var k = daily - DailyAttempts;
+            if (k <= twiceWeeklyCount) return afterDaily + TimeSpan.FromTicks(TwiceWeeklyGap.Ticks * k);
+            return afterDaily + TimeSpan.FromTicks(TwiceWeeklyGap.Ticks * twiceWeeklyCount) + TimeSpan.FromTicks(WeeklyGap.Ticks * (k - twiceWeeklyCount));
         }
 
         /// <summary>k. deneme ile bir önceki arasındaki plan aralığı (en az 15 dk).</summary>

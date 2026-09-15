@@ -52,7 +52,7 @@ namespace Formax.Application.Services.Matches
         /// </param>
         public static Result Validate(
             string? title, string? summary, DateTime publishedUtc, MatchContext ctx,
-            string? sourceTeam = null)
+            string? sourceTeam = null, bool requireEventSignal = true)
         {
             var raw = ((title ?? "") + " " + (summary ?? "")).Trim();
             if (raw.Length == 0) return new Result(false, "içerik boş");
@@ -80,7 +80,9 @@ namespace Formax.Application.Services.Matches
                 return new Result(false, "maç penceresinin dışında yayımlanmış");
 
             // 3) OLAY/ÖZET İÇERİĞİ — genel takım içeriği önemli an değildir.
-            if (!EventSignal.IsMatch(folded))
+            // Olay/özet sözcüğü şartı; yalnız başlığın karşılaşma + kayıtlı skor + turnuvadan ibaret olduğu KANITLANMIŞSA
+            // (MatchVideoIdentityValidator.IsFixtureResultTitle) çağıran bu şartı kaldırabilir.
+            if (requireEventSignal && !EventSignal.IsMatch(folded))
                 return new Result(false, "olay/özet içeriği değil");
             if (NonMatchContent.IsMatch(folded))
                 return new Result(false, "maç dışı içerik (transfer/antrenman/röportaj)");

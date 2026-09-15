@@ -105,7 +105,7 @@ public class VideoDiscoveryEngineTests
         var rows = db.MatchVideoDiscoveryQueue.ToDictionary(q => q.MatchId);
         Assert.Equal("Today", rows[10].EnqueueReason);
         Assert.Equal("Yesterday", rows[11].EnqueueReason);
-        Assert.Equal("Backfill", rows[12].EnqueueReason);
+        Assert.Equal("Last30Days", rows[12].EnqueueReason);                  // 20 gün önce: yaş kovası
         Assert.Equal(VideoDiscoveryStates.Searching, rows[10].State);
         Assert.Equal(rows[10].EndUtc + TimeSpan.FromMinutes(15), rows[10].NextAttemptUtc);
 
@@ -120,14 +120,19 @@ public class VideoDiscoveryEngineTests
         SeedTeams(db);
         for (var i = 0; i < 5; i++) db.Matches.Add(Finished(100 + i, Now.AddDays(-10 - i)));
         db.MatchVideos.Add(new MatchVideo { MatchId = 104, ExternalVideoId = "v", Title = "t", OfficialPublisher = "p", SourcePageUrl = "u",
-            VideoType = MatchVideoTypes.MatchHighlights, CanPlayInApp = true, ExternalFixtureId = "fx104" });
+            VideoType = MatchVideoTypes.MatchHighlights, CanPlayInApp = true, ExternalFixtureId = "fx104",
+            DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.avfc.co.uk/video/x" });
         db.SaveChanges();
 
         var svc = Queue(db, new StubProvider(), backfill: 2);
         Assert.Equal(2, (await svc.EnqueueAsync(Now)).Backfill);
         Assert.Equal(2, (await svc.EnqueueAsync(Now)).Backfill);
-        Assert.Equal(0, (await svc.EnqueueAsync(Now)).Backfill);   // 104 videolu → alınmaz
+        Assert.Equal(0, (await svc.EnqueueAsync(Now)).Backfill);   // 104 resmî web kanıtlı tam özetli → alınmaz
         Assert.DoesNotContain(db.MatchVideoDiscoveryQueue, q => q.MatchId == 104);
+        var cursor = db.VideoDiscoveryCursors.AsNoTracking().Single();
+        Assert.Equal(1, cursor.Pass);                                // tur bitti, imleç başa döndü
+        Assert.Null(cursor.LastMatchId);
+        Assert.Equal(5, cursor.ScannedTotal);
     }
 
     // ── TUR, DURUM, RESTART ─────────────────────────────────────────────────
@@ -173,9 +178,10 @@ public class VideoDiscoveryEngineTests
         db.SaveChanges();
 
         var provider = new StubProvider();
-        provider.Candidates.Add(new OfficialVideoCandidate("YouTube", ForestClub.YouTubeChannelId!, "goal1",
+        provider.Candidates.Add(new OfficialVideoCandidate("YouTube", ForestClub.Key, "goal1",
             "Igor Jesus goal | Aston Villa 1-2 Nottingham Forest | Premier League Highlights & goal", null,
-            kickoff.AddHours(4), "https://www.youtube.com/watch?v=goal1", null, null));
+            kickoff.AddHours(4), "https://www.nottinghamforest.co.uk/video/villa-forest-highlights", null, null,
+            EvidencePageUrl: "https://www.nottinghamforest.co.uk/video/villa-forest-highlights"));
         var svc = Queue(db, provider);
         await svc.EnqueueAsync(Now);
         Assert.True(await svc.TryClaimAsync(30, Now));
@@ -188,7 +194,7 @@ public class VideoDiscoveryEngineTests
         Assert.True(attempt.Accepted);
         Assert.Equal("AwayClub", attempt.SourceKind);                          // Forest bu maçta deplasman
         Assert.Equal(MatchVideoTypes.MatchHighlights, attempt.VideoType);
-        Assert.StartsWith("rss:channel_id=", attempt.SearchExpression);
+        Assert.StartsWith("web:https://www.nottinghamforest.co.uk/", attempt.SearchExpression);
 
         // Yalnız gol klibi → GoalClipsAvailable, tam özet değil ve arama sürer.
         Assert.Equal(VideoDiscoveryStates.GoalClipsAvailable, VideoDiscoveryStates.Resolve(false, true, false, false, 3));
@@ -204,9 +210,10 @@ public class VideoDiscoveryEngineTests
         db.Matches.Add(Finished(40, kickoff));
         db.SaveChanges();
         var provider = new StubProvider();
-        provider.Candidates.Add(new OfficialVideoCandidate("YouTube", ForestClub.YouTubeChannelId!, "blocked1",
+        provider.Candidates.Add(new OfficialVideoCandidate("YouTube", ForestClub.Key, "blocked1",
             "IGOR JESUS LATE WINNER! | Aston Villa 1-2 Nottingham Forest | Premier League Highlights", null,
-            kickoff.AddHours(7), "https://www.youtube.com/watch?v=blocked1", null, null));
+            kickoff.AddHours(7), "https://www.nottinghamforest.co.uk/video/late-winner", null, null,
+            EvidencePageUrl: "https://www.nottinghamforest.co.uk/video/late-winner"));
         var svc = Queue(db, provider, embed: false);
         await svc.EnqueueAsync(Now);
         Assert.True(await svc.TryClaimAsync(40, Now));
@@ -236,14 +243,20 @@ public class VideoDiscoveryEngineTests
     // ── TEKRAR PLANI ────────────────────────────────────────────────────────
 
     [Fact]
-    public void TekrarPlani_15dk30dk60dk2sa4sa8sa12sa24sa_SonraGunluk_SonraHaftalik()
+    public void TekrarPlani_15dk30dk60dk2sa4sa8sa12sa24sa_SonraGunluk_SonraHaftadaIki_SonraHaftalik()
     {
         var end = Now;
         var expected = new[] { 15, 30, 60, 120, 240, 480, 720, 1440 }.Select(m => end.AddMinutes(m)).ToList();
         for (var k = 0; k < 8; k++) Assert.Equal(expected[k], VideoDiscoverySchedule.PlannedAt(end, k));
         Assert.Equal(end.AddHours(24).AddDays(1), VideoDiscoverySchedule.PlannedAt(end, 8));
         Assert.Equal(end.AddHours(24).AddDays(7), VideoDiscoverySchedule.PlannedAt(end, 14));
-        Assert.Equal(end.AddHours(24).AddDays(14), VideoDiscoverySchedule.PlannedAt(end, 15));
+        // 8. günden 30. güne kadar haftada iki (84 saatte bir): 11,5 / 15 / 18,5 / 22 / 25,5 / 29. gün.
+        Assert.Equal(end.AddDays(8).AddHours(84), VideoDiscoverySchedule.PlannedAt(end, 15));
+        Assert.Equal(end.AddDays(8).AddHours(84 * 6), VideoDiscoverySchedule.PlannedAt(end, 20));
+        Assert.True(VideoDiscoverySchedule.PlannedAt(end, 20) <= end.AddDays(30));
+        // Sonra haftada bir — video bulunana dek (terminal yok).
+        Assert.Equal(VideoDiscoverySchedule.PlannedAt(end, 20).AddDays(7), VideoDiscoverySchedule.PlannedAt(end, 21));
+        Assert.Equal(VideoDiscoverySchedule.PlannedAt(end, 21).AddDays(7), VideoDiscoverySchedule.PlannedAt(end, 22));
 
         // Geçmiş maç: plan anları geçmiş olsa da denemeler art arda yapılmaz.
         var old = Now.AddDays(-60);
@@ -272,13 +285,16 @@ public class VideoDiscoveryEngineTests
     }
 
     [Fact]
-    public void RobotsTxt_DisallowUygulanir_YayimlanmisApiUclariMuaftir()
+    public void RobotsTxt_DisallowUygulanir_IstisnaYok_YouTubeAkisiUrunKuraliylaKapali()
     {
         var rules = RobotsTxtPolicy.Parse("User-agent: Googlebot\nDisallow: /\n\nUser-agent: *\nDisallow: /api/\nDisallow: /preview/\n");
         Assert.False(RobotsTxtPolicy.Allowed(rules, "/api/matches"));
         Assert.True(RobotsTxtPolicy.Allowed(rules, "/"));
-        Assert.True(RobotsTxtPolicy.IsPublishedApi(new Uri("https://www.youtube.com/oembed?url=x")));
-        Assert.False(RobotsTxtPolicy.IsPublishedApi(new Uri("https://www.avfc.co.uk/")));
+        // Eskiden "yayımlanmış API" muafiyeti vardı; artık yalnız robots.txt dosyasının kendisi muaf.
+        Assert.True(RobotsTxtPolicy.IsForbiddenByProductRule(new Uri("https://www.youtube.com/feeds/videos.xml?channel_id=UC1")));
+        Assert.False(RobotsTxtPolicy.IsForbiddenByProductRule(new Uri("https://www.youtube.com/oembed?url=x")));
+        Assert.True(RobotsTxtPolicy.IsRobotsFile(new Uri("https://www.avfc.co.uk/robots.txt")));
+        Assert.False(RobotsTxtPolicy.IsRobotsFile(new Uri("https://www.avfc.co.uk/")));
     }
 
     // ── KAYNAK KATALOĞU OTOMATİK GENİŞLER (Wikidata + resmî site kanıtı) ─────
@@ -301,40 +317,39 @@ public class VideoDiscoveryEngineTests
         public HttpClient CreateClient(string name) => new(_h, disposeHandler: false);
     }
 
-    private static string Sparql(params (string Qid, string Label, string Yts, string Site)[] rows)
-        => "{\"results\":{\"bindings\":[" + string.Join(",", rows.Select(r =>
-            $"{{\"club\":{{\"value\":\"http://www.wikidata.org/entity/{r.Qid}\"}},\"clubLabel\":{{\"value\":\"{r.Label}\"}},\"yts\":{{\"value\":\"{r.Yts}\"}},\"website\":{{\"value\":\"{r.Site}\"}}}}")) + "]}}";
+    private static string EntityData(string qid, string label, string site)
+        => "{\"entities\":{\"" + qid + "\":{\"labels\":{\"en\":{\"value\":\"" + label + "\"}},\"claims\":{\"P856\":[{\"rank\":\"normal\",\"mainsnak\":{\"datavalue\":{\"value\":\"" + site + "\"}}}]}}}}";
 
     [Fact]
-    public async Task Katalog_WikidataVeResmiSiteKanitiyla_KendiligindenGenisler_TekKanitDogrulamaz()
+    public async Task Katalog_EntityDataVeLigBaglantisiyla_KendiligindenGenisler_TekKanitDogrulamaz_SparqlVeRssCagrilmaz()
     {
         using var db = Db(Guid.NewGuid().ToString());
         SeedTeams(db);
         db.Teams.Add(new Team { Id = 3, Name = "Hull City" });
         db.Matches.Add(new Match { Id = 60, HomeTeamId = 1, AwayTeamId = 2, LeagueId = 39, MatchDate = Now.AddDays(-2), Status = "Finished" });
         db.Matches.Add(new Match { Id = 61, HomeTeamId = 3, AwayTeamId = 1, LeagueId = 39, MatchDate = Now.AddDays(-9), Status = "Finished" });
+        // Önceki turdan Wikidata öğesi bilinen kulüp (Villa); Forest öğesi yok (lig bağlantısı + site sameAs'tan bulunur).
+        db.OfficialVideoSourceCatalog.Add(new OfficialVideoSourceRecord { Key = "club:1", Publisher = "Aston Villa", TeamId = 1, ClubName = "Aston Villa",
+            Tier = OfficialVideoSourceTiers.Club, Status = "Candidate", DiscoveredVia = "Wikidata", VerificationEvidence = "", WikidataId = "Q18711" });
         db.SaveChanges();
 
-        const string villaUc = "UCICNP0mvtr0prFwGUQIABfQ";
-        const string forestUc = "UCyAxjuAr8f_BFDGCO3Htbxw";
-        const string hullUc = "UCaaaaaaaaaaaaaaaaaaaaaa";
+        var requested = new List<string>();
         var http = new StubHttp(uri =>
         {
             var u = uri.ToString();
-            if (u.Contains("query.wikidata.org") && u.Contains("VALUES"))
-                return (HttpStatusCode.OK, Sparql(("Q9448", "Premier League", "", "")));
-            if (u.Contains("query.wikidata.org"))
-                return (HttpStatusCode.OK, Sparql(("Q18711", "Aston Villa F.C.", villaUc, "https://www.avfc.co.uk/"),
-                                                  ("Q19490", "Nottingham Forest F.C.", "", "https://nottinghamforest.co.uk"),
-                                                  ("Q19477", "Hull City A.F.C.", "", "https://www.wearehullcity.co.uk/")));
-            if (u.StartsWith("https://www.avfc.co.uk")) return (HttpStatusCode.OK, "<a href=\"https://www.youtube.com/user/avfcofficial\">YT</a>");
-            if (u.StartsWith("https://nottinghamforest.co.uk")) return (HttpStatusCode.OK, "<a href=\"https://youtube.com/@NottinghamForestFC\">YT</a>");
-            if (u.StartsWith("https://www.wearehullcity.co.uk")) return (HttpStatusCode.OK, $"<a href=\"https://www.youtube.com/channel/{hullUc}\">YT</a>");
-            if (u.Contains("/user/avfcofficial")) return (HttpStatusCode.OK, $"<link rel=\"canonical\" href=\"https://www.youtube.com/channel/{villaUc}\">");
-            if (u.Contains("/@NottinghamForestFC")) return (HttpStatusCode.OK, $"<link rel=\"canonical\" href=\"https://www.youtube.com/channel/{forestUc}\">");
-            if (u.Contains("channel_id=" + villaUc)) return (HttpStatusCode.OK, "<feed xmlns=\"http://www.w3.org/2005/Atom\"><author><name>Aston Villa Football Club</name></author></feed>");
-            if (u.Contains("channel_id=" + forestUc)) return (HttpStatusCode.OK, "<feed xmlns=\"http://www.w3.org/2005/Atom\"><author><name>Nottingham Forest FC</name></author></feed>");
-            if (u.Contains("channel_id=" + hullUc)) return (HttpStatusCode.OK, "<feed xmlns=\"http://www.w3.org/2005/Atom\"><author><name>Random Football Edits</name></author></feed>");
+            lock (requested) requested.Add(u);
+            if (u.EndsWith("/robots.txt")) return (HttpStatusCode.NotFound, "");
+            if (u.Contains("Special:EntityData/Q9448.json")) return (HttpStatusCode.OK, EntityData("Q9448", "Premier League", "https://www.premierleague.com/"));
+            if (u.Contains("Special:EntityData/Q18711.json")) return (HttpStatusCode.OK, EntityData("Q18711", "Aston Villa F.C.", "https://www.avfc.co.uk/"));
+            if (u.Contains("Special:EntityData/Q19490.json")) return (HttpStatusCode.OK, EntityData("Q19490", "Nottingham Forest F.C.", "https://www.nottinghamforest.co.uk/"));
+            if (u.StartsWith("https://www.premierleague.com/"))
+                return (HttpStatusCode.OK, "<script type=\"application/ld+json\">{\"@type\":\"SportsOrganization\",\"sameAs\":[\"https://www.wikidata.org/wiki/Q9448\"]}</script>" +
+                                          "<a href=\"https://www.avfc.co.uk/\"><img alt=\"Aston Villa\"></a><a href=\"https://www.nottinghamforest.co.uk/\">Nottingham Forest</a>" +
+                                          "<a href=\"https://www.randomhullfans.com/\">Hull City fans</a>");
+            if (u.StartsWith("https://www.avfc.co.uk/")) return (HttpStatusCode.OK, "<a href=\"https://www.premierleague.com/\">PL</a>");
+            if (u.StartsWith("https://www.nottinghamforest.co.uk/"))
+                return (HttpStatusCode.OK, "<script type=\"application/ld+json\">{\"@type\":\"SportsTeam\",\"sameAs\":[\"https://www.wikidata.org/wiki/Q19490\",\"https://www.youtube.com/@NottinghamForestFC\"]}</script>");
+            if (u.StartsWith("https://www.randomhullfans.com/")) return (HttpStatusCode.OK, "<html>fans</html>");
             return (HttpStatusCode.NotFound, "");
         });
 
@@ -343,16 +358,20 @@ public class VideoDiscoveryEngineTests
         var report = await svc.RunAsync(Now, 40);
 
         var rows = db.OfficialVideoSourceCatalog.AsNoTracking().ToDictionary(r => r.Key);
-        Assert.Equal("Verified", rows["club:1"].Status);                       // Wikidata + site + yazar
-        Assert.Equal(villaUc, rows["club:1"].YouTubeChannelId);
-        Assert.Equal("Verified", rows["club:2"].Status);                       // Wikidata'da kanal yok: site + yazar
-        Assert.Equal(forestUc, rows["club:2"].YouTubeChannelId);
-        Assert.Equal("Candidate", rows["club:3"].Status);                      // tek kanıt (site) + yabancı yazar adı
-        Assert.True(report.Verified >= 2);
+        Assert.Equal("Verified", rows["league:39"].WebsiteStatus);             // E1 Wikidata P856 + E2 site sameAs
+        Assert.Equal("www.premierleague.com", rows["league:39"].Domain);
+        Assert.Equal("Verified", rows["club:1"].WebsiteStatus);                // E1 Wikidata + E3 lig bağlantısı (+E5 geri bağlantı)
+        Assert.Contains("E3", rows["club:1"].WebsiteEvidence);
+        Assert.Equal("Verified", rows["club:2"].WebsiteStatus);                // öğe siteden: sameAs → EntityData P856 geri doğrulandı
+        Assert.Equal("Q19490", rows["club:2"].WikidataId);
+        Assert.Contains("@nottinghamforestfc", rows["club:2"].SiteYouTubeHandles);
+        Assert.NotEqual("Verified", rows["club:3"].WebsiteStatus);             // yalnız lig sayfasındaki taraftar bağlantısı: tek kanıt
+        Assert.True(report.ClubSites >= 2);
+        Assert.DoesNotContain(requested, r => r.Contains("query.wikidata.org"));   // SPARQL robots ile yasak
+        Assert.DoesNotContain(requested, r => r.Contains("/feeds/videos.xml"));    // YouTube RSS robots ile yasak
 
         var sources = OfficialVideoSourceCatalog.Merge(OfficialVideoSources.All, rows.Values);
-        Assert.Contains(sources, s => s.YouTubeChannelId == forestUc && s.TeamId == 2);
-        Assert.DoesNotContain(sources, s => s.YouTubeChannelId == hullUc);
+        Assert.Contains(sources, s => s.Key == "club:2" && s.TeamId == 2 && s.Platform == "Web");
     }
 
     private sealed class NullScopeFactory : Microsoft.Extensions.DependencyInjection.IServiceScopeFactory

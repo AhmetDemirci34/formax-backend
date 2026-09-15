@@ -69,7 +69,7 @@ public class FinishedMatchSummaryAndVideoTests
     {
         // Kulüp kanalları artık elle yazılmaz; katalog kaydı (TeamId) maçın taraflarıyla eşleşir.
         var keys = OfficialVideoSources.DiscoverableYouTubeChannels("Aston Villa", "Nottingham Forest", 39,
-                CatalogSources, homeTeamId: 1, awayTeamId: 2)
+                CatalogSources, homeTeamId: 2109, awayTeamId: 2480)
             .Select(s => s.Key).ToList();
 
         Assert.Contains("club:1", keys);
@@ -103,8 +103,8 @@ public class FinishedMatchSummaryAndVideoTests
     /// <summary>Otomatik kaynak kataloğunun üreteceği doğrulanmış kayıtlar (tohumlarla birleşik).</summary>
     private static readonly IReadOnlyList<OfficialVideoSource> CatalogSources = OfficialVideoSources.All.Concat(new[]
     {
-        new OfficialVideoSource("club:1", "Aston Villa Football Club", "YouTube", "UCICNP0mvtr0prFwGUQIABfQ", true, "t", OfficialVideoSourceTiers.Club, "Aston Villa", null, 1),
-        new OfficialVideoSource("club:2", "Nottingham Forest FC", "YouTube", ForestChannel, true, "t", OfficialVideoSourceTiers.Club, "Nottingham Forest", null, 2),
+        new OfficialVideoSource("club:1", "Aston Villa Football Club", "YouTube", "UCICNP0mvtr0prFwGUQIABfQ", true, "t", OfficialVideoSourceTiers.Club, "Aston Villa", null, 2109),
+        new OfficialVideoSource("club:2", "Nottingham Forest FC", "YouTube", ForestChannel, true, "t", OfficialVideoSourceTiers.Club, "Nottingham Forest", null, 2480),
         new OfficialVideoSource("club:1904", "RC Celta", "YouTube", "UCCJLVZYqRb_85b2Flpg04cg", true, "t", OfficialVideoSourceTiers.Club, "Celta Vigo", null, 1904),
         new OfficialVideoSource("club:1909", "Málaga CF", "YouTube", "UCo_PhWZulZooYfQRo00vU-Q", true, "t", OfficialVideoSourceTiers.Club, "Malaga", null, 1909),
         new OfficialVideoSource("league:39", "Premier League", "YouTube", "UCG5qGWdu8nIRZqJ_GgDwQ-w", true, "t", OfficialVideoSourceTiers.League, null, new[] { 39 }),

@@ -766,6 +766,10 @@ export interface VideoSearchDto {
     | string;
   attemptsMade: number;
   maxAttempts: number;
+  /** Maç kalıcı arama kuyruğunda mı (sayfa açılışı kuyruğa yazmaz). */
+  inQueue?: boolean;
+  queueBucket?: string | null;
+  requeueReason?: string | null;
   lastAttemptUtc?: string | null;
   /** NotFound gerekçesi: "Exhausted" (dört deneme bitti) | "NoAttemptFor24h" (bir gündür yeni deneme yok). */
   reason?: string | null;
@@ -778,6 +782,8 @@ export interface PostMatchSummaryDto {
   sentences: string[];
   generator: string;
   generatedAtUtc: string;
+  /** "Available" | "InsufficientData" (doğrulanmış veri yetersiz) | "Pending" (arka plan henüz yazmadı). */
+  status?: "Available" | "InsufficientData" | "Pending" | string;
 }
 
 /**

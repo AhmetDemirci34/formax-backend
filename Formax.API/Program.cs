@@ -178,9 +178,11 @@ internal class Program
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.RuntimeHealthMonitor>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.Telemetry.RuntimeHealthMonitor>());
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.DbTimingInterceptor>();
+        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.OutboundHttpObserver>();
         builder.Services.AddSingleton<Formax.Application.Interfaces.IBlockingWorkScheduler>(_ =>
             new Formax.Infrastructure.Concurrency.DedicatedThreadWorkScheduler(
-                builder.Configuration.GetValue("Runtime:DetailWorkerThreads", Math.Max(4, Environment.ProcessorCount)), "formax-detail"));
+                builder.Configuration.GetValue("Runtime:DetailWorkerThreads", Math.Max(4, Environment.ProcessorCount)), "formax-detail",
+                builder.Configuration.GetValue("Runtime:DetailQueueCapacity", 512)));
 
         builder.Services.AddDbContext<FormaxDbContext>((sp, options) =>
         {
@@ -745,6 +747,8 @@ internal class Program
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>());
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.MatchVideoDiscoveryJob>();
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialVideoSourceCatalogJob>();
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialWebFeedCrawlJob>();
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.MatchVideoRevalidationJob>();
 
         // ---------------- Phase 7 — SOCIAL DISCOVERY (resmi sosyal medya) ----------------
         // Platform-genişletilebilir ISocialProvider koleksiyonu (yeni platform = yeni satır).
@@ -1240,6 +1244,8 @@ internal class Program
         // ---------------- APP ----------------
 
         var app = builder.Build();
+        // Gözlemci yapıcıda DiagnosticListener aboneliğini açar; ilk istekten ÖNCE kurulmalı.
+        app.Services.GetRequiredService<Formax.Infrastructure.Telemetry.OutboundHttpObserver>();
 
         // ---------------- GDP: provider başlangıç kayıtları (BaseUrl'ler ProviderBootstrap katmanından) ----------------
         using (var gdpScope = app.Services.CreateScope())
@@ -1255,8 +1261,14 @@ internal class Program
         app.Use(async (ctx, next) =>
         {
             var path = System.Text.RegularExpressions.Regex.Replace(ctx.Request.Path.Value ?? "/", @"/\d+", "/{id}");
-            using (Formax.Application.AI.LLM.LlmCallMeter.Begin("request:" + path))
-                await next();
+            // Giden HTTP gözlemcisi: bu isteğin yolunda çıkan her dış istek gelen yolla işaretlenir.
+            Formax.Infrastructure.Telemetry.OutboundHttpObserver.CurrentInbound.Value = ctx.Request.Path.Value ?? "/";
+            try
+            {
+                using (Formax.Application.AI.LLM.LlmCallMeter.Begin("request:" + path))
+                    await next();
+            }
+            finally { Formax.Infrastructure.Telemetry.OutboundHttpObserver.CurrentInbound.Value = null; }
         });
 
         app.UseMiddleware<Formax.API.Middleware.DetailTimingMiddleware>();

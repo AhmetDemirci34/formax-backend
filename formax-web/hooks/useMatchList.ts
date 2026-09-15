@@ -19,6 +19,10 @@ export function useMatchList() {
     // tekrar çekmekten başka bir şey yapmıyordu. Liste açılışta bir kez yüklenir; maçlar,
     // skorlar ve durumlar son bilinen gerçek değerleriyle gösterilir (uydurma yok).
     // Canlı özellik geri açıldığında bu satır eski haline döner.
-    refetchInterval: false,
+    // RESMÎ SONUÇ AKIŞI (15.09.2026): biten maç backend'de resmî kaynaktan 10 dk'da bir "Finished" olur. Liste
+    // 5 dk'da bir DB'den tazelenir ki biten maç manuel yenileme olmadan YAKLAŞAN'dan düşsün. Sağlayıcıya istek yok;
+    // sekme arka plandayken tazelenmez.
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
   });
 }

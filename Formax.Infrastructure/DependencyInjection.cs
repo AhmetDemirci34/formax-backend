@@ -274,7 +274,13 @@ public static class DependencyInjection
         {
             c.Timeout = TimeSpan.FromSeconds(30);
             c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxVideoSourceCatalog/1.0 (+https://github.com/AhmetDemirci34/formax-backend)");
-        }).AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
+        })
+        // Yönlendirme nezaket katmanında izlenir (her atlamada robots.txt); gövde sıkıştırması açılır.
+        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, AutomaticDecompression = System.Net.DecompressionMethods.All, ConnectTimeout = TimeSpan.FromSeconds(10)
+        })
+        .AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
         services.AddHttpClient("postmatch-video", c =>
         {
             // Bu istemci YALNIZ resmî video uçlarına (YouTube kanal akışı + oembed) gider.
@@ -282,7 +288,12 @@ public static class DependencyInjection
             // dokunmamalıdır.
             c.Timeout = TimeSpan.FromSeconds(15);
             c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxPostMatchVideo/1.0");
-        }).AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, AutomaticDecompression = System.Net.DecompressionMethods.All, ConnectTimeout = TimeSpan.FromSeconds(10)
+        })
+        .AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
         services.AddScoped<IMatchVideoReader, Formax.Infrastructure.PostMatch.MatchVideoReader>();
         services.AddScoped<IVideoEmbedVerifier, Formax.Infrastructure.PostMatch.YouTubeEmbedVerifier>();
         services.AddScoped<IMatchVideoRegistrar, Formax.Infrastructure.PostMatch.MatchVideoRegistrar>();
@@ -299,6 +310,11 @@ public static class DependencyInjection
         services.AddScoped<Formax.Infrastructure.Picks.UserPickSettlementService>();
         services.AddScoped<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>();
         services.AddScoped<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.VideoHttpBudget>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialWebVideoProvider>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialWebFeedCrawler>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoRevalidationService>();
+        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoPlaybackReportService>();
         services.AddScoped<IOfficialMatchVideoProvider>(sp =>
         {
             // "Disabled" tek anahtarla tüm keşfi kapatır — sıfır dış istek.
@@ -306,10 +322,12 @@ public static class DependencyInjection
                   .GetValue("PostMatch:Video:Provider", "OfficialVideoChain") is "Disabled")
                 return new Formax.Infrastructure.PostMatch.DisabledOfficialMatchVideoProvider();
 
+            // YouTube RSS zincirde YOK (robots.txt Disallow, 15.09.2026 kullanıcı kararı). Keşif yalnız resmî
+            // sitelerin kendi yayımladığı sayfa/sitemap/JSON-LD bağlantılarından yapılır.
             var members = new IOfficialMatchVideoProvider[]
             {
-                sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>(),
-                sp.GetRequiredService<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>()
+                sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialWebVideoProvider>(),
+                sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>()
             };
 
             return new Formax.Infrastructure.PostMatch.CompositeOfficialMatchVideoProvider(
@@ -351,6 +369,13 @@ public static class DependencyInjection
             Formax.Infrastructure.OfficialSources.Providers.TffSource>();
         services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
             Formax.Infrastructure.OfficialSources.Providers.BundesligaSiteSource>();
+        // Aynı gün sonuç (15.09.2026): LALIGA sunucu sayfası, Ligue 1 ve EFL'nin kendi sitelerinde yayımlanan anahtarsız uçları.
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.LaLigaSiteSource>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.Ligue1ApiSource>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.EflMultiClubSource>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialMatchCentreService>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialPostMatchDataService>();

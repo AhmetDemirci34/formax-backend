@@ -162,8 +162,9 @@ public class PostMatchScreenContractTests
         Assert.Contains("videoEmptyStateText(match.videoSearch)", screen, StringComparison.Ordinal);
         Assert.DoesNotContain("isVideoSearchWindowOver", screen, StringComparison.Ordinal);
 
-        // <Empty …/> yalnız İKİ yerde: video boş durumu ve backend'in puan durumu metni.
-        Assert.Equal(2, Regex.Matches(screen, @"<Empty\b").Count);
+        // <Empty …/> yalnız ÜÇ yerde: video boş durumu, backend'in puan durumu metni ve (15.09.2026) backend'in
+        // maç sonu analiz durumu (yetersiz veri / hazırlanıyor) — ekran cümle üretmez, DTO durumunu yazar.
+        Assert.Equal(3, Regex.Matches(screen, @"<Empty\b").Count);
 
         // Genel "ayrıntı yok" mesajı ile video boş durumu AYNI ANDA çıkamaz: biri
         // hasAnyDetail false iken, diğeri true iken render edilir.

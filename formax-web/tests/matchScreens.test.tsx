@@ -12,7 +12,11 @@ import {
   mainHighlightCandidates,
   nextCandidateAfterError,
   videoEmptyStateText,
+  orderGoalClips,
+  ANALYSIS_INSUFFICIENT_TEXT,
+  ANALYSIS_PENDING_TEXT,
 } from "@/lib/video/videoSearch";
+import { BLOCKING_PLAYER_CODES, shouldReport, youtubeIdFromEmbed } from "@/lib/video/playbackReport";
 import { nextPlaybackState, parsePlayerMessage, playbackErrorText } from "@/lib/video/youtubePlayback";
 import { formatLastCheck, lineupWaitingText, LINEUP_TEXT_NOT_FOUND } from "@/lib/lineup/lineupStatus";
 import { eventLabel, UNKNOWN_EVENT_LABEL } from "@/lib/matches/eventLabels";
@@ -214,10 +218,27 @@ describe("gerçek oynatılabilirlik", () => {
 
   it("aynı video maç özeti ve önemli anlarda iki kez gösterilmez", () => {
     const main = video({ title: "Özet" });
-    const goal = video({ title: "Gol", videoType: "Goal" });
+    const goal = video({ title: "Gol", videoType: "Goal", embedUrl: "https://www.youtube-nocookie.com/embed/goal1" });
     const { main: m, moments } = arrangeVideos([main, goal]);
     expect(m).toBe(main);
     expect(moments).toEqual([goal]);
+    // Ana özetle AYNI gömme adresli kayıt gol/önemli an olarak ikinci kez listelenmez.
+    const sameAsMain = video({ title: "Aynı video", videoType: "Goal" });
+    expect(arrangeVideos([main, sameAsMain]).moments).toEqual([]);
+  });
+
+  it("GOLLER dakika sırasıyla; aynı gol ve aynı video bir kez", () => {
+    const g = (id: string, minute: number, player: string, extra?: number) =>
+      video({ title: id, videoType: "Goal", embedUrl: `https://www.youtube-nocookie.com/embed/${id}`, eventMinute: minute, eventExtraMinute: extra ?? null, eventPlayer: player });
+    const late = g("late", 90, "Pohjanpalo", 4);
+    const first = g("first", 12, "Pohjanpalo");
+    const mid = g("mid", 51, "Ghedjemis");
+    const dupGoal = g("dup", 51, "Ghedjemis");
+    const dupVideo = { ...first, title: "first again" };
+    const ordered = orderGoalClips([late, mid, first, dupGoal, dupVideo]);
+    expect(ordered.map((v) => v.title)).toEqual(["first", "mid", "late"]);
+    const { goals } = arrangeVideos([late, mid, first]);
+    expect(goals.map((v) => v.eventMinute)).toEqual([12, 51, 90]);
   });
 });
 
@@ -512,14 +533,16 @@ describe("bitmiş maç: kalıcı video keşfi durumları", () => {
 
   it("NotAvailableYet → dürüst 'bulunamadı' + kontrollerin sürdüğü; sonsuz 'kontrol ediliyor' yok", () => {
     const html = render("NotAvailableYet");
-    expect(html).toContain("Uygulama içinde oynatılabilir resmî video bulunamadı.");
-    expect(html).toContain("kontrol edilmeye devam ediyor");
+    // 15.09.2026 ürün metni: arama durmaz; eski sonuçlanmış maçta da aynı dürüst durum.
+    expect(html).toContain("Bu maçın resmî özeti henüz bulunamadı. FORMAX doğrulanmış kaynakları aramaya devam ediyor.");
     expect(html).not.toContain("Resmî video kontrol ediliyor.");
   });
 
   it("SourceBlocked → engel açıkça söylenir, oynatıcı kurulmaz, resmî kaynak bağlantısı gösterilir", () => {
     const html = render("SourceBlocked", [video({ title: "Forest özet", canPlayInApp: false, embedUrl: null })]);
-    expect(html).toContain("yayıncı uygulama içinde oynatmaya izin vermiyor");
+    expect(html).not.toContain("<iframe");
+    // Engelli ama gösterilebilir kayıt yoksa dürüst durum + aramanın sürdüğü söylenir.
+    expect(render("SourceBlocked")).toContain("FORMAX alternatif doğrulanmış kaynakları aramaya devam ediyor.");
     expect(html).not.toContain("<iframe");
     expect(html).toContain("Resmî kaynakta izle");
   });
@@ -570,6 +593,61 @@ describe("ana özet: oynatıcı engelinde yedek aday", () => {
     expect(nextCandidateAfterError(2, 0, 150)).toBe(1);
     expect(nextCandidateAfterError(2, 0, 101)).toBe(1);
     expect(nextCandidateAfterError(2, 1, 150)).toBeNull();   // aday kalmadı → dürüst hata metni
-    expect(nextCandidateAfterError(2, 0, 100)).toBeNull();   // kaldırılmış video yedeğe geçirmez
+    expect(nextCandidateAfterError(2, 0, 100)).toBe(1);      // kaldırılmış video da yedeğe geçer (backend SourceBlocked yazar)
+    expect(nextCandidateAfterError(2, 0, 2)).toBeNull();     // geçersiz parametre hatası yedeğe geçirmez
+  });
+});
+
+// ── 15.09.2026: ANALİZ DURUMU, OYNATICI HATASI BİLDİRİMİ, SONUÇ AKIŞI ──────────────────────────
+
+describe("maç sonu analizi: backend durumu", () => {
+  it("yetersiz veri → dürüst cümle; analiz uydurulmaz", () => {
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary match={finishedMatch({ postMatchSummary: { sentences: [], generator: "InsufficientData", generatedAtUtc: "2026-09-15T00:00:00Z", status: "InsufficientData" } })} />
+    );
+    expect(html).toContain("Bu maç için ayrıntılı analiz oluşturacak yeterli doğrulanmış veri bulunamadı.");
+    expect(ANALYSIS_INSUFFICIENT_TEXT).toBe("Bu maç için ayrıntılı analiz oluşturacak yeterli doğrulanmış veri bulunamadı.");
+  });
+
+  it("hazırlanıyor ve mevcut analiz ayrı gösterilir", () => {
+    const pending = renderToStaticMarkup(
+      <FinishedMatchSummary match={finishedMatch({ postMatchSummary: { sentences: [], generator: "None", generatedAtUtc: "2026-09-15T00:00:00Z", status: "Pending" } })} />
+    );
+    expect(pending).toContain(ANALYSIS_PENDING_TEXT);
+    const ok = renderToStaticMarkup(
+      <FinishedMatchSummary match={finishedMatch({ postMatchSummary: { sentences: ["Telstar ile Cambuur 2-2 berabere kaldı.", "Goller: …"], generator: "Deterministic", generatedAtUtc: "2026-09-15T00:00:00Z", status: "Available" } })} />
+    );
+    expect(ok).toContain('data-testid="post-match-analysis"');
+    expect(ok).not.toContain(ANALYSIS_INSUFFICIENT_TEXT);
+  });
+});
+
+describe("oynatıcı hatası backend'e bildirilir", () => {
+  it("yalnız kaydı kapatan kodlar (2/5/100/101/150/152) bildirilir; kimlik gömme adresinden", () => {
+    for (const code of [2, 5, 100, 101, 150, 152]) expect(shouldReport(code)).toBe(true);
+    expect(shouldReport(0)).toBe(false);
+    expect(BLOCKING_PLAYER_CODES.has(150)).toBe(true);
+    expect(youtubeIdFromEmbed("https://www.youtube-nocookie.com/embed/l30ncafwuGk")).toBe("l30ncafwuGk");
+    expect(youtubeIdFromEmbed(null)).toBeNull();
+  });
+
+  it("oynatıcı kartı hata olayında bildirim yapar; bildirim keşif başlatmaz", () => {
+    const root = path.resolve(__dirname, "..");
+    const card = fs.readFileSync(path.join(root, "components/match-center/views/VideoPlayerCard.tsx"), "utf8");
+    expect(card).toContain("reportPlaybackError(matchId, video, s.code)");
+    const report = fs.readFileSync(path.join(root, "lib/video/playbackReport.ts"), "utf8");
+    expect(report).toContain("/videos/playback-error");
+    expect(report).not.toMatch(/video-discovery|queue\/run|catalog\/discover|crawl|revalidate/);
+    const screen = fs.readFileSync(path.join(root, "components/match-center/views/FinishedMatchSummary.tsx"), "utf8");
+    expect(screen).toContain("matchId={match.matchId}");
+  });
+});
+
+describe("sonuç akışı: manuel yenilemesiz", () => {
+  it("Maçlar listesi arka planda değilken periyodik tazelenir (biten maç YAKLAŞAN'dan düşer)", () => {
+    const root = path.resolve(__dirname, "..");
+    const hook = fs.readFileSync(path.join(root, "hooks/useMatchList.ts"), "utf8");
+    expect(hook).toContain("refetchInterval: 5 * 60_000");
+    expect(hook).toContain("refetchIntervalInBackground: false");
   });
 });

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  
+      <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+          xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+          
+      <url>
+      <loc>https://www.legaseriea.it/serie-a/videos/youtube/lo-show-di-mastantuono</loc>
+      <video:video>
+        <video:thumbnail_loc>https://images.legaseriea.it/image/private/t_ratio1_1-size20-f_webp-c_fill/v1789229371/prd/cra8ufhnnhuc4tmvihdv</video:thumbnail_loc>
+        <video:title>Lo show di Mastantuono</video:title>
+        <video:description>
+        
+        </video:description>
+        <video:publication_date>2026-09-12</video:publication_date>
+      </video:video>
+    </url>
+<url>
+      <loc>https://www.legaseriea.it/serie-a/videos/youtube/perche-la-roma-gioca-senza-centrocampisti-e-sta-funzionando</loc>
+      <video:video>
+        <video:thumbnail_loc>https://images.legaseriea.it/image/private/t_ratio1_1-size20-f_webp-c_fill/v1789139505/prd/xfjqxvq3y4prddhdmuh6</video:thumbnail_loc>
+        <video:title>Perché la Roma gioca senza centrocampisti... e sta funzionando?</video:title>
+        <video:description>
+        Insieme a FootballMeta analizziamo le idee tattiche di Gasperini che stanno rendendo la Roma una squadra sempre più difficile da affrontare.
+        </video:description>
+        <video:publication_date>2026-09-11</video:publication_date>
+      </video:video>
+    </url>
+<url>
+      <loc>https://www.legaseriea.it/videos/youtube/fiorentina-atalanta-supercoppa-primavera-2026</loc>
+      <video:video>
+        <video:thumbnail_loc>https://images.legaseriea.it/image/private/t_ratio1_1-size20-f_webp-c_fill/prd/syun3nids8nyqylob2gk</video:thumbnail_loc>
+        <video:title>Fiorentina-Atalanta | Supercoppa Primavera 2026</video:title>
+        <video:description>
+        Fiorentina-Atalanta | Highlights | Supercoppa Primavera 2026
+        </video:description>
+        <video:publication_date>2026-09-10</video:publication_date>
+      </video:video>
+    </url>
+</urlset>

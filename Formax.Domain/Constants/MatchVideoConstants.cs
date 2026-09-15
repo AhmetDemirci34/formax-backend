@@ -81,6 +81,12 @@ namespace Formax.Domain.Constants
         /// </summary>
         public const string NeedsManualReview = "NeedsManualReview";
 
+        /// <summary>
+        /// Kayıt doğru maça ait ama kaynak artık oynatılamıyor: oynatıcı 100/101/150/152 bildirdi, video kaldırıldı,
+        /// gizlendi ya da oEmbed erişilemez. Gösterilmez; maç yeniden arama kuyruğuna döner.
+        /// </summary>
+        public const string SourceBlocked = "SourceBlocked";
+
         /// <summary>Kullanıcıya gösterilmeye UYGUN tek durum.</summary>
         public static bool IsShowable(string? value) => value == Verified;
     }
@@ -107,5 +113,17 @@ namespace Formax.Domain.Constants
 
         /// <summary>Aynı video birden çok maça bağlanmış; hangisine ait olduğu belirsiz.</summary>
         public const string SharedAcrossMatches = "SharedAcrossMatches";
+
+        /// <summary>Yalnız YouTube RSS kanıtı var (robots.txt yasağı); resmî web sayfasında bulunamadı.</summary>
+        public const string RssOnlyEvidence = "RssOnlyEvidence";
+
+        /// <summary>Yeni kimlik kurallarını geçemedi (basın açıklaması, #shorts, altyapı/kadın takımı, sezon, skor…).</summary>
+        public const string FailedRevalidation = "FailedRevalidation";
+
+        /// <summary>Oynatıcı gömme/bölge/kaldırılma hatası bildirdi (100/101/150/152).</summary>
+        public const string PlayerError = "PlayerError";
+
+        /// <summary>oEmbed video kaldırılmış/gizli/erişilemez diyor.</summary>
+        public const string SourceUnavailable = "SourceUnavailable";
     }
 }

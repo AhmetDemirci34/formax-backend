@@ -47,6 +47,9 @@ namespace Formax.Infrastructure.OfficialSources
         private readonly ILogger<OfficialContentFetcher> _log;
         private readonly Func<DateTime> _utcNow;
 
+        /// <summary>robots.txt politikası (RFC 9309). Üretimde DI verir; null ise (yalnız eski birim testleri) denetim yapılmaz.</summary>
+        private readonly Formax.Infrastructure.PostMatch.RobotsTxtPolicy? _robots;
+
         /// <summary>Tur hafızası: (tur|adres) → sonuç. Aynı tur aynı adresi bir kez indirir.</summary>
         private readonly Dictionary<string, OfficialFetchResult> _roundMemo = new(StringComparer.Ordinal);
 
@@ -62,8 +65,9 @@ namespace Formax.Infrastructure.OfficialSources
             OfficialHostRateLimiter limiter,
             IOfficialAddressResolver resolver,
             OfficialFetcherOptions options,
-            ILogger<OfficialContentFetcher> log)
-            : this(httpFactory.CreateClient(HttpClientName), store, limiter, resolver, options, log, null) { }
+            ILogger<OfficialContentFetcher> log,
+            Formax.Infrastructure.PostMatch.RobotsTxtPolicy? robots = null)
+            : this(httpFactory.CreateClient(HttpClientName), store, limiter, resolver, options, log, null, robots) { }
 
         /// <summary>Test yapıcısı: gerçek ağ yerine verilen istemci ve saat.</summary>
         public OfficialContentFetcher(
@@ -73,8 +77,10 @@ namespace Formax.Infrastructure.OfficialSources
             IOfficialAddressResolver resolver,
             OfficialFetcherOptions options,
             ILogger<OfficialContentFetcher> log,
-            Func<DateTime>? utcNow)
+            Func<DateTime>? utcNow,
+            Formax.Infrastructure.PostMatch.RobotsTxtPolicy? robots = null)
         {
+            _robots = robots;
             _http = http;
             _store = store;
             _limiter = limiter;
@@ -161,6 +167,10 @@ namespace Formax.Infrastructure.OfficialSources
                 }
                 if (addresses.Length == 0 || addresses.Any(a => !OfficialNetworkGuard.IsPublic(a)))
                     return await FailAsync(request, current, OfficialFetchOutcomes.PrivateAddress, null, started, now, ct, urlHash);
+
+                // ── ROBOTS.TXT — her atlamada; yasaklı yol İSTENMEZ, engel aşılmaz ─────────
+                if (_robots != null && !await _robots.IsAllowedAsync(current, FetchRobotsAsync, ct).ConfigureAwait(false))
+                    return await FailAsync(request, current, OfficialFetchOutcomes.RobotsDisallowed, null, started, now, ct, urlHash);
 
                 using var gate = await _limiter.AcquireAsync(current.Host,
                     () => _store.LastNetworkRequestAsync(current.Host, ct), _utcNow, ct).ConfigureAwait(false);
@@ -274,6 +284,28 @@ namespace Formax.Infrastructure.OfficialSources
             }
 
             return await FailAsync(request, current, OfficialFetchOutcomes.RedirectRejected, null, started, now, ct, urlHash);
+        }
+
+        /// <summary>robots.txt okuması — aynı korumalı istemci; gövde sınırlı, zaman aşımı 10 sn.</summary>
+        private async Task<(int? Status, string Body)> FetchRobotsAsync(Uri robotsUri, CancellationToken ct)
+        {
+            try
+            {
+                using var msg = new HttpRequestMessage(HttpMethod.Get, robotsUri);
+                msg.Headers.UserAgent.ParseAdd(UserAgent);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                NetworkRequestCount++;
+                using var res = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                var code = (int)res.StatusCode;
+                // Yönlendirilen robots.txt izlenmez (izinli host dışına çıkabilir): kural okunamadı = ulaşılamaz = tam yasak (güvenli taraf).
+                if (code is >= 300 and < 400) return (null, string.Empty);
+                if (code < 200 || code > 299) return (code, string.Empty);
+                var bytes = await ReadLimitedAsync(res.Content, 512 * 1024, timeout.Token).ConfigureAwait(false);
+                return (code, Encoding.UTF8.GetString(bytes));
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return (null, string.Empty); }
+            catch (HttpRequestException) { return (null, string.Empty); }
         }
 
         private static async Task<byte[]> ReadLimitedAsync(HttpContent content, int max, CancellationToken ct)

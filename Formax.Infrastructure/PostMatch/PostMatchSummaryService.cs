@@ -32,6 +32,8 @@ namespace Formax.Infrastructure.PostMatch
         }
 
         /// <returns>Yazılan (yeni ya da güncellenen) satır sayısı.</returns>
+        public const string InsufficientGenerator = "InsufficientData";
+
         public async Task<int> RunCycleAsync(DateTime utcNow, CancellationToken ct = default)
         {
             var since = utcNow.AddHours(-Math.Max(24, _config.GetValue("PostMatch:Summary:LookbackHours", 96)));
@@ -48,9 +50,9 @@ namespace Formax.Infrastructure.PostMatch
             var page = Math.Max(0, _config.GetValue("PostMatch:Summary:BackfillBatch", 100));
             if (page > 0)
             {
-                var horizon = utcNow.AddDays(-400);
+                // Ufuk sınırı yok (15.09.2026): yetersiz veri durumu da satır olarak yazıldığı için sayfa ilerler, takılmaz.
                 var older = await _db.Matches.AsNoTracking()
-                    .Where(m => m.Status == MatchStatuses.Finished && m.MatchDate < since && m.MatchDate >= horizon
+                    .Where(m => m.Status == MatchStatuses.Finished && m.MatchDate < since
                                 && locked.Contains(m.LeagueId)
                                 && !_db.MatchPostMatchSummaries.Any(s => s.MatchId == m.Id))
                     .OrderByDescending(m => m.MatchDate).Take(page)
@@ -70,9 +72,12 @@ namespace Formax.Infrastructure.PostMatch
                 if (row != null && row.InputHash == result.InputHash) continue;
                 if (row == null) { row = new MatchPostMatchSummary { MatchId = m.Id }; _db.MatchPostMatchSummaries.Add(row); }
                 row.InputHash = result.InputHash;
-                row.Text = result.Text.Length <= 1200 ? result.Text : result.Text[..1200];
+                // YETERSİZ VERİ: yalnız sonuç cümlesi kurulabildiyse (olay/istatistik yok) bu skorun başka kelimelerle tekrarıdır —
+                // analiz diye yazılmaz; ekran dürüst "yeterli doğrulanmış veri yok" durumunu gösterir.
+                var insufficient = result.Sentences.Count < 2;
+                row.Text = insufficient ? string.Empty : result.Text.Length <= 1200 ? result.Text : result.Text[..1200];
                 row.EvidenceJson = result.EvidenceJson;
-                row.Generator = "Deterministic";
+                row.Generator = insufficient ? InsufficientGenerator : "Deterministic";
                 row.LlmCalls = 0;
                 row.GeneratedAtUtc = utcNow;
                 written++;

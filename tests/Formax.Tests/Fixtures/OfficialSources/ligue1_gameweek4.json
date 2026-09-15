@@ -1,0 +1,88 @@
+{
+ "matches": [
+  {
+   "unknownMatch": false,
+   "matchId": "l1_championship_match_73855",
+   "championshipId": 1,
+   "gameWeekNumber": 4,
+   "date": "2026-09-11T18:45:00.000Z",
+   "period": "fullTime",
+   "matchTime": "90' +4",
+   "isLive": false,
+   "home": {
+    "clubId": "l1_championship_club_2026_14",
+    "score": 1,
+    "clubIdentity": {
+     "name": "Stade Rennais FC",
+     "officialName": "Rennes",
+     "shortName": "Rennes"
+    }
+   },
+   "away": {
+    "clubId": "l1_championship_club_2026_1",
+    "score": 0,
+    "clubIdentity": {
+     "name": "Olympique de Marseille",
+     "officialName": "Marseille",
+     "shortName": "OM"
+    }
+   }
+  },
+  {
+   "unknownMatch": false,
+   "matchId": "l1_championship_match_73856",
+   "championshipId": 1,
+   "gameWeekNumber": 4,
+   "date": "2026-09-12T15:15:00.000Z",
+   "period": "fullTime",
+   "matchTime": "90' +5",
+   "isLive": false,
+   "home": {
+    "clubId": "l1_championship_club_2026_15",
+    "score": 1,
+    "clubIdentity": {
+     "name": "RC Strasbourg Alsace",
+     "officialName": "Strasbourg",
+     "shortName": "Strasbourg"
+    }
+   },
+   "away": {
+    "clubId": "l1_championship_club_2026_9",
+    "score": 1,
+    "clubIdentity": {
+     "name": "AS Monaco",
+     "officialName": "Monaco",
+     "shortName": "AS Monaco"
+    }
+   }
+  },
+  {
+   "unknownMatch": false,
+   "matchId": "l1_championship_match_73848",
+   "championshipId": 1,
+   "gameWeekNumber": 4,
+   "date": "2026-09-12T18:45:00.000Z",
+   "period": "fullTime",
+   "matchTime": "90' +5",
+   "isLive": false,
+   "home": {
+    "clubId": "l1_championship_club_2026_2",
+    "score": 1,
+    "clubIdentity": {
+     "name": "AJ Auxerre",
+     "officialName": "Auxerre",
+     "shortName": "AJ Auxerre"
+    }
+   },
+   "away": {
+    "clubId": "l1_championship_club_2026_30",
+    "score": 0,
+    "clubIdentity": {
+     "name": "OGC Nice",
+     "officialName": "Nice",
+     "shortName": "OGC Nice"
+    }
+   }
+  }
+ ]
+}

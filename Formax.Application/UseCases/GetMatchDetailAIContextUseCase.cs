@@ -1006,7 +1006,10 @@ namespace Formax.Application.UseCases
                 MaxAttempts = Services.PostMatch.VideoDiscoverySchedule.SearchingAttempts,
                 LastAttemptUtc = queue?.LastAttemptUtc,
                 NextAttemptUtc = queue?.NextAttemptUtc,
-                Reason = queue?.LastError
+                Reason = queue?.LastError,
+                InQueue = queue != null,
+                QueueBucket = queue?.EnqueueReason,
+                RequeueReason = queue?.RequeueReason
             };
         }
 
@@ -1014,9 +1017,14 @@ namespace Formax.Application.UseCases
         private PostMatchSummaryDto? BuildPostMatchSummary(int matchId)
         {
             var row = _postMatchData.GetSummary(matchId);
-            if (row == null || string.IsNullOrWhiteSpace(row.Text)) return null;
+            if (row == null) return new PostMatchSummaryDto { Status = "Pending", Generator = "None" };
+            // Eski tek cümlelik satır yalnız skoru tekrar eder: analiz sayılmaz.
+            if (row.Generator == "InsufficientData" || string.IsNullOrWhiteSpace(row.Text)
+                || row.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length < 2)
+                return new PostMatchSummaryDto { Status = "InsufficientData", Generator = row.Generator, GeneratedAtUtc = row.GeneratedAtUtc };
             return new PostMatchSummaryDto
             {
+                Status = "Available",
                 Sentences = row.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 Generator = row.Generator,
                 GeneratedAtUtc = row.GeneratedAtUtc

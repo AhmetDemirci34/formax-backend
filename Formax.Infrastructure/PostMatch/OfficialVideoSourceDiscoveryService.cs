@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 
+using Formax.Application.Services.OfficialSources;
 using Formax.Application.Services.PostMatch;
 using Formax.Domain.Constants;
 using Formax.Domain.Entities;
@@ -17,355 +18,505 @@ using Microsoft.Extensions.Logging;
 
 namespace Formax.Infrastructure.PostMatch
 {
-    public sealed record SourceDiscoveryReport(int Leagues, int TeamsSeen, int Mapped, int Verified, int Candidates, int Unmapped, int HttpCalls, IReadOnlyList<string> Notes);
+    public sealed record SourceDiscoveryReport(int Leagues, int TeamsSeen, int Mapped, int Verified, int Candidates, int Unmapped, int HttpCalls,
+        IReadOnlyList<string> Notes, int LeagueSites = 0, int ClubSites = 0, int BroadcasterSites = 0, int FeedsAdded = 0);
 
     /// <summary>
-    /// RESMÎ KAYNAK KATALOĞUNU OTOMATİK BÜYÜTEN KEŞİF.
+    /// RESMÎ KAYNAK KATALOĞUNU OTOMATİK BÜYÜTEN KEŞİF — robots.txt'ye uyan iki-kanıt modeli (15.09.2026).
     ///
-    /// 1) Wikidata (kamuya açık, anahtarsız): lig öğesine bağlı kulüpler (P118), resmî YouTube kanal kimliği
-    ///    (P2397) ve resmî site (P856). Lig öğesinin kendi kanalı da alınır.
-    /// 2) FORMAX takımıyla eşleme: lig maçlarında görünen takım adı ↔ kulüp etiketi/diğer adları (katlanmış).
-    ///    Belirsiz eşleşme (birden çok kulüp) kataloğa girmez.
-    /// 3) İKİNCİ BAĞIMSIZ KANIT (zorunlu): kulübün resmî sitesindeki YouTube bağlantısı aynı kanala çıkıyor
-    ///    mu (/@handle, /user/…, /c/… sayfasının canonical kimliği) ya da kanal akışının yazar adı kulüp adıyla
-    ///    uyuşuyor mu. Wikidata kaydı TEK BAŞINA "Verified" yapmaz.
-    /// Bütün istekler nezaket katmanından geçer (host aralığı, devre kesici, robots.txt).
+    /// Eski sürüm Wikidata SPARQL (query.wikidata.org/robots.txt: <c>Disallow: /sparql</c>) ve YouTube kanal akışı yazarını
+    /// (<c>Disallow: /feeds/videos.xml</c>) kullanıyordu; ikisi de kaldırıldı. Şimdi kullanılan kanıtlar:
+    ///  E1 · Wikidata <c>Special:EntityData/Q….json</c> (robots: <c>Allow: /wiki/Special:EntityData/*.</c>) resmî site P856 host'u;
+    ///  E2 · sitenin kendi JSON-LD <c>sameAs</c> kaydında aynı Wikidata öğesi;
+    ///  E3 · doğrulanmış üst resmî sitenin (lig → kulüp/yayıncı) o host'a bağlantı vermesi;
+    ///  E4 · lig için: FORMAX resmî kaynak kayıt defterinde ölçülmüş veri host'uyla aynı alan adı;
+    ///  E5 · sitenin doğrulanmış üst resmî siteye (lig) geri bağlantısı.
+    /// Bir site ancak en az İKİ bağımsız kanıtla ve en az biri dışarıdan (E1/E3/E4) gelmek şartıyla doğrulanır; tek zayıf
+    /// kanıt Verified yapmaz. Yayıncılar elle yazılmış liste değil, lig sitesinin bağlantılarından türetilir.
     /// </summary>
     public sealed class OfficialVideoSourceDiscoveryService
     {
         public const string HttpClientName = "video-source-discovery";
 
-        /// <summary>Kilitli müsabakaların Wikidata öğeleri (14.09.2026'da SPARQL ve wbsearchentities ile doğrulandı).</summary>
+        /// <summary>Kilitli müsabakaların Wikidata öğeleri (14.09.2026'da doğrulandı).</summary>
         public static readonly IReadOnlyDictionary<int, string> LeagueQids = new Dictionary<int, string>
         {
             [39] = "Q9448", [40] = "Q19510", [140] = "Q324867", [135] = "Q15804", [78] = "Q82595",
             [61] = "Q13394", [203] = "Q485568", [88] = "Q167541", [2] = "Q18756", [3] = "Q18760", [848] = "Q59365764"
         };
 
-        private static readonly Regex YouTubeLink = new(
-            @"youtube\.com/(?:channel/(?<id>UC[A-Za-z0-9_-]{22})|(?<path>@[A-Za-z0-9._-]{2,64}|c/[A-Za-z0-9._-]{2,64}|user/[A-Za-z0-9._-]{2,64}))",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        private static readonly Regex CanonicalChannel = new(
-            @"<link rel=""canonical"" href=""https://www\.youtube\.com/channel/(?<id>UC[A-Za-z0-9_-]{22})""",
+        public static readonly IReadOnlyDictionary<int, string> LeagueCountry = new Dictionary<int, string>
+        {
+            [39] = "GB", [40] = "GB", [140] = "ES", [135] = "IT", [78] = "DE", [61] = "FR", [203] = "TR", [88] = "NL",
+            [2] = "EU", [3] = "EU", [848] = "EU"
+        };
+
+        /// <summary>Yayıncı bağlantısını sponsor/mağaza bağlantısından ayıran host/başlık işaretleri (kaynak listesi DEĞİL).</summary>
+        private static readonly Regex BroadcasterSignal = new(
+            @"(\btv\b|tv\.|sport|spor|dazn|espn|bein|sky|canal|rai|movistar|\bnos\b|trt|ziggo|viaplay|prime ?video|paramount|peacock|mediaset|telefoot|\bl1\+|ligue1plus|broadcast|televis|emittente)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private readonly FormaxDbContext _db;
         private readonly IHttpClientFactory _http;
         private readonly OfficialVideoSourceCatalog _catalog;
         private readonly ILogger<OfficialVideoSourceDiscoveryService> _log;
+        private readonly OfficialWebFeedCrawler? _crawler;
         private int _httpCalls;
 
         public OfficialVideoSourceDiscoveryService(FormaxDbContext db, IHttpClientFactory http,
-            OfficialVideoSourceCatalog catalog, ILogger<OfficialVideoSourceDiscoveryService> log)
+            OfficialVideoSourceCatalog catalog, ILogger<OfficialVideoSourceDiscoveryService> log, OfficialWebFeedCrawler? crawler = null)
         {
-            _db = db; _http = http; _catalog = catalog; _log = log;
+            _db = db; _http = http; _catalog = catalog; _log = log; _crawler = crawler;
         }
 
-        public sealed record WikidataClub(string Qid, string Label, IReadOnlyList<string> AltLabels, IReadOnlyList<string> ChannelIds, string? Website);
+        public sealed record WikidataItem(string Qid, string? Label, IReadOnlyList<string> Websites, IReadOnlyList<string> ChannelIds,
+            IReadOnlyList<string>? WikipediaUrls = null);
 
-        public async Task<SourceDiscoveryReport> RunAsync(DateTime nowUtc, int maxTeamsPerRun = 40, CancellationToken ct = default)
+        public async Task<SourceDiscoveryReport> RunAsync(DateTime nowUtc, int maxTeamsPerRun = 60, CancellationToken ct = default, int candidateRecheckHours = 6)
         {
             _httpCalls = 0;
             var notes = new List<string>();
-            int teamsSeen = 0, mapped = 0, verified = 0, candidates = 0, unmapped = 0, leagues = 0;
-            var recheckAfter = nowUtc.AddDays(-7);
+            int teamsSeen = 0, mapped = 0, verified = 0, candidates = 0, unmapped = 0, leagues = 0, leagueSites = 0, clubSites = 0, broadcasters = 0, feeds = 0;
+            var recheckAfter = nowUtc.AddDays(-14);
 
             var existing = await _db.OfficialVideoSourceCatalog.ToListAsync(ct).ConfigureAwait(false);
             var byKey = existing.ToDictionary(r => r.Key, StringComparer.OrdinalIgnoreCase);
 
             foreach (var (leagueId, qid) in LeagueQids)
             {
-                if (teamsSeen >= maxTeamsPerRun) break;
                 ct.ThrowIfCancellationRequested();
-
-                var from = nowUtc.AddDays(-150);
-                var to = nowUtc.AddDays(60);
-                var inLeague = _db.Matches.AsNoTracking()
-                    .Where(m => m.LeagueId == leagueId && m.MatchDate >= from && m.MatchDate <= to);
-                var teams = await inLeague.Select(m => m.HomeTeamId).Union(inLeague.Select(m => m.AwayTeamId))
-                    .ToListAsync(ct).ConfigureAwait(false);
-                if (teams.Count == 0) continue;
-                var teamNames = await _db.Teams.AsNoTracking().Where(t => teams.Contains(t.Id))
-                    .Select(t => new { t.Id, t.Name }).ToListAsync(ct).ConfigureAwait(false);
-
-                var pending = teamNames.Where(t => !(byKey.TryGetValue("club:" + t.Id, out var r)
-                                                     && r.LastCheckedAtUtc >= recheckAfter)).ToList();
-                var leagueKey = "league:" + leagueId;
-                var leagueDue = !(byKey.TryGetValue(leagueKey, out var lr) && lr.LastCheckedAtUtc >= recheckAfter);
-                if (pending.Count == 0 && !leagueDue) continue;
                 leagues++;
 
-                IReadOnlyList<WikidataClub> clubs;
-                WikidataClub? leagueItem;
-                try
+                // ── LİG SİTESİ ────────────────────────────────────────────────────
+                var leagueKey = "league:" + leagueId;
+                if (!byKey.TryGetValue(leagueKey, out var leagueRec))
                 {
-                    clubs = await QueryClubsAsync(qid, ct).ConfigureAwait(false);
-                    leagueItem = leagueDue ? await QueryItemAsync(qid, ct).ConfigureAwait(false) : null;
+                    leagueRec = new OfficialVideoSourceRecord
+                    {
+                        Key = leagueKey, Publisher = "league " + leagueId, Platform = "Web", Tier = OfficialVideoSourceTiers.League,
+                        LeagueIds = leagueId.ToString(CultureInfo.InvariantCulture), Status = OfficialVideoSourceCatalog.StatusCandidate,
+                        DiscoveredVia = "EntityData", VerificationEvidence = string.Empty, CreatedAtUtc = nowUtc, WikidataId = qid
+                    };
+                    _db.OfficialVideoSourceCatalog.Add(leagueRec);
+                    byKey[leagueKey] = leagueRec;
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                OfficialPageFacts? leagueFacts = null;
+                if (leagueRec.WebsiteVerifiedAtUtc == null || leagueRec.WebsiteVerifiedAtUtc < recheckAfter || leagueRec.WebsiteStatus != OfficialVideoSourceCatalog.StatusVerified)
                 {
-                    notes.Add($"league {leagueId}: wikidata okunamadi ({ex.GetType().Name})");
-                    continue;
+                    var item = await EntityDataAsync(qid, ct).ConfigureAwait(false);
+                    var registryHosts = OfficialSourceRegistry.All
+                        .Where(s => s.Status == OfficialSourceStatuses.Verified && s.LeagueIds.Contains(leagueId)).SelectMany(s => s.Hosts).ToList();
+                    leagueFacts = await VerifySiteAsync(leagueRec, item, qid, null, registryHosts, null, nowUtc, ct).ConfigureAwait(false);
+                    leagueRec.SourceKind = leagueId is 2 or 3 or 848 ? "Federation" : "League";
+                    leagueRec.Country = LeagueCountry.GetValueOrDefault(leagueId);
+                    if (leagueRec.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified) leagueSites++;
+                    await _db.SaveChangesAsync(ct).ConfigureAwait(false);
                 }
+                else if (leagueRec.Domain != null)
+                {
+                    // Doğrulanmış tam adres (ör. "/serie-a"): kökü konumsuz 307 dönen sitelerde de lig bağlantıları okunur.
+                    var leagueUrl = leagueRec.OfficialWebsite ?? "https://" + leagueRec.Domain + "/";
+                    var home = await GetAsync(leagueUrl, ct).ConfigureAwait(false);
+                    if (home.Ok) leagueFacts = OfficialWebPageParser.Parse(home.Body, leagueUrl);
+                }
+                var leagueDomain = leagueRec.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified ? leagueRec.Domain : null;
 
-                if (leagueItem != null)
-                {
-                    var rec = await VerifyAsync(leagueKey, leagueItem, leagueItem.Label, null, leagueId, OfficialVideoSourceTiers.League, nowUtc, ct).ConfigureAwait(false);
-                    Upsert(byKey, rec);
-                    if (rec.Status == OfficialVideoSourceCatalog.StatusVerified) verified++; else candidates++;
-                }
+                // ── KULÜP SİTELERİ ────────────────────────────────────────────────
+                var from = nowUtc.AddDays(-150);
+                var to = nowUtc.AddDays(60);
+                var inLeague = _db.Matches.AsNoTracking().Where(m => m.LeagueId == leagueId && m.MatchDate >= from && m.MatchDate <= to);
+                var teamIds = await inLeague.Select(m => m.HomeTeamId).Union(inLeague.Select(m => m.AwayTeamId)).ToListAsync(ct).ConfigureAwait(false);
+                var teams = await _db.Teams.AsNoTracking().Where(t => teamIds.Contains(t.Id)).Select(t => new { t.Id, t.Name }).ToListAsync(ct).ConfigureAwait(false);
 
-                foreach (var team in pending)
+                // Bütçe ligler arasında paylaşılır: bir ligin kulüpleri turun tamamını tüketip diğer ligleri aç bırakmaz.
+                var perLeague = Math.Max(6, maxTeamsPerRun / Math.Max(1, LeagueQids.Count));
+                var leagueSeen = 0;
+                foreach (var team in teams)
                 {
-                    if (teamsSeen >= maxTeamsPerRun) break;
+                    if (teamsSeen >= maxTeamsPerRun || leagueSeen >= perLeague) break;
+                    var key = "club:" + team.Id;
+                    byKey.TryGetValue(key, out var rec);
+                    if (rec != null && rec.WebsiteVerifiedAtUtc >= recheckAfter && rec.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified) continue;
+                    if (rec != null && rec.LastCheckedAtUtc >= nowUtc.AddHours(-Math.Max(0, candidateRecheckHours)) && rec.WebsiteStatus != null) continue;
                     teamsSeen++;
-                    var club = MatchClub(team.Name, clubs);
-                    if (club == null)
+                    leagueSeen++;
+
+                    if (rec == null)
+                    {
+                        rec = new OfficialVideoSourceRecord
+                        {
+                            Key = key, Publisher = team.Name, Platform = "Web", Tier = OfficialVideoSourceTiers.Club, TeamId = team.Id,
+                            ClubName = team.Name, Status = OfficialVideoSourceCatalog.StatusCandidate, DiscoveredVia = "LeagueSite",
+                            VerificationEvidence = string.Empty, CreatedAtUtc = nowUtc
+                        };
+                        _db.OfficialVideoSourceCatalog.Add(rec);
+                        byKey[key] = rec;
+                    }
+                    rec.SourceKind = "Club";
+                    rec.Country = LeagueCountry.GetValueOrDefault(leagueId) is "EU" ? rec.Country : LeagueCountry.GetValueOrDefault(leagueId);
+                    rec.ClubName ??= team.Name;
+
+                    // Aday host'lar: Wikidata P856 (öğe biliniyorsa) + lig sitesinin kulübe verdiği bağlantı.
+                    WikidataItem? item = rec.WikidataId != null ? await EntityDataAsync(rec.WikidataId, ct).ConfigureAwait(false) : null;
+                    var leagueLinks = leagueFacts == null ? new List<string>()
+                        : LinksForTeam(team.Name, leagueFacts.ExternalLinks, teams.Select(t => t.Name).ToList()).ToList();
+                    if (item == null && leagueLinks.Count == 0 && string.IsNullOrWhiteSpace(rec.OfficialWebsite))
                     {
                         unmapped++;
-                        Upsert(byKey, new OfficialVideoSourceRecord
-                        {
-                            Key = "club:" + team.Id, Publisher = team.Name, Platform = "YouTube", Tier = OfficialVideoSourceTiers.Club,
-                            TeamId = team.Id, ClubName = team.Name, Status = OfficialVideoSourceCatalog.StatusCandidate,
-                            DiscoveredVia = "Wikidata", VerificationEvidence = $"wikidata {qid} kulüp listesinde tekil eşleşme yok",
-                            CreatedAtUtc = nowUtc, LastCheckedAtUtc = nowUtc
-                        });
+                        rec.WebsiteStatus = OfficialVideoSourceCatalog.StatusCandidate;
+                        rec.WebsiteEvidence = "wikidata öğesi yok ve lig sitesi bu kulübe bağlantı vermiyor";
+                        rec.LastCheckedAtUtc = nowUtc;
                         continue;
                     }
                     mapped++;
-                    var rec = await VerifyAsync("club:" + team.Id, club, team.Name, team.Id, null, OfficialVideoSourceTiers.Club, nowUtc, ct).ConfigureAwait(false);
-                    Upsert(byKey, rec);
-                    if (rec.Status == OfficialVideoSourceCatalog.StatusVerified) verified++; else candidates++;
+                    var facts = await VerifySiteAsync(rec, item, rec.WikidataId, leagueDomain, Array.Empty<string>(), leagueLinks, nowUtc, ct).ConfigureAwait(false);
+                    if (rec.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified) { clubSites++; verified++; } else candidates++;
+                    await _db.SaveChangesAsync(ct).ConfigureAwait(false);
                 }
+
+                // ── YAYINCI SİTELERİ (lig sitesinin bağlantılarından; elle yazılmış liste yok) ──
+                if (leagueFacts != null && leagueDomain != null)
+                    broadcasters += await DiscoverBroadcastersAsync(leagueId, leagueDomain, leagueFacts, byKey, nowUtc, ct).ConfigureAwait(false);
                 await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            }
+
+            var demoted = DemoteInconsistent(byKey.Values, nowUtc);
+            if (demoted > 0) notes.Add($"tutarsız {demoted} kayıt doğrulamadan çıkarıldı");
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            // ── DOĞRULANMIŞ SİTELERİN AKIŞLARI ────────────────────────────────────────
+            if (_crawler != null)
+            {
+                foreach (var r in byKey.Values.Where(r => r.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified && r.IsActive && r.Domain != null
+                                                          && (r.FeedsDiscoveredAtUtc == null || r.FeedsDiscoveredAtUtc < nowUtc.AddDays(-7))).Take(40))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try { feeds += await _crawler.DiscoverFeedsAsync(r, nowUtc, ct).ConfigureAwait(false); }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        OfficialWebFeedCrawler.RecordFailure(r, nowUtc, "akış keşfi: " + ex.GetType().Name);
+                    }
+                }
+                _httpCalls += _crawler.HttpCalls;
             }
 
             await _db.SaveChangesAsync(ct).ConfigureAwait(false);
             _catalog.Invalidate();
-            var report = new SourceDiscoveryReport(leagues, teamsSeen, mapped, verified, candidates, unmapped, _httpCalls, notes);
-            _log.LogInformation("[VIDEO-SOURCES] kesif: lig={Leagues} takim={Teams} eslesen={Mapped} dogrulanan={Verified} aday={Cand} eslesmeyen={Unmapped} http={Http}",
-                leagues, teamsSeen, mapped, verified, candidates, unmapped, _httpCalls);
+            var report = new SourceDiscoveryReport(leagues, teamsSeen, mapped, verified, candidates, unmapped, _httpCalls, notes, leagueSites, clubSites, broadcasters, feeds);
+            _log.LogInformation("[VIDEO-SOURCES] kesif: lig={Leagues} ligSitesi={LeagueSites} takim={Teams} kulupSitesi={Clubs} yayinci={Broadcasters} aday={Cand} eslesmeyen={Unmapped} akis={Feeds} http={Http}",
+                leagues, leagueSites, teamsSeen, clubSites, broadcasters, candidates, unmapped, feeds, _httpCalls);
             return report;
         }
 
-        private void Upsert(Dictionary<string, OfficialVideoSourceRecord> byKey, OfficialVideoSourceRecord rec)
+        /// <summary>
+        /// Tek siteyi iki bağımsız kanıtla doğrular ve kayda yazar. Dönüş: okunan ana sayfanın gerçekleri (alt keşif için).
+        /// </summary>
+        private async Task<OfficialPageFacts?> VerifySiteAsync(OfficialVideoSourceRecord rec, WikidataItem? item, string? qid, string? parentDomain,
+            IReadOnlyList<string> registryHosts, IReadOnlyList<string>? parentLinks, DateTime nowUtc, CancellationToken ct)
         {
-            if (byKey.TryGetValue(rec.Key, out var row))
+            // Aday adresler TAM haliyle denenir (Wikidata P856 "https://www.legaseriea.it/serie-a"): bazı sitelerin kökü dil/konum
+            // tespiti için Location'sız 307 döner (ölçüldü 15.09.2026). Aynı host ikinci kez denenmez.
+            var urls = new List<string>();
+            foreach (var w in item?.Websites ?? Array.Empty<string>())
+                if (Uri.TryCreate(w, UriKind.Absolute, out var u)) urls.Add(u.Scheme == Uri.UriSchemeHttp ? "https://" + u.Host + u.PathAndQuery : u.AbsoluteUri);
+            foreach (var l in parentLinks ?? Array.Empty<string>())
+                if (Uri.TryCreate(l, UriKind.Absolute, out var u)) urls.Add("https://" + u.Host + "/");
+            if (!string.IsNullOrWhiteSpace(rec.OfficialWebsite) && Uri.TryCreate(rec.OfficialWebsite, UriKind.Absolute, out var ow)) urls.Add("https://" + ow.Host + ow.PathAndQuery);
+
+            rec.LastCheckedAtUtc = nowUtc;
+            if (item?.Label != null && rec.Tier != OfficialVideoSourceTiers.Club) rec.Publisher = Trim(item.Label, 160);
+
+            foreach (var target in urls.DistinctBy(x => new Uri(x).Host.ToLowerInvariant()).Take(2))
             {
-                row.Publisher = rec.Publisher; row.YouTubeChannelId = rec.YouTubeChannelId; row.Tier = rec.Tier;
-                row.TeamId = rec.TeamId; row.ClubName = rec.ClubName; row.LeagueIds = rec.LeagueIds;
-                row.AllowsInAppEmbed = rec.AllowsInAppEmbed; row.DiscoveredVia = rec.DiscoveredVia;
-                row.WikidataId = rec.WikidataId; row.OfficialWebsite = rec.OfficialWebsite;
-                row.VerificationEvidence = rec.VerificationEvidence; row.LastCheckedAtUtc = rec.LastCheckedAtUtc;
-                // Bir kez doğrulanmış kaynak geçici bir ağ hatasıyla düşürülmez; ancak yeni kanıt aksini söylerse düşer.
-                if (!(row.Status == OfficialVideoSourceCatalog.StatusVerified && rec.DiscoveredVia == "Unreachable"))
+                var host = new Uri(target).Host.ToLowerInvariant();
+                var page = await GetAsync(target, ct).ConfigureAwait(false);
+                if (!page.Ok && new Uri(target).AbsolutePath != "/")
+                    page = await GetAsync("https://" + host + "/", ct).ConfigureAwait(false);
+                if (!page.Ok)
                 {
-                    row.Status = rec.Status;
-                    if (rec.Status == OfficialVideoSourceCatalog.StatusVerified) row.VerifiedAtUtc ??= rec.VerifiedAtUtc;
+                    rec.RobotsStatus = page.Status == 451 ? "Disallowed" : rec.RobotsStatus;
+                    OfficialWebFeedCrawler.RecordFailure(rec, nowUtc, $"{host} ana sayfa okunamadı ({page.Status?.ToString(CultureInfo.InvariantCulture) ?? page.Error})");
+                    continue;
                 }
-                return;
-            }
-            _db.OfficialVideoSourceCatalog.Add(rec);
-            byKey[rec.Key] = rec;
-        }
-
-        /// <summary>Tek kulüp/lig için kanal kanıtı toplar ve karar verir.</summary>
-        private async Task<OfficialVideoSourceRecord> VerifyAsync(string key, WikidataClub item, string displayName, int? teamId,
-            int? leagueId, int tier, DateTime nowUtc, CancellationToken ct)
-        {
-            var evidence = new List<string>();
-            var siteChannels = new List<string>();
-            var reachable = true;
-            if (!string.IsNullOrWhiteSpace(item.Website))
-            {
-                var (ok, html) = await GetAsync(item.Website!, ct).ConfigureAwait(false);
-                reachable = ok;
-                if (ok)
-                    foreach (var link in ExtractYouTubeLinks(html))
-                    {
-                        var id = link.StartsWith("UC", StringComparison.Ordinal) ? link : await ResolveChannelAsync(link, ct).ConfigureAwait(false);
-                        if (id != null && !siteChannels.Contains(id)) siteChannels.Add(id);
-                    }
-                evidence.Add(ok ? $"resmî site {Host(item.Website!)} okundu, kanal bağlantıları: {string.Join(",", siteChannels)}"
-                                : $"resmî site {Host(item.Website!)} okunamadı/robots izin vermedi");
-            }
-
-            // Aday sırası: Wikidata P2397 ∩ site → site → Wikidata.
-            var ordered = item.ChannelIds.Where(siteChannels.Contains)
-                .Concat(siteChannels).Concat(item.ChannelIds).Distinct(StringComparer.Ordinal).ToList();
-
-            foreach (var channel in ordered.Take(3))
-            {
-                var wikidata = item.ChannelIds.Contains(channel);
-                var site = siteChannels.Contains(channel);
-                var author = await FeedAuthorAsync(channel, ct).ConfigureAwait(false);
-                var authorMatches = author != null && NamesMatch(author, displayName, item);
-                var proofs = (wikidata ? 1 : 0) + (site ? 1 : 0) + (authorMatches ? 1 : 0);
-                if (proofs >= 2)
+                var finalHost = page.FinalHost ?? host;
+                var facts = OfficialWebPageParser.Parse(page.Body, "https://" + finalHost + "/");
+                if (qid == null && facts.WikidataIds.Count == 1 && rec.Tier == OfficialVideoSourceTiers.Club)
                 {
-                    evidence.Add($"kanal {channel}: " + string.Join(" + ", new[]
-                    {
-                        wikidata ? $"Wikidata {item.Qid} P2397" : null,
-                        site ? "kulübün resmî sitesindeki bağlantı" : null,
-                        authorMatches ? $"akış yazar adı \"{author}\"" : null
-                    }.Where(x => x != null)));
-                    return Record(key, author ?? displayName, channel, tier, teamId, displayName, leagueId,
-                        OfficialVideoSourceCatalog.StatusVerified,
-                        string.Join("+", new[] { wikidata ? "Wikidata" : null, site ? "OfficialSite" : null, authorMatches ? "ChannelName" : null }.Where(x => x != null)),
-                        item, evidence, nowUtc);
+                    // Kulüp öğesi bilinmiyordu: sitenin kendi sameAs kaydındaki öğe Wikidata'dan geri doğrulanır (E1'e dönüşür).
+                    qid = facts.WikidataIds[0];
+                    item = await EntityDataAsync(qid, ct).ConfigureAwait(false);
                 }
-                evidence.Add($"kanal {channel}: yetersiz kanıt (wikidata={wikidata}, site={site}, yazar={author ?? "-"})");
+
+                var evidence = new List<string>();
+                var external = 0;
+                if (item?.Websites.Any(w => Uri.TryCreate(w, UriKind.Absolute, out var wu) && OfficialWebPageParser.SameSite(wu.Host, finalHost)) == true)
+                { evidence.Add($"E1 wikidata:{qid} P856={finalHost}"); external++; }
+                if (qid != null && facts.WikidataIds.Contains(qid)) evidence.Add($"E2 site-sameAs:{qid}");
+                else if (item?.WikipediaUrls is { Count: > 0 } wikis && facts.SameAs.Any(sa => wikis.Any(w => SameWikipediaArticle(sa, w))))
+                    // Sitenin kendi sameAs kaydındaki Wikipedia maddesi, Wikidata öğesinin site bağlantılarından biri (iki yönlü kimlik).
+                    evidence.Add($"E2 site-sameAs-wikipedia:{qid}");
+                if (parentLinks?.Any(l => Uri.TryCreate(l, UriKind.Absolute, out var lu) && OfficialWebPageParser.SameSite(lu.Host, finalHost)) == true)
+                { evidence.Add($"E3 parent-link:{parentDomain}"); external++; }
+                if (registryHosts.Any(h => OfficialWebPageParser.SameSite(h, finalHost)))
+                { evidence.Add($"E4 official-data-host:{string.Join("|", registryHosts)}"); external++; }
+                else if (registryHosts.Count > 0 && RegistryNotesMention(finalHost, rec.LeagueIds))
+                {
+                    // FORMAX kayıt defterinde ölçülmüş: ligin resmî veri ucu bu sitenin kendi sayfasında/paketinde yayımlanıyor.
+                    evidence.Add($"E4 registry-measured-publisher:{finalHost}"); external++;
+                }
+                if (registryHosts.Any(h => page.Body.Contains(h, StringComparison.OrdinalIgnoreCase)))
+                    evidence.Add("E6 site-references-official-data-host");
+                if (parentDomain != null && facts.ExternalLinks.Any(l => Uri.TryCreate(l.Href, UriKind.Absolute, out var pu) && OfficialWebPageParser.SameSite(pu.Host, parentDomain)))
+                    evidence.Add($"E5 backlink:{parentDomain}");
+
+                rec.WikidataId ??= qid;
+                rec.OfficialWebsite = Trim(page.FinalUrl ?? target, 300);
+                rec.WebsiteEvidence = Trim(string.Join(" | ", evidence), 1000);
+                if (facts.YouTubeHandles.Count > 0) rec.SiteYouTubeHandles = Trim(string.Join(",", facts.YouTubeHandles), 600);
+                rec.LastSuccessUtc = nowUtc; rec.FailureCount = 0; rec.LastError = null; rec.CircuitState = "Closed"; rec.CircuitOpenUntilUtc = null;
+                if (evidence.Count >= 2 && external >= 1)
+                {
+                    rec.Domain = finalHost;
+                    rec.WebsiteStatus = OfficialVideoSourceCatalog.StatusVerified;
+                    rec.WebsiteVerifiedAtUtc ??= nowUtc;
+                    rec.IsActive = true;
+                    rec.VerificationEvidence = Trim((rec.VerificationEvidence.Length > 0 ? rec.VerificationEvidence + " || " : "") + "site: " + rec.WebsiteEvidence, 1000);
+                    return facts;
+                }
+                rec.WebsiteStatus = OfficialVideoSourceCatalog.StatusCandidate;
             }
-
-            return Record(key, displayName, ordered.FirstOrDefault(), tier, teamId, displayName, leagueId,
-                OfficialVideoSourceCatalog.StatusCandidate, reachable ? "Wikidata" : "Unreachable", item, evidence, nowUtc);
+            return null;
         }
 
-        private static OfficialVideoSourceRecord Record(string key, string publisher, string? channel, int tier, int? teamId, string clubName,
-            int? leagueId, string status, string via, WikidataClub item, List<string> evidence, DateTime nowUtc)
-            => new()
+        public static bool SameWikipediaArticle(string a, string b)
+        {
+            static string Norm(string url)
             {
-                Key = key, Publisher = Trim(publisher, 160), Platform = "YouTube", YouTubeChannelId = channel, Tier = tier,
-                TeamId = teamId, ClubName = teamId != null ? Trim(clubName, 160) : null,
-                LeagueIds = leagueId?.ToString(), AllowsInAppEmbed = true, Status = status, DiscoveredVia = via,
-                WikidataId = item.Qid, OfficialWebsite = item.Website == null ? null : Trim(item.Website, 300),
-                VerificationEvidence = Trim(string.Join(" | ", evidence), 1000),
-                CreatedAtUtc = nowUtc, LastCheckedAtUtc = nowUtc,
-                VerifiedAtUtc = status == OfficialVideoSourceCatalog.StatusVerified ? nowUtc : null
-            };
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || !u.Host.EndsWith("wikipedia.org", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+                var host = u.Host.ToLowerInvariant().Replace(".m.", ".");
+                return host + Uri.UnescapeDataString(u.AbsolutePath).Replace(' ', '_').TrimEnd('/').ToLowerInvariant();
+            }
+            var na = Norm(a);
+            return na.Length > 0 && na == Norm(b);
+        }
 
-        // ── Eşleme ve kanıt yardımcıları (saf) ───────────────────────────────────────
-
-        /// <summary>FORMAX takım adına TEK kulüp eşler; belirsizse null.</summary>
-        public static WikidataClub? MatchClub(string teamName, IReadOnlyList<WikidataClub> clubs)
+        /// <summary>Kayıt defterinde bu ligin doğrulanmış kaynağının ölçüm notu sitenin alan adını anıyor mu?</summary>
+        private static bool RegistryNotesMention(string host, string? leagueIds)
         {
-            var team = Norm(teamName);
-            if (team.Length < 3) return null;
-            var aliases = TeamNameAliases.For(teamName).Select(Norm).Append(team).ToList();
-            var hits = clubs.Where(c =>
+            var ids = (leagueIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var v) ? v : 0).ToHashSet();
+            var root = host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? host[4..] : host;
+            return OfficialSourceRegistry.All.Any(s => s.Status == OfficialSourceStatuses.Verified && s.LeagueIds.Any(ids.Contains)
+                                                       && s.EvidenceNote.Contains(root, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Lig sitesinin dış bağlantılarından yayıncı adayları: yayıncı işareti taşıyan host, adayın kendi sitesi ligi anıyor ya da
+        /// lig sitesine bağlantı veriyor. İki kanıt: E3 (lig bağlantısı) + E5/ad (yayıncının lig ilişkisi).
+        /// </summary>
+        private async Task<int> DiscoverBroadcastersAsync(int leagueId, string leagueDomain, OfficialPageFacts leagueFacts,
+            Dictionary<string, OfficialVideoSourceRecord> byKey, DateTime nowUtc, CancellationToken ct)
+        {
+            var leagueRec = byKey["league:" + leagueId];
+            var leagueWords = MatchVideoIdentityValidator.Fold(leagueRec.Publisher).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 4).ToList();
+            var clubHosts = byKey.Values.Where(r => r.Domain != null && r.Tier == OfficialVideoSourceTiers.Club).Select(r => r.Domain!).ToList();
+            var linkHosts = leagueFacts.ExternalLinks
+                .Where(l => Uri.TryCreate(l.Href, UriKind.Absolute, out _))
+                .Select(l => (Host: new Uri(l.Href).Host.ToLowerInvariant(), l.Text))
+                .Where(x => !clubHosts.Any(c => OfficialWebPageParser.SameSite(c, x.Host))
+                            && !Regex.IsMatch(x.Host, @"(facebook|instagram|twitter|x\.com|tiktok|youtube|linkedin|apple|google|wikipedia|whatsapp|snapchat|twitch|spotify)", RegexOptions.IgnoreCase)
+                            // Yayıncı işareti yalnız HOST adında aranır (bağlantı metni kulüp/sponsor bağlantılarında da geçebiliyordu: ölçüldü asnl.net).
+                            && BroadcasterSignal.IsMatch(x.Host))
+                .GroupBy(x => x.Host).Select(g => g.First()).Take(6).ToList();
+
+            var verified = 0;
+            foreach (var (host, text) in linkHosts)
             {
-                var names = c.AltLabels.Append(c.Label).Select(Norm).Select(StripClubWords).Where(n => n.Length >= 3).ToList();
-                return names.Any(n => aliases.Any(a => n == a || n == StripClubWords(a)))
-                       || names.Any(n => aliases.Any(a => Contains(n, a) || Contains(a, n)));
-            }).ToList();
-            if (hits.Count <= 1) return hits.FirstOrDefault();
-            // Tam eşleşen varsa o; yoksa belirsiz.
-            var exact = hits.Where(c => c.AltLabels.Append(c.Label).Select(Norm).Select(StripClubWords).Any(n => aliases.Contains(n))).ToList();
-            return exact.Count == 1 ? exact[0] : null;
+                ct.ThrowIfCancellationRequested();
+                var key = "broadcaster:" + host;
+                if (byKey.TryGetValue(key, out var rec) && rec.LastCheckedAtUtc >= nowUtc.AddDays(-7)) continue;
+                var page = await GetAsync("https://" + host + "/", ct).ConfigureAwait(false);
+                if (rec == null)
+                {
+                    rec = new OfficialVideoSourceRecord
+                    {
+                        Key = Trim(key, 80), Publisher = Trim(string.IsNullOrWhiteSpace(text) ? host : text, 160), Platform = "Web",
+                        Tier = OfficialVideoSourceTiers.Broadcaster, LeagueIds = leagueId.ToString(CultureInfo.InvariantCulture),
+                        Status = OfficialVideoSourceCatalog.StatusCandidate, DiscoveredVia = "LeagueSiteLink", VerificationEvidence = string.Empty,
+                        CreatedAtUtc = nowUtc, SourceKind = "Broadcaster", Country = LeagueCountry.GetValueOrDefault(leagueId)
+                    };
+                    _db.OfficialVideoSourceCatalog.Add(rec);
+                    byKey[rec.Key] = rec;
+                }
+                else if (!(rec.LeagueIds ?? "").Split(',').Contains(leagueId.ToString(CultureInfo.InvariantCulture)))
+                    rec.LeagueIds = Trim(string.Join(",", (rec.LeagueIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Append(leagueId.ToString(CultureInfo.InvariantCulture))), 100);
+                rec.LastCheckedAtUtc = nowUtc;
+                if (!page.Ok) { OfficialWebFeedCrawler.RecordFailure(rec, nowUtc, $"{host} okunamadı ({page.Status?.ToString(CultureInfo.InvariantCulture) ?? page.Error})"); continue; }
+
+                var facts = OfficialWebPageParser.Parse(page.Body, "https://" + (page.FinalHost ?? host) + "/");
+                var folded = MatchVideoIdentityValidator.Fold(facts.Title + " " + Regex.Replace(page.Body.Length > 400_000 ? page.Body[..400_000] : page.Body, "<[^>]+>", " "));
+                var mentionsLeague = leagueWords.Count > 0 && leagueWords.All(w => folded.Contains(w, StringComparison.Ordinal));
+                var backlink = facts.ExternalLinks.Any(l => Uri.TryCreate(l.Href, UriKind.Absolute, out var u) && OfficialWebPageParser.SameSite(u.Host, leagueDomain));
+                var evidence = new List<string> { $"E3 league-link:{leagueDomain}" };
+                if (backlink) evidence.Add($"E5 backlink:{leagueDomain}");
+                if (mentionsLeague) evidence.Add($"league-named:{leagueRec.Publisher}");
+                rec.WebsiteEvidence = Trim(string.Join(" | ", evidence), 1000);
+                if (evidence.Count >= 2)
+                {
+                    rec.Domain = page.FinalHost ?? host;
+                    rec.OfficialWebsite = Trim("https://" + rec.Domain + "/", 300);
+                    rec.WebsiteStatus = OfficialVideoSourceCatalog.StatusVerified;
+                    rec.WebsiteVerifiedAtUtc ??= nowUtc;
+                    verified++;
+                }
+                else rec.WebsiteStatus = OfficialVideoSourceCatalog.StatusCandidate;
+            }
+            return verified;
         }
 
-        public static IReadOnlyList<string> ExtractYouTubeLinks(string html)
-            => YouTubeLink.Matches(html ?? string.Empty)
-                .Select(m => m.Groups["id"].Success ? m.Groups["id"].Value : m.Groups["path"].Value)
-                .Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToList();
-
-        public static string? ParseCanonicalChannel(string html)
+        /// <summary>Lig sitesinin dış bağlantılarından bu kulübe ait olanlar (bağlantı metni takım adı ya da host takım adını içeriyor).</summary>
+        public static IEnumerable<string> LinksForTeam(string teamName, IReadOnlyList<(string Href, string Text)> links,
+            IReadOnlyCollection<string>? otherTeamsInLeague = null)
         {
-            var m = CanonicalChannel.Match(html ?? string.Empty);
-            return m.Success ? m.Groups["id"].Value : null;
+            // Bağlantı, ligdeki takımlar arasında EN İYİ ve TEK eşleşen takıma aittir. Metin eşleşmesi ortak parça sayısıyla, host
+            // eşleşmesi takımın BÜTÜN ayırt edici parçalarını içermesiyle puanlanır ("paris" tek başına PSG değildir — ölçüldü: parisfc.fr;
+            // "Paris Saint-Germain" metni "Paris FC"nin alt kümesi olsa da PSG'ye daha çok parçayla uyar).
+            var league = (otherTeamsInLeague ?? Array.Empty<string>()).Append(teamName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var (href, text) in links)
+            {
+                if (!Uri.TryCreate(href, UriKind.Absolute, out var u)) continue;
+                if (Regex.IsMatch(u.Host, @"(facebook|instagram|twitter|x\.com|tiktok|youtube|linkedin|wikipedia|apple|google)", RegexOptions.IgnoreCase)) continue;
+                var host = Regex.Replace(u.Host.ToLowerInvariant(), @"[^a-z0-9]", "");
+                var scores = league.Select(t => (Team: t, Score: LinkScore(text, host, t))).Where(x => x.Score > 0).ToList();
+                if (scores.Count == 0) continue;
+                var best = scores.Max(x => x.Score);
+                var winners = scores.Where(x => x.Score == best).ToList();
+                if (winners.Count == 1 && string.Equals(winners[0].Team, teamName, StringComparison.OrdinalIgnoreCase))
+                    yield return u.GetLeftPart(UriPartial.Authority) + "/";
+            }
         }
 
-        public static bool NamesMatch(string author, string displayName, WikidataClub item)
+        private static int LinkScore(string text, string host, string team)
         {
-            var a = StripClubWords(Norm(author));
-            if (a.Length < 3) return false;
-            return item.AltLabels.Append(item.Label).Append(displayName).Select(Norm).Select(StripClubWords)
-                .Where(n => n.Length >= 3).Any(n => a == n || Contains(a, n) || Contains(n, a));
+            var teamTokens = OfficialTeamNameMatcher.Tokens(team).Where(t => t.Length >= 3).ToList();
+            if (teamTokens.Count == 0) return 0;
+            var score = 0;
+            if (!string.IsNullOrWhiteSpace(text) && OfficialTeamNameMatcher.SameTeam(text, team))
+            {
+                var textTokens = OfficialTeamNameMatcher.Tokens(text).ToHashSet(StringComparer.Ordinal);
+                score = 100 + teamTokens.Count(textTokens.Contains) * 10 - Math.Abs(textTokens.Count - teamTokens.Count);
+            }
+            var hostTokens = teamTokens.Where(t => t.Length >= 4).ToList();
+            if (hostTokens.Count > 0 && hostTokens.All(t => host.Contains(t, StringComparison.Ordinal)))
+                score = Math.Max(score, 50 + hostTokens.Count * 10);
+            return score;
         }
 
-        private static readonly Regex ClubWords = new(@"\b(fc|cf|afc|sc|ac|as|ssc|us|rc|rcd|sk|fk|club|football|futbol|calcio|de|of|the|a f c|f c|c f|s p a|spa)\b",
-            RegexOptions.CultureInvariant);
-
-        private static string Norm(string s) => Regex.Replace(MatchVideoIdentityValidator.Fold(s), @"[^a-z0-9]+", " ").Trim();
-        private static string StripClubWords(string s) => Regex.Replace(ClubWords.Replace(s, " "), @"\s+", " ").Trim();
-        private static bool Contains(string hay, string needle) => needle.Length >= 5 && (" " + hay + " ").Contains(" " + needle + " ", StringComparison.Ordinal);
-        private static string Host(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : url;
-        private static string Trim(string s, int max) => s.Length <= max ? s : s[..max];
+        /// <summary>
+        /// Tutarlılık bekçisi: aynı alan adına birden çok kulüp doğrulanmışsa (ya da yayıncı kaydı artık yayıncı işareti taşımıyorsa)
+        /// kayıtlar doğrulamadan çıkarılır; yanlış eşleşme kendiliğinden düzelir.
+        /// </summary>
+        public static int DemoteInconsistent(IEnumerable<OfficialVideoSourceRecord> records, DateTime nowUtc)
+        {
+            var demoted = 0;
+            var list = records.ToList();
+            foreach (var g in list.Where(r => r.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified && r.Tier == OfficialVideoSourceTiers.Club && r.Domain != null)
+                         .GroupBy(r => r.Domain!, StringComparer.OrdinalIgnoreCase).Where(g => g.Select(r => r.TeamId).Distinct().Count() > 1))
+                foreach (var r in g)
+                {
+                    r.WebsiteStatus = OfficialVideoSourceCatalog.StatusCandidate;
+                    r.WebsiteEvidence = Trim($"aynı alan adı ({g.Key}) birden çok kulübe eşlendi — belirsiz, doğrulama kaldırıldı | {r.WebsiteEvidence}", 1000);
+                    r.WebsiteVerifiedAtUtc = null;
+                    r.OfficialWebsite = null;
+                    r.Domain = null;
+                    r.LastCheckedAtUtc = nowUtc.AddDays(-1);
+                    demoted++;
+                }
+            foreach (var r in list.Where(r => r.SourceKind == "Broadcaster" && r.WebsiteStatus == OfficialVideoSourceCatalog.StatusVerified
+                                              && (r.Domain == null || !BroadcasterSignal.IsMatch(r.Domain))))
+            {
+                r.WebsiteStatus = OfficialVideoSourceCatalog.StatusRejected;
+                r.IsActive = false;
+                r.WebsiteEvidence = Trim("yayıncı işareti host adında yok (kulüp/sponsor bağlantısı) — reddedildi | " + r.WebsiteEvidence, 1000);
+                demoted++;
+            }
+            return demoted;
+        }
 
         // ── Ağ ──────────────────────────────────────────────────────────────────────
 
-        private async Task<(bool Ok, string Body)> GetAsync(string url, CancellationToken ct)
+        private sealed record Page(bool Ok, int? Status, string Body, string? Error, string? FinalHost, string? FinalUrl = null);
+
+        private async Task<Page> GetAsync(string url, CancellationToken ct)
         {
             try
             {
                 _httpCalls++;
                 var client = _http.CreateClient(HttpClientName);
                 using var res = await client.GetAsync(url, ct).ConfigureAwait(false);
-                if (!res.IsSuccessStatusCode) return (false, string.Empty);
+                var code = (int)res.StatusCode;
+                if (!res.IsSuccessStatusCode) return new Page(false, code, string.Empty, res.ReasonPhrase, null);
                 var body = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                return (true, body.Length > 3_000_000 ? body[..3_000_000] : body);
+                return new Page(true, code, body.Length > 3_000_000 ? body[..3_000_000] : body, null, res.RequestMessage?.RequestUri?.Host, res.RequestMessage?.RequestUri?.AbsoluteUri);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
             {
-                return (false, string.Empty);
+                return new Page(false, null, string.Empty, ex.GetType().Name, null);
             }
         }
 
-        private async Task<string?> ResolveChannelAsync(string path, CancellationToken ct)
+        /// <summary>Wikidata <c>Special:EntityData/Q….json</c> — robots.txt açıkça izin veriyor.</summary>
+        private async Task<WikidataItem?> EntityDataAsync(string qid, CancellationToken ct)
         {
-            var (ok, html) = await GetAsync("https://www.youtube.com/" + path, ct).ConfigureAwait(false);
-            return ok ? ParseCanonicalChannel(html) : null;
+            if (!Regex.IsMatch(qid ?? string.Empty, "^Q[0-9]+$")) return null;
+            var page = await GetAsync($"https://www.wikidata.org/wiki/Special:EntityData/{qid}.json", ct).ConfigureAwait(false);
+            return page.Ok ? ParseEntityData(page.Body, qid!) : null;
         }
 
-        private async Task<string?> FeedAuthorAsync(string channelId, CancellationToken ct)
+        public static WikidataItem? ParseEntityData(string json, string qid)
         {
-            var (ok, xml) = await GetAsync("https://www.youtube.com/feeds/videos.xml?channel_id=" + Uri.EscapeDataString(channelId), ct).ConfigureAwait(false);
-            if (!ok) return null;
             try
             {
-                XNamespace atom = "http://www.w3.org/2005/Atom";
-                return XDocument.Parse(xml).Root?.Element(atom + "author")?.Element(atom + "name")?.Value;
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("entities", out var entities)) return null;
+                JsonElement entity = default;
+                var found = false;
+                foreach (var p in entities.EnumerateObject()) { entity = p.Value; found = true; break; }
+                if (!found) return null;
+                string? label = null;
+                if (entity.TryGetProperty("labels", out var labels))
+                    foreach (var lang in new[] { "en", "it", "es", "fr", "de", "tr", "nl" })
+                        if (labels.TryGetProperty(lang, out var l) && l.TryGetProperty("value", out var lv)) { label = lv.GetString(); break; }
+                var sites = Claims(entity, "P856");
+                var channels = Claims(entity, "P2397").Where(x => Regex.IsMatch(x, "^UC[A-Za-z0-9_-]{22}$")).ToList();
+                var wikis = new List<string>();
+                if (entity.TryGetProperty("sitelinks", out var links))
+                    foreach (var l in links.EnumerateObject())
+                    {
+                        if (!l.Name.EndsWith("wiki", StringComparison.Ordinal) || l.Name.Contains("quote") || l.Name.Contains("news")) continue;
+                        if (l.Value.TryGetProperty("url", out var url) && url.ValueKind == JsonValueKind.String) wikis.Add(url.GetString()!);
+                        else if (l.Value.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+                            wikis.Add($"https://{l.Name[..^4].Replace('_', '-')}.wikipedia.org/wiki/{title.GetString()!.Replace(' ', '_')}");
+                    }
+                return new WikidataItem(qid, label, sites, channels, wikis);
             }
-            catch { return null; }
+            catch (JsonException) { return null; }
         }
 
-        private async Task<IReadOnlyList<WikidataClub>> QueryClubsAsync(string leagueQid, CancellationToken ct)
+        private static List<string> Claims(JsonElement entity, string property)
         {
-            var sparql = "SELECT ?club ?clubLabel (GROUP_CONCAT(DISTINCT ?alt;separator=\"|\") AS ?alts) " +
-                         "(GROUP_CONCAT(DISTINCT ?yt;separator=\",\") AS ?yts) (SAMPLE(?site) AS ?website) WHERE { " +
-                         $"?club wdt:P118 wd:{leagueQid} . ?club wdt:P31 wd:Q476028 . " +
-                         "OPTIONAL { ?club skos:altLabel ?alt . FILTER(LANG(?alt) = \"en\") } " +
-                         "OPTIONAL { ?club wdt:P2397 ?yt } OPTIONAL { ?club wdt:P856 ?site } " +
-                         "SERVICE wikibase:label { bd:serviceParam wikibase:language \"en\". } } GROUP BY ?club ?clubLabel";
-            return await SparqlAsync(sparql, ct).ConfigureAwait(false);
-        }
-
-        private async Task<WikidataClub?> QueryItemAsync(string qid, CancellationToken ct)
-        {
-            var sparql = "SELECT ?club ?clubLabel (GROUP_CONCAT(DISTINCT ?alt;separator=\"|\") AS ?alts) " +
-                         "(GROUP_CONCAT(DISTINCT ?yt;separator=\",\") AS ?yts) (SAMPLE(?site) AS ?website) WHERE { " +
-                         $"VALUES ?club {{ wd:{qid} }} " +
-                         "OPTIONAL { ?club skos:altLabel ?alt . FILTER(LANG(?alt) = \"en\") } " +
-                         "OPTIONAL { ?club wdt:P2397 ?yt } OPTIONAL { ?club wdt:P856 ?site } " +
-                         "SERVICE wikibase:label { bd:serviceParam wikibase:language \"en\". } } GROUP BY ?club ?clubLabel";
-            return (await SparqlAsync(sparql, ct).ConfigureAwait(false)).FirstOrDefault();
-        }
-
-        private async Task<IReadOnlyList<WikidataClub>> SparqlAsync(string sparql, CancellationToken ct)
-        {
-            var url = "https://query.wikidata.org/sparql?format=json&query=" + Uri.EscapeDataString(sparql);
-            var (ok, body) = await GetAsync(url, ct).ConfigureAwait(false);
-            if (!ok) throw new HttpRequestException("wikidata sparql failed");
-            return ParseSparql(body);
-        }
-
-        public static IReadOnlyList<WikidataClub> ParseSparql(string json)
-        {
-            using var doc = JsonDocument.Parse(json);
-            var list = new List<WikidataClub>();
-            foreach (var b in doc.RootElement.GetProperty("results").GetProperty("bindings").EnumerateArray())
+            var list = new List<string>();
+            if (!entity.TryGetProperty("claims", out var claims) || !claims.TryGetProperty(property, out var arr)) return list;
+            foreach (var c in arr.EnumerateArray())
             {
-                string? V(string name) => b.TryGetProperty(name, out var p) ? p.GetProperty("value").GetString() : null;
-                var qid = (V("club") ?? string.Empty).Split('/').Last();
-                var label = V("clubLabel") ?? qid;
-                if (string.IsNullOrWhiteSpace(qid)) continue;
-                list.Add(new WikidataClub(qid, label,
-                    (V("alts") ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries),
-                    (V("yts") ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries)
-                        .Where(x => Regex.IsMatch(x, "^UC[A-Za-z0-9_-]{22}$")).ToList(),
-                    V("website")));
+                // Tercih edilmeyen (deprecated) sıra kanıt sayılmaz.
+                if (c.TryGetProperty("rank", out var rank) && rank.GetString() == "deprecated") continue;
+                if (c.TryGetProperty("mainsnak", out var snak) && snak.TryGetProperty("datavalue", out var dv)
+                    && dv.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.String)
+                    list.Add(v.GetString()!);
             }
             return list;
         }
+
+        private static string Trim(string s, int max) => s.Length <= max ? s : s[..max];
     }
 }

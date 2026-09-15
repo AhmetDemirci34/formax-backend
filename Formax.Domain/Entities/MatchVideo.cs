@@ -129,6 +129,21 @@ namespace Formax.Domain.Entities
         public string VerificationNote { get; set; } = string.Empty;
 
         public DateTime VerifiedAtUtc { get; set; }
+
+        // ── KANIT ZİNCİRİ (15.09.2026) ──────────────────────────────────────────
+        /// <summary>
+        /// Videonun hangi yolla bulunduğu: "OfficialWeb" (resmî site/sitemap/JSON-LD bağlantısı) | null = eski
+        /// YouTube RSS kaydı. RSS robots.txt ile yasak olduğundan null kayıt resmî web kanıtı bulunana dek gösterilmez.
+        /// </summary>
+        public string? DiscoveryProvenance { get; set; }
+        /// <summary>Videonun yayımlandığı resmî sayfa (kanıt).</summary>
+        public string? EvidencePageUrl { get; set; }
+        public string? EvidenceSourceKey { get; set; }
+        /// <summary>Son yeniden doğrulama anı (kalıcı revalidation işi).</summary>
+        public DateTime? RevalidatedAtUtc { get; set; }
+        /// <summary>Oynatıcının bildirdiği hata kodu (101/150/152/100…) — SourceBlocked gerekçesi.</summary>
+        public int? PlayerErrorCode { get; set; }
+        public DateTime? BlockedAtUtc { get; set; }
     }
 
     /// <summary>
@@ -143,9 +158,20 @@ namespace Formax.Domain.Entities
     /// </summary>
     public static class MatchVideoRules
     {
+        /// <summary>Resmî web kanıtlı keşif — YouTube RSS robots.txt ile yasak (15.09.2026 kullanıcı kararı).</summary>
+        public const string OfficialWebProvenance = "OfficialWeb";
+
+        /// <summary>
+        /// Video resmî bir sitede yayımlanmış bağlantıdan mı bulundu? Eski RSS kaydı (provenance null) bu kanıt
+        /// bulunana dek gösterilmez; kanıt bulunursa kayıt aynı satırda yeniden etkinleşir.
+        /// </summary>
+        public static bool HasOfficialWebEvidence(MatchVideo v)
+            => v.DiscoveryProvenance == OfficialWebProvenance && !string.IsNullOrWhiteSpace(v.EvidencePageUrl);
+
         /// <summary>Uygulama içinde oynatılabilir ve kullanıcıya gösterilebilir mi?</summary>
         public static bool IsPlayable(MatchVideo v)
             => v is not null
+            && HasOfficialWebEvidence(v)
             && v.IsOfficial
             && v.CanPlayInApp
             && Formax.Domain.Constants.MatchVideoVerificationStatuses.IsShowable(v.VerificationStatus)
@@ -159,6 +185,7 @@ namespace Formax.Domain.Entities
         /// </summary>
         public static bool IsVisible(MatchVideo v)
             => v is not null
+            && HasOfficialWebEvidence(v)
             && v.IsOfficial
             && string.IsNullOrWhiteSpace(v.RejectionReason)
             && v.VerificationStatus is

@@ -4,6 +4,9 @@ import { TeamCrest } from "@/components/ui/TeamCrest";
 import { formatMatchDateTR } from "@/lib/matchClock";
 import { useState } from "react";
 import {
+  ANALYSIS_INSUFFICIENT_TEXT,
+  ANALYSIS_PENDING_TEXT,
+  VIDEO_SOURCE_BLOCKED_TEXT,
   arrangeVideos,
   mainHighlightCandidates,
   nextCandidateAfterError,
@@ -69,6 +72,16 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   // "ayrıntı yok" mesajının yerine geçer ve ikisi yine ASLA birlikte gösterilmez.
   // MAÇ SONRASI ANALİZ — yalnız arka planda yazılmış DB metni; ekran cümle ÜRETMEZ.
   const analysis = match.postMatchSummary?.sentences?.filter((x) => x.trim().length > 0) ?? [];
+  // Analiz durumu backend'den: yetersiz veri → dürüst cümle; henüz yazılmadı → "hazırlanıyor". Cümle UYDURULMAZ.
+  const analysisStatus = match.postMatchSummary?.status ?? (analysis.length > 0 ? "Available" : null);
+  const analysisNotice =
+    analysis.length > 0
+      ? null
+      : analysisStatus === "InsufficientData"
+        ? ANALYSIS_INSUFFICIENT_TEXT
+        : analysisStatus === "Pending"
+          ? ANALYSIS_PENDING_TEXT
+          : null;
 
   // Tam özet yoksa ama oynatılabilir gol klipleri varsa ekran GOLLER der; boş "Maç Özeti"
   // kutusu ve "kontrol ediliyor" cümlesi o hâlde basılmaz (gol klibi tam özet sayılmaz).
@@ -76,7 +89,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
 
   const hasAnyDetail =
     videos.length > 0 || events.length > 0 || !!stats || showStandings || showLineup || !!match.videoSearch ||
-    analysis.length > 0;
+    analysis.length > 0 || !!analysisNotice;
 
   return (
     <div className="flex min-h-0 w-full max-w-full flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 pb-28">
@@ -176,13 +189,20 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
           </div>
         </Panel>
       )}
+      {analysisNotice && (
+        <Panel title="Maç Sonrası Analiz">
+          <div data-testid="post-match-analysis-notice">
+            <Empty text={analysisNotice} />
+          </div>
+        </Panel>
+      )}
 
       {/* ── MAÇ ÖZETİ ─────────────────────────────────────────────────────── */}
       {hasAnyDetail && showSummaryVideoPanel && (
         <Panel title="Maç Özeti">
           {main ? (
             <div className="p-3">
-              <MainHighlightPlayer candidates={mainHighlightCandidates(videos)} />
+              <MainHighlightPlayer candidates={mainHighlightCandidates(videos)} matchId={match.matchId} />
             </div>
           ) : (
             <>
@@ -206,8 +226,8 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         <Panel title="Goller">
           <ul className="flex flex-col gap-2.5 p-3">
             {goals.map((v) => (
-              <li key={v.sourcePageUrl}>
-                <VideoPlayerCard video={v} compact />
+              <li key={v.embedUrl ?? v.sourcePageUrl}>
+                <VideoPlayerCard video={v} compact matchId={match.matchId} />
               </li>
             ))}
           </ul>
@@ -268,12 +288,18 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
  * ANA ÖZET OYNATICISI — oynatıcı gömme/bölge engeli bildirirse aynı maçın bir sonraki doğrulanmış resmî
  * özetine geçer ve bunu açıkça yazar. Aday kalmazsa kartın kendi dürüst hata metni kalır.
  */
-function MainHighlightPlayer({ candidates }: { candidates: MatchVideoDto[] }) {
+function MainHighlightPlayer({ candidates, matchId }: { candidates: MatchVideoDto[]; matchId: number }) {
   const [index, setIndex] = useState(0);
+  const [exhausted, setExhausted] = useState(false);
   const video = candidates[Math.min(index, candidates.length - 1)];
   if (!video) return null;
   return (
     <div className="flex flex-col gap-2">
+      {exhausted && (
+        <p className="text-[11px] leading-relaxed text-white/70" data-testid="video-exhausted-note">
+          {VIDEO_SOURCE_BLOCKED_TEXT}
+        </p>
+      )}
       {index > 0 && (
         <p className="text-[11px] leading-relaxed text-white/70" data-testid="video-fallback-note">
           Önceki resmî video bu bölgede ya da uygulama içinde oynatılamadı; aynı maçın başka bir resmî kaynağı gösteriliyor.
@@ -283,9 +309,11 @@ function MainHighlightPlayer({ candidates }: { candidates: MatchVideoDto[] }) {
         key={video.sourcePageUrl}
         video={video}
         autoStart={index > 0}
+        matchId={matchId}
         onPlaybackError={(code) => {
           const next = nextCandidateAfterError(candidates.length, index, code);
           if (next !== null) setIndex(next);
+          else setExhausted(true);
         }}
       />
     </div>

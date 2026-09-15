@@ -190,5 +190,7 @@ namespace Formax.Application.Services.OfficialSources
         public const string HttpError = "HttpError";
         public const string NetworkError = "NetworkError";
         public const string RateLimited = "RateLimited";
+        /// <summary>robots.txt bu yolu yasaklıyor ya da robots.txt ulaşılamaz (RFC 9309) — istek yapılmadı.</summary>
+        public const string RobotsDisallowed = "RobotsDisallowed";
     }
 }

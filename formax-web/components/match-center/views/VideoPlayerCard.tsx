@@ -10,6 +10,7 @@ import {
   playbackErrorText,
   type PlaybackState,
 } from "@/lib/video/youtubePlayback";
+import { reportPlaybackError } from "@/lib/video/playbackReport";
 
 export const VIDEO_TYPE_LABEL: Record<string, string> = {
   MatchHighlights: "Maç Özeti",
@@ -36,9 +37,12 @@ export function VideoPlayerCard({
   compact = false,
   onPlaybackError,
   autoStart = false,
+  matchId,
 }: {
   video: MatchVideoDto;
   compact?: boolean;
+  /** Oynatıcı hatası backend'e bu maç için bildirilir (kayıt SourceBlocked, maç yeniden kuyruğa). */
+  matchId?: number;
   /** Oynatıcı hata kodu bildirdiğinde (ör. 150) üst bileşene haber verir. */
   onPlaybackError?: (code: number) => void;
   /** Kullanıcı zaten oynat'a bastıysa yedek adayda poster atlanır. */
@@ -59,6 +63,7 @@ export function VideoPlayerCard({
       for (const s of parsePlayerMessage(ev.data)) {
         if (s.kind === "error") {
           setErrorCode(s.code);
+          if (matchId) void reportPlaybackError(matchId, video, s.code);
           onPlaybackError?.(s.code);
         }
         setState((cur) => nextPlaybackState(cur, s));
@@ -66,7 +71,7 @@ export function VideoPlayerCard({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [state, onPlaybackError]);
+  }, [state, onPlaybackError, matchId, video]);
 
   /** iframe yüklendiğinde oynatıcıya "olayları bana bildir" denir (IFrame API protokolü). */
   const subscribe = () => {

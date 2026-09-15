@@ -311,6 +311,7 @@ public class MatchResultsTests
                 EmbedUrl = "https://www.youtube-nocookie.com/embed/v1",
                 VideoType = MatchVideoTypes.MatchHighlights,
                 IsOfficial = true, IsEmbeddable = true, CanPlayInApp = true,
+                DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test",
                 VerificationStatus = MatchVideoVerificationStatuses.Verified
             },
             // 2. ayakta kayıt VAR ama oynatılamıyor → işaret GÖSTERİLMEZ.

@@ -102,7 +102,9 @@ public class PostMatchVideoTests
         Description: "Şampiyonlar Ligi Play Off Turu ilk maçında Fenerbahçe; Kadıköy'de Lyon'u konuk etti.",
         PublishedUtc: new DateTime(2026, 8, 18, 21, 23, 26, DateTimeKind.Utc),
         SourcePageUrl: "https://www.youtube.com/watch?v=YYZYPAkPKs0",
-        ThumbnailUrl: null, DurationSeconds: 494);
+        ThumbnailUrl: null, DurationSeconds: 494,
+        // 15.09.2026: video resmî sitede yayımlanmış bağlantıdan bulunur (YouTube RSS robots ile yasak).
+        EvidencePageUrl: "https://www.trtspor.com.tr/video/futbol/fenerbahce-lyon-ozet");
 
     /// <summary>TRT SPOR'un GERÇEK 2. ayak özeti.</summary>
     private static OfficialVideoCandidate Leg2Highlights() => new(
@@ -111,7 +113,8 @@ public class PostMatchVideoTests
         Description: "Fenerbahçe, UEFA Şampiyonlar Ligi play-off turunda Lyon'a konuk oldu.",
         PublishedUtc: new DateTime(2026, 8, 26, 21, 25, 30, DateTimeKind.Utc),
         SourcePageUrl: "https://www.youtube.com/watch?v=sz4AJjiol84",
-        ThumbnailUrl: null, DurationSeconds: 528);
+        ThumbnailUrl: null, DurationSeconds: 528,
+        EvidencePageUrl: "https://www.trtspor.com.tr/video/futbol/lyon-fenerbahce-ozet");
 
     // ── 3. Resmî + embed izinli video OYNATICI AÇAR ───────────────────────────
 
@@ -701,6 +704,7 @@ public class PostMatchVideoTests
             VideoType = MatchVideoTypes.Goal,
             PublishedAtUtc = new DateTime(2026, 8, 18, 22, 0, 0, DateTimeKind.Utc),
             IsOfficial = true, IsEmbeddable = true, CanPlayInApp = true,
+            DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance, EvidencePageUrl = "https://www.trtspor.com.tr/video/test",
             VerificationStatus = MatchVideoVerificationStatuses.Verified
         });
         db.SaveChanges();

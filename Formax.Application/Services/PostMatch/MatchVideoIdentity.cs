@@ -45,7 +45,26 @@ namespace Formax.Application.Services.PostMatch
         /// <summary>Kanonik Match.Id — sağlayıcı sonucunda da açıkça taşınır.</summary>
         int? MatchId = null,
         /// <summary>Sağlayıcı fikstür kimliği — sağlayıcı sonucunda da açıkça taşınır.</summary>
-        string? ExternalFixtureId = null);
+        string? ExternalFixtureId = null,
+        /// <summary>
+        /// Yayın tarihinin hassasiyeti: "Exact" (saatli) | "Day" (yalnız gün — ör. legaseriea sitemap "2026-09-12") |
+        /// "SeenOnly" (tarih yok, yalnız resmî sayfada ilk görülme anı). Gün hassasiyetinde saat UYDURULMAZ.
+        /// </summary>
+        string? DatePrecision = null,
+        /// <summary>Videonun yayımlandığı resmî sayfa (web kanıtı). Doluysa kaynak kimliği site anahtarıdır.</summary>
+        string? EvidencePageUrl = null);
+
+    /// <summary>Kanonik gol (skor akışıyla) — gol klibi doğrulamasının girdisi.</summary>
+    public sealed record FixtureGoal(
+        int Minute,
+        int? ExtraMinute,
+        string PlayerName,
+        /// <summary>true = ev sahibi takımın golü (kendi kalesine gol dahil, skora göre).</summary>
+        bool HomeSide,
+        int HomeScoreAfter,
+        int AwayScoreAfter,
+        bool OwnGoal,
+        bool Penalty);
 
     /// <summary>
     /// MAÇIN KİMLİĞİ — bir videonun bu maça ait OLDUĞUNUN kanıt kümesi.
@@ -66,7 +85,9 @@ namespace Formax.Application.Services.PostMatch
         int? LeagueId = null,
         /// <summary>Kayıtlı SONUÇ — başlıkta skor yazıyorsa onunla karşılaştırılır. Bilinmiyorsa null.</summary>
         int? HomeScore = null,
-        int? AwayScore = null);
+        int? AwayScore = null,
+        /// <summary>Kanonik goller dakika sırasıyla — yoksa boş (gol klibi kabul edilmez).</summary>
+        IReadOnlyList<FixtureGoal>? Goals = null);
 
     /// <summary>Doğrulama sonucu. <paramref name="Reason"/> ret hâlinde KÖK NEDENDİR.</summary>
     public sealed record MatchVideoVerdict(
@@ -80,5 +101,7 @@ namespace Formax.Application.Services.PostMatch
         /// Geriye dönük tarama, kapanan kayıtları bu kodla gruplayabilsin diye vardır;
         /// null ise gerekçe sınıflandırılmamış demektir (kabul edilenlerde her zaman null).
         /// </summary>
-        string? RejectionCode = null);
+        string? RejectionCode = null,
+        /// <summary>Gol klibinin bağlandığı kanonik gol (dakika/oyuncu buradan yazılır, başlıktan değil).</summary>
+        FixtureGoal? Goal = null);
 }

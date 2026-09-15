@@ -16,7 +16,13 @@ namespace Formax.Application.Interfaces
         bool Embeddable,
         string? EmbedUrl,
         string? ThumbnailUrl,
-        string Reason);
+        string Reason,
+        /// <summary>oEmbed başlığı (tarihsiz resmî bağlantıda başlık kanıtı).</summary>
+        string? Title = null,
+        string? AuthorName = null,
+        string? AuthorUrl = null,
+        /// <summary>true = video kaldırılmış/gizli/erişilemez (oEmbed 400/404) — SourceBlocked gerekçesi.</summary>
+        bool Unavailable = false);
 
     /// <summary>
     /// BİR VİDEONUN UYGULAMA İÇİNDE OYNATILABİLİRLİĞİNİ DOĞRULAR.

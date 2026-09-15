@@ -77,12 +77,16 @@ namespace Formax.Application.Services
         }
 
         // 🔒 FAZ-10.2 — UNIFIED AI READ CONTEXT (DAVRANIŞ YOK)
-        public UnifiedAiReadContext CreateUnifiedAiReadContext(
+        // UÇTAN UCA ASYNC (15.09.2026): maç öncesi ve kadro sağlayıcıları async okur; istek iş parçacığı
+        // .GetAwaiter().GetResult() ile bloklanmaz (tek çağıran GetLiveMatchAiAnalysisUseCase zaten async).
+        public async System.Threading.Tasks.Task<UnifiedAiReadContext> CreateUnifiedAiReadContextAsync(
             int matchId,
             AiReadContext aiReadContext,
             UserExperienceContext userExperienceContext,
             IReadOnlyList<MatchEvent> recentEvents)
         {
+            var preMatch = _preMatchProvider != null ? await _preMatchProvider.ReadAsync(matchId).ConfigureAwait(false) : null;
+            var squad = _squadProvider != null ? await _squadProvider.ReadAsync(matchId).ConfigureAwait(false) : null;
             return new UnifiedAiReadContext
             {
                 // MEVCUT
@@ -103,13 +107,9 @@ namespace Formax.Application.Services
                     : null!,
 
                 // 🔒 FAZ-10.2 — GERÇEK OKUMA / YOKSA NULL
-                PreMatch = _preMatchProvider != null
-                    ? _preMatchProvider.ReadAsync(matchId).GetAwaiter().GetResult()!
-                    : null!,
+                PreMatch = preMatch!,
 
-                Squad = _squadProvider != null
-                    ? _squadProvider.ReadAsync(matchId).GetAwaiter().GetResult()!
-                    : null!,
+                Squad = squad!,
 
                 WorldPerception = _worldPerceptionProvider != null
                     ? _worldPerceptionProvider.Read(matchId)

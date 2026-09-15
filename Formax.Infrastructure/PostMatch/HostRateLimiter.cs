@@ -96,26 +96,48 @@ namespace Formax.Infrastructure.PostMatch
         }
     }
 
+    /// <summary>Tek robots.txt kuralı (RFC 9309).</summary>
+    public sealed record RobotsRule(bool Allow, string Pattern);
+
     /// <summary>
-    /// robots.txt önbelleği (24 sa). Yayımlanmış API uçları (YouTube RSS/oEmbed, Wikidata API/SPARQL) bu
-    /// kurala tabi değildir; kulüp/lig/yayıncı SAYFALARI tabidir. robots.txt okunamazsa sayfa ALINMAZ.
+    /// ROBOTS.TXT POLİTİKASI — RFC 9309, İSTİSNASIZ (15.09.2026 kullanıcı kararı).
+    ///
+    /// Eskiden YouTube <c>/feeds/</c>, oEmbed ve Wikidata "yayımlanmış API" sayılıp kuraldan muaf tutuluyordu. Oysa
+    /// youtube.com/robots.txt <c>Disallow: /feeds/videos.xml</c>, query.wikidata.org/robots.txt <c>Disallow: /sparql</c>
+    /// yazıyor. Artık yalnız robots.txt dosyasının kendisi muaftır; her istek aynı kuralla sınanır.
+    ///
+    /// Durum kodu anlamı (RFC 9309 §2.3.1): 2xx → kurallar uygulanır; 4xx (429 hariç) → "erişilemez değil, yok"
+    /// sayılır ve kısıt yoktur; 5xx / ağ hatası / 429 → "ulaşılamaz", tamamı yasak kabul edilir.
+    /// Eşleşme: grup "formax" içeren user-agent varsa o, yoksa "*"; kurallar arasında EN UZUN eşleşen kazanır,
+    /// eşit uzunlukta Allow üstündür; <c>*</c> joker, sondaki <c>$</c> satır sonu.
     /// </summary>
     public sealed class RobotsTxtPolicy
     {
-        private readonly ConcurrentDictionary<string, (DateTime At, List<string> Disallow, bool Readable)> _cache = new(StringComparer.OrdinalIgnoreCase);
+        public enum RobotsState { Parsed, NoRestrictions, Unreachable }
 
-        public static bool IsPublishedApi(Uri uri)
-            => (uri.Host.EndsWith("youtube.com", StringComparison.OrdinalIgnoreCase)
-                    && (uri.AbsolutePath.StartsWith("/feeds/", StringComparison.OrdinalIgnoreCase)
-                        || uri.AbsolutePath.StartsWith("/oembed", StringComparison.OrdinalIgnoreCase)))
-               || uri.Host.EndsWith("wikidata.org", StringComparison.OrdinalIgnoreCase)
-               || uri.AbsolutePath.Equals("/robots.txt", StringComparison.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, (DateTime At, IReadOnlyList<RobotsRule> Rules, RobotsState State)> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Kural metninden "*" grubunun Disallow öneklerini çıkarır.</summary>
-        public static List<string> Parse(string robots)
+        /// <summary>Kuraldan muaf tek yol: robots.txt dosyasının kendisi.</summary>
+        public static bool IsRobotsFile(Uri uri) => uri.AbsolutePath.Equals("/robots.txt", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// KOD DÜZEYİ YASAK — robots.txt okunamasa bile (önbellek, test, hata) YouTube kanal akışına istek çıkmaz.
+        /// Kullanıcı kararı: YouTube RSS ve YouTube Data API kullanılmaz.
+        /// </summary>
+        public static bool IsForbiddenByProductRule(Uri uri)
+            => uri.Host.EndsWith("youtube.com", StringComparison.OrdinalIgnoreCase)
+               && (uri.AbsolutePath.StartsWith("/feeds/", StringComparison.OrdinalIgnoreCase)
+                   || uri.AbsolutePath.StartsWith("/youtubei/", StringComparison.OrdinalIgnoreCase)
+                   || uri.AbsolutePath.StartsWith("/results", StringComparison.OrdinalIgnoreCase))
+               || uri.Host.Equals("www.googleapis.com", StringComparison.OrdinalIgnoreCase)
+                   && uri.AbsolutePath.StartsWith("/youtube/", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Kural metninden bu istemciye uygulanacak grubun kurallarını çıkarır.</summary>
+        public static List<RobotsRule> ParseRules(string robots)
         {
-            var result = new List<string>();
-            var applies = false;
+            var groups = new List<(List<string> Agents, List<RobotsRule> Rules)>();
+            (List<string> Agents, List<RobotsRule> Rules)? current = null;
+            var lastWasAgent = false;
             foreach (var raw in (robots ?? string.Empty).Split('\n'))
             {
                 var line = raw.Split('#')[0].Trim();
@@ -124,32 +146,123 @@ namespace Formax.Infrastructure.PostMatch
                 if (idx <= 0) continue;
                 var key = line[..idx].Trim().ToLowerInvariant();
                 var value = line[(idx + 1)..].Trim();
-                if (key == "user-agent") applies = value == "*" || value.Contains("formax", StringComparison.OrdinalIgnoreCase);
-                else if (key == "disallow" && applies && value.Length > 0) result.Add(value);
+                if (key == "user-agent")
+                {
+                    if (!lastWasAgent || current == null)
+                    {
+                        current = (new List<string>(), new List<RobotsRule>());
+                        groups.Add(current.Value);
+                    }
+                    current.Value.Agents.Add(value.ToLowerInvariant());
+                    lastWasAgent = true;
+                    continue;
+                }
+                lastWasAgent = false;
+                if (current == null) continue;
+                if (key == "allow" && value.Length > 0) current.Value.Rules.Add(new RobotsRule(true, value));
+                else if (key == "disallow" && value.Length > 0) current.Value.Rules.Add(new RobotsRule(false, value));
             }
-            return result;
+
+            var formax = groups.Where(g => g.Agents.Any(a => a.Contains("formax", StringComparison.Ordinal))).SelectMany(g => g.Rules).ToList();
+            if (formax.Count > 0 || groups.Any(g => g.Agents.Any(a => a.Contains("formax", StringComparison.Ordinal)))) return formax;
+            return groups.Where(g => g.Agents.Contains("*")).SelectMany(g => g.Rules).ToList();
         }
 
+        /// <summary>Geriye uyum: yalnız Disallow kalıpları.</summary>
+        public static List<string> Parse(string robots) => ParseRules(robots).Where(r => !r.Allow).Select(r => r.Pattern).ToList();
+
+        /// <summary>Geriye uyum: yalnız Disallow listesiyle karar.</summary>
         public static bool Allowed(IEnumerable<string> disallow, string path)
-            => !disallow.Any(d => d == "/" || path.StartsWith(d.TrimEnd('*'), StringComparison.Ordinal));
+            => Allowed(disallow.Select(d => new RobotsRule(false, d)).ToList(), path);
 
-        public async Task<bool> IsAllowedAsync(Uri uri, Func<Uri, CancellationToken, Task<(bool Ok, string Body)>> fetch, CancellationToken ct)
+        /// <summary>RFC 9309 kararı — en uzun eşleşen kural; eşitlikte Allow.</summary>
+        public static bool Allowed(IReadOnlyList<RobotsRule> rules, string pathAndQuery)
         {
-            if (IsPublishedApi(uri)) return true;
-            var key = uri.Scheme + "://" + uri.Host;
-            if (!_cache.TryGetValue(key, out var entry) || DateTime.UtcNow - entry.At > TimeSpan.FromHours(24))
+            RobotsRule? best = null;
+            foreach (var r in rules)
             {
-                var (ok, body) = await fetch(new Uri(key + "/robots.txt"), ct).ConfigureAwait(false);
-                entry = (DateTime.UtcNow, ok ? Parse(body) : new List<string>(), ok);
-                _cache[key] = entry;
+                if (!Matches(r.Pattern, pathAndQuery)) continue;
+                if (best == null || r.Pattern.Length > best.Pattern.Length || (r.Pattern.Length == best.Pattern.Length && r.Allow))
+                    best = r;
             }
-            return entry.Readable && Allowed(entry.Disallow, uri.AbsolutePath);
+            return best == null || best.Allow;
         }
+
+        private static bool Matches(string pattern, string path)
+        {
+            var anchored = pattern.EndsWith("$", StringComparison.Ordinal);
+            var body = anchored ? pattern[..^1] : pattern;
+            var parts = body.Split('*');
+            var pos = 0;
+            for (var i = 0; i < parts.Length; i++)
+            {
+                var part = parts[i];
+                if (i == 0)
+                {
+                    if (!path.StartsWith(part, StringComparison.Ordinal)) return false;
+                    pos = part.Length;
+                    continue;
+                }
+                if (part.Length == 0) { if (i == parts.Length - 1) return true; continue; }
+                var found = path.IndexOf(part, pos, StringComparison.Ordinal);
+                if (found < 0) return false;
+                pos = found + part.Length;
+            }
+            return !anchored || pos == path.Length;
+        }
+
+        /// <summary>HTTP durum kodundan RFC 9309 durumu.</summary>
+        public static RobotsState StateFor(int? httpStatus)
+            => httpStatus is >= 200 and < 300 ? RobotsState.Parsed
+             : httpStatus is >= 400 and < 500 && httpStatus != 429 ? RobotsState.NoRestrictions
+             : RobotsState.Unreachable;
+
+        /// <summary>İstek robots.txt kurallarına göre yapılabilir mi? <paramref name="fetch"/> robots.txt'yi (durum, gövde) olarak döner.</summary>
+        public async Task<bool> IsAllowedAsync(Uri uri, Func<Uri, CancellationToken, Task<(int? Status, string Body)>> fetch, CancellationToken ct)
+        {
+            if (IsForbiddenByProductRule(uri)) return false;
+            if (IsRobotsFile(uri)) return true;
+            var (rules, state) = await GetAsync(uri, fetch, ct).ConfigureAwait(false);
+            return state switch
+            {
+                RobotsState.NoRestrictions => true,
+                RobotsState.Unreachable => false,
+                _ => Allowed(rules, uri.PathAndQuery)
+            };
+        }
+
+        /// <summary>Host'un önbellekteki (24 sa) kural durumu; yoksa okunur.</summary>
+        public async Task<(IReadOnlyList<RobotsRule> Rules, RobotsState State)> GetAsync(Uri uri,
+            Func<Uri, CancellationToken, Task<(int? Status, string Body)>> fetch, CancellationToken ct)
+        {
+            var key = uri.Scheme + "://" + uri.Authority;
+            if (_cache.TryGetValue(key, out var entry)
+                && DateTime.UtcNow - entry.At < (entry.State == RobotsState.Unreachable ? TimeSpan.FromMinutes(30) : TimeSpan.FromHours(24)))
+                return (entry.Rules, entry.State);
+            var (status, body) = await fetch(new Uri(key + "/robots.txt"), ct).ConfigureAwait(false);
+            var state = StateFor(status);
+            entry = (DateTime.UtcNow, state == RobotsState.Parsed ? ParseRules(body) : new List<RobotsRule>(), state);
+            _cache[key] = entry;
+            return (entry.Rules, entry.State);
+        }
+
+        /// <summary>Katalog için özet: "Allowed" | "PartiallyDisallowed" | "Disallowed" | "Unreachable".</summary>
+        public static string Summarize(IReadOnlyList<RobotsRule> rules, RobotsState state)
+            => state == RobotsState.Unreachable ? "Unreachable"
+             : state == RobotsState.NoRestrictions || rules.All(r => r.Allow) ? "Allowed"
+             : !Allowed(rules, "/") ? "Disallowed" : "PartiallyDisallowed";
     }
 
-    /// <summary>"postmatch-video" ve "video-source-discovery" istemcilerine takılan nezaket katmanı.</summary>
+    /// <summary>
+    /// "postmatch-video" ve "video-source-discovery" istemcilerine takılan nezaket katmanı:
+    /// ürün yasağı + robots.txt (RFC 9309) + host başına tek eşzamanlı istek ve asgari aralık + devre kesici +
+    /// idempotent GET için sınırlı üstel geri çekilmeli yeniden deneme (5xx/ağ hatası; 429'da yeniden denenmez).
+    /// </summary>
     public sealed class PoliteHttpHandler : DelegatingHandler
     {
+        public const int MaxRetries = 2;
+        private static readonly TimeSpan RetryBase = TimeSpan.FromSeconds(2);
+
         private readonly HostRateLimiter _limiter;
         private readonly RobotsTxtPolicy _robots;
         private readonly ILogger<PoliteHttpHandler> _log;
@@ -159,42 +272,101 @@ namespace Formax.Infrastructure.PostMatch
             _limiter = limiter; _robots = robots; _log = log;
         }
 
+        /// <summary>Süreç boyunca robots/ürün kuralıyla engellenen istek sayısı (teşhis).</summary>
+        public static long BlockedByRobots;
+
+        public const int MaxRedirects = 5;
+
+        /// <summary>
+        /// Yönlendirmeler burada izlenir (birincil işleyicide otomatik yönlendirme KAPALI): her atlamada ürün kuralı, robots.txt ve
+        /// host sınırı yeniden uygulanır; https'ten http'ye düşülmez. Son yanıtın RequestMessage'ı son adresi taşır.
+        /// </summary>
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            var current = request;
+            for (var hop = 0; ; hop++)
+            {
+                var response = await SendOneAsync(current, ct).ConfigureAwait(false);
+                var code = (int)response.StatusCode;
+                if (code is not (301 or 302 or 303 or 307 or 308) || hop >= MaxRedirects || response.Headers.Location == null
+                    || current.Method != HttpMethod.Get)
+                    return response;
+                var next = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(current.RequestUri!, response.Headers.Location);
+                if (current.RequestUri!.Scheme == Uri.UriSchemeHttps && next.Scheme != Uri.UriSchemeHttps) return response;
+                response.Dispose();
+                var follow = new HttpRequestMessage(HttpMethod.Get, next);
+                foreach (var h in request.Headers) follow.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                current = follow;
+            }
+        }
+
+        private async Task<HttpResponseMessage> SendOneAsync(HttpRequestMessage request, CancellationToken ct)
+        {
             var uri = request.RequestUri!;
+            if (RobotsTxtPolicy.IsForbiddenByProductRule(uri))
+            {
+                Interlocked.Increment(ref BlockedByRobots);
+                return new HttpResponseMessage((HttpStatusCode)451) { RequestMessage = request, ReasonPhrase = "forbidden by product rule (YouTube RSS/Data API)" };
+            }
+
             var allowed = await _robots.IsAllowedAsync(uri, async (robotsUri, c) =>
             {
                 using var lease = await _limiter.AcquireAsync(robotsUri.Host, c).ConfigureAwait(false);
-                if (lease == null) return (false, string.Empty);
+                if (lease == null) return (null, string.Empty);
                 try
                 {
-                    using var res = await base.SendAsync(new HttpRequestMessage(HttpMethod.Get, robotsUri), c).ConfigureAwait(false);
-                    if (res.StatusCode == HttpStatusCode.NotFound) return (true, string.Empty);   // robots yok = kısıt yok
-                    return (res.IsSuccessStatusCode, res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync(c).ConfigureAwait(false) : string.Empty);
+                    // Asıl isteğin User-Agent'ı taşınır: UA'sız istek bazı sitelerde 503 döner (ölçüldü: premierleague.com),
+                    // bu da robots.txt'yi "ulaşılamaz" gösterip siteyi tümden kapatıyordu.
+                    using var robotsRequest = new HttpRequestMessage(HttpMethod.Get, robotsUri);
+                    foreach (var ua in request.Headers.UserAgent) robotsRequest.Headers.UserAgent.Add(ua);
+                    using var res = await base.SendAsync(robotsRequest, c).ConfigureAwait(false);
+                    var body = res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync(c).ConfigureAwait(false) : string.Empty;
+                    return ((int?)res.StatusCode, body);
                 }
-                catch (Exception) when (!c.IsCancellationRequested) { return (false, string.Empty); }
+                catch (Exception) when (!c.IsCancellationRequested) { return (null, string.Empty); }
             }, ct).ConfigureAwait(false);
 
             if (!allowed)
-                return new HttpResponseMessage((HttpStatusCode)451) { RequestMessage = request, ReasonPhrase = "robots.txt disallow or unreadable" };
-
-            using var gate = await _limiter.AcquireAsync(uri.Host, ct).ConfigureAwait(false);
-            if (gate == null)
-                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { RequestMessage = request, ReasonPhrase = "circuit-open" };
-
-            try
             {
-                var response = await base.SendAsync(request, ct).ConfigureAwait(false);
-                var failure = (int)response.StatusCode == 429 || (int)response.StatusCode >= 500;
-                _limiter.RecordResult(uri.Host, !failure);
-                return response;
+                Interlocked.Increment(ref BlockedByRobots);
+                return new HttpResponseMessage((HttpStatusCode)451) { RequestMessage = request, ReasonPhrase = "robots.txt disallow or unreachable" };
             }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+
+            for (var attempt = 0; ; attempt++)
             {
-                _limiter.RecordResult(uri.Host, false);
-                _log.LogWarning("[VIDEO-HTTP] {Host} istek hatasi: {Type}", uri.Host, ex.GetType().Name);
-                throw;
+                using (var gate = await _limiter.AcquireAsync(uri.Host, ct).ConfigureAwait(false))
+                {
+                    if (gate == null)
+                        return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { RequestMessage = request, ReasonPhrase = "circuit-open" };
+
+                    HttpResponseMessage? response = null;
+                    try
+                    {
+                        using var copy = attempt == 0 ? null : Clone(request);
+                        response = await base.SendAsync(copy ?? request, ct).ConfigureAwait(false);
+                        var code = (int)response.StatusCode;
+                        var failure = code == 429 || code >= 500;
+                        _limiter.RecordResult(uri.Host, !failure);
+                        if (code < 500 || attempt >= MaxRetries || request.Method != HttpMethod.Get) return response;
+                        response.Dispose();
+                    }
+                    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+                    {
+                        _limiter.RecordResult(uri.Host, false);
+                        _log.LogWarning("[VIDEO-HTTP] {Host} istek hatasi: {Type} (deneme {Attempt})", uri.Host, ex.GetType().Name, attempt + 1);
+                        if (attempt >= MaxRetries || request.Method != HttpMethod.Get) throw;
+                    }
+                }
+                // Üstel geri çekilme: 2 sn, 4 sn. Devre açılırsa bir sonraki tur null gate ile döner.
+                await Task.Delay(TimeSpan.FromTicks(RetryBase.Ticks * (1L << attempt)), ct).ConfigureAwait(false);
             }
+        }
+
+        private static HttpRequestMessage Clone(HttpRequestMessage request)
+        {
+            var copy = new HttpRequestMessage(request.Method, request.RequestUri);
+            foreach (var h in request.Headers) copy.Headers.TryAddWithoutValidation(h.Key, h.Value);
+            return copy;
         }
     }
 }

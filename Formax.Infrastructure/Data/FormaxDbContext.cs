@@ -54,6 +54,10 @@ namespace Formax.Infrastructure.Data
         public DbSet<OfficialVideoSourceRecord> OfficialVideoSourceCatalog { get; set; } = null!;
         public DbSet<MatchVideoDiscoveryQueueItem> MatchVideoDiscoveryQueue { get; set; } = null!;
         public DbSet<MatchVideoDiscoveryAttempt> MatchVideoDiscoveryAttempts { get; set; } = null!;
+        public DbSet<VideoDiscoveryCursor> VideoDiscoveryCursors { get; set; } = null!;
+        public DbSet<OfficialWebFeed> OfficialWebFeeds { get; set; } = null!;
+        public DbSet<OfficialWebVideoEntry> OfficialWebVideoEntries { get; set; } = null!;
+        public DbSet<MatchResultObservation> MatchResultObservations { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -856,6 +860,9 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.VideoType).HasMaxLength(40).IsRequired();
                 entity.Property(x => x.VerificationStatus).HasMaxLength(32).IsRequired();
                 entity.Property(x => x.VerificationNote).HasMaxLength(400);
+                entity.Property(x => x.DiscoveryProvenance).HasMaxLength(24);
+                entity.Property(x => x.EvidencePageUrl).HasMaxLength(1000);
+                entity.Property(x => x.EvidenceSourceKey).HasMaxLength(80);
                 entity.Property(x => x.RejectionReason).HasMaxLength(64);
                 entity.Property(x => x.AvailableCountries).HasMaxLength(1000);
                 entity.Property(x => x.EventPlayer).HasMaxLength(120);
@@ -1141,6 +1148,65 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.VerificationEvidence).HasMaxLength(1000).IsRequired();
                 entity.HasIndex(x => x.Key).IsUnique().HasDatabaseName("UX_OfficialVideoSourceCatalog_Key");
                 entity.HasIndex(x => x.YouTubeChannelId).HasDatabaseName("IX_OfficialVideoSourceCatalog_Channel");
+                entity.Property(x => x.Domain).HasMaxLength(200);
+                entity.Property(x => x.SourceKind).HasMaxLength(24);
+                entity.Property(x => x.Country).HasMaxLength(8);
+                entity.Property(x => x.WebsiteStatus).HasMaxLength(24);
+                entity.Property(x => x.WebsiteEvidence).HasMaxLength(1000);
+                entity.Property(x => x.RobotsStatus).HasMaxLength(24);
+                entity.Property(x => x.LastError).HasMaxLength(400);
+                entity.Property(x => x.CircuitState).HasMaxLength(12).IsRequired().HasDefaultValue("Closed");
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.Property(x => x.SiteYouTubeHandles).HasMaxLength(600);
+                entity.HasIndex(x => x.Domain).HasDatabaseName("IX_OfficialVideoSourceCatalog_Domain");
+            });
+            modelBuilder.Entity<VideoDiscoveryCursor>(entity =>
+            {
+                entity.ToTable("VideoDiscoveryCursors");
+                entity.HasKey(x => x.Name);
+                entity.Property(x => x.Name).HasMaxLength(64);
+            });
+            modelBuilder.Entity<OfficialWebFeed>(entity =>
+            {
+                entity.ToTable("OfficialWebFeeds");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.Url).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.Kind).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.DiscoveredVia).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.RobotsStatus).HasMaxLength(24);
+                entity.Property(x => x.LastError).HasMaxLength(400);
+                entity.HasIndex(x => x.Url).IsUnique().HasDatabaseName("UX_OfficialWebFeeds_Url");
+                entity.HasIndex(x => new { x.IsActive, x.NextFetchUtc }).HasDatabaseName("IX_OfficialWebFeeds_Due");
+            });
+            modelBuilder.Entity<OfficialWebVideoEntry>(entity =>
+            {
+                entity.ToTable("OfficialWebVideoEntries");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.PageUrl).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.PageUrlHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Title).HasMaxLength(400).IsRequired();
+                entity.Property(x => x.FoldedTitle).HasMaxLength(400).IsRequired();
+                entity.Property(x => x.DatePrecision).HasMaxLength(12).IsRequired();
+                entity.Property(x => x.YouTubeVideoId).HasMaxLength(16);
+                entity.Property(x => x.VideoIdEvidence).HasMaxLength(24);
+                entity.Property(x => x.JsonLdName).HasMaxLength(400);
+                entity.Property(x => x.PageOutcome).HasMaxLength(24);
+                entity.HasIndex(x => x.PageUrlHash).IsUnique().HasDatabaseName("UX_OfficialWebVideoEntries_Page");
+                entity.HasIndex(x => new { x.SourceKey, x.PublishedUtc }).HasDatabaseName("IX_OfficialWebVideoEntries_SourceDate");
+                entity.HasIndex(x => x.YouTubeVideoId).HasDatabaseName("IX_OfficialWebVideoEntries_YouTube");
+            });
+            modelBuilder.Entity<MatchResultObservation>(entity =>
+            {
+                entity.ToTable("MatchResultObservations");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.OfficialStatus).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ExistingStatus).HasMaxLength(32);
+                entity.Property(x => x.ExistingSource).HasMaxLength(120);
+                entity.Property(x => x.Decision).HasMaxLength(40).IsRequired();
+                entity.HasIndex(x => new { x.MatchId, x.ObservedAtUtc }).HasDatabaseName("IX_MatchResultObservations_Match");
             });
             modelBuilder.Entity<MatchVideoDiscoveryQueueItem>(entity =>
             {
@@ -1153,6 +1219,7 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.LastError).HasMaxLength(400);
                 entity.Property(x => x.LockOwner).HasMaxLength(64);
                 entity.Property(x => x.EnqueueReason).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.RequeueReason).HasMaxLength(64);
                 entity.HasIndex(x => new { x.NextAttemptUtc, x.EndUtc }).HasDatabaseName("IX_MatchVideoDiscoveryQueue_Due");
             });
             modelBuilder.Entity<MatchVideoDiscoveryAttempt>(entity =>

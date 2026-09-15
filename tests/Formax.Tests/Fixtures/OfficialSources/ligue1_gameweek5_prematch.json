@@ -1,0 +1,29 @@
+{
+ "matches": [
+  {
+   "unknownMatch": false,
+   "matchId": "l1_championship_match_73862",
+   "championshipId": 1,
+   "gameWeekNumber": 5,
+   "date": "2026-09-18T18:45:00.000Z",
+   "period": "preMatch",
+   "isLive": false,
+   "home": {
+    "clubId": "l1_championship_club_2026_9",
+    "clubIdentity": {
+     "name": "AS Monaco",
+     "officialName": "Monaco",
+     "shortName": "AS Monaco"
+    }
+   },
+   "away": {
+    "clubId": "l1_championship_club_2026_6",
+    "clubIdentity": {
+     "name": "RC Lens",
+     "officialName": "Lens",
+     "shortName": "RC Lens"
+    }
+   }
+  }
+ ]
+}

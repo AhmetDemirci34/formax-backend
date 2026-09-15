@@ -68,13 +68,45 @@ namespace Formax.Infrastructure.PostMatch
                 .Select(m => m.MatchDate)
                 .ToListAsync(ct).ConfigureAwait(false);
 
+            var finished = match.Status == MatchStatuses.Finished;
+            var goals = finished ? await LoadGoalsAsync(match.Id, home!, away!, match.HomeScore, match.AwayScore, ct).ConfigureAwait(false) : null;
+
             return new VideoFixtureIdentity(
                 match.Id, match.ExternalMatchId!, match.MatchDate,
                 match.HomeTeamId, match.AwayTeamId, home!, away!, otherLegs,
                 match.LeagueId,
                 // Skor yalnız maç bittiyse kanıttır; bitmemiş maçın 0-0 varsayılanı karşılaştırılmaz.
-                match.Status == MatchStatuses.Finished ? match.HomeScore : null,
-                match.Status == MatchStatuses.Finished ? match.AwayScore : null);
+                finished ? match.HomeScore : null,
+                finished ? match.AwayScore : null,
+                goals);
+        }
+
+        /// <summary>
+        /// KANONİK GOLLER + SKOR AKIŞI. Olay takımı adla eşlenir (MatchEventRecords takım kimliği taşımaz). Hesaplanan
+        /// son skor kayıtlı sonuçla tutmazsa liste güvenilmezdir ve BOŞ döner — gol klibi o maçta bağlanmaz.
+        /// </summary>
+        public async Task<IReadOnlyList<FixtureGoal>> LoadGoalsAsync(int matchId, string home, string away, int homeScore, int awayScore, CancellationToken ct)
+        {
+            var rows = await _db.MatchEventRecords.AsNoTracking()
+                .Where(e => e.MatchId == matchId && e.EventType == "Goal")
+                .OrderBy(e => e.Minute).ThenBy(e => e.ExtraMinute ?? 0).ThenBy(e => e.Id)
+                .Select(e => new { e.Minute, e.ExtraMinute, e.TeamName, e.PlayerName, e.Detail })
+                .ToListAsync(ct).ConfigureAwait(false);
+            var list = new List<FixtureGoal>();
+            int h = 0, a = 0;
+            foreach (var e in rows)
+            {
+                if (e.Detail != null && e.Detail.Contains("Missed", StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.IsNullOrWhiteSpace(e.PlayerName) || string.IsNullOrWhiteSpace(e.TeamName)) return Array.Empty<FixtureGoal>();
+                var isHome = Formax.Application.Services.OfficialSources.OfficialTeamNameMatcher.SameTeam(e.TeamName, home);
+                var isAway = Formax.Application.Services.OfficialSources.OfficialTeamNameMatcher.SameTeam(e.TeamName, away);
+                if (isHome == isAway) return Array.Empty<FixtureGoal>();
+                if (isHome) h++; else a++;
+                list.Add(new FixtureGoal(e.Minute, e.ExtraMinute, e.PlayerName!, isHome, h, a,
+                    e.Detail != null && e.Detail.Contains("Own", StringComparison.OrdinalIgnoreCase),
+                    e.Detail != null && e.Detail.Contains("Penalty", StringComparison.OrdinalIgnoreCase)));
+            }
+            return h == homeScore && a == awayScore ? list : Array.Empty<FixtureGoal>();
         }
 
         public async Task<MatchVideoRegistration> RegisterAsync(
@@ -94,13 +126,21 @@ namespace Formax.Infrastructure.PostMatch
             // İki anahtar birden: (maç + kaynak video kimliği) ve kanonik kaynak adresi.
             // Aynı video farklı adresle (parametreli/paylaşım linki) gelebilir.
             var canonical = Canonicalize(candidate.SourcePageUrl);
+            var hasWebEvidence = !string.IsNullOrWhiteSpace(candidate.EvidencePageUrl);
             var existing = await _db.MatchVideos
                 .Where(v => v.MatchId == matchId
                          && (v.ExternalVideoId == candidate.ExternalVideoId
                           || v.SourcePageUrl == canonical))
                 .FirstOrDefaultAsync(ct).ConfigureAwait(false);
             if (existing != null)
+            {
+                // ESKİ RSS KAYDI + YENİ RESMÎ WEB KANITI → aynı satır yeniden etkinleşir (yeni satır açılmaz).
+                if (hasWebEvidence && !MatchVideoRules.HasOfficialWebEvidence(existing)
+                    && existing.VerificationStatus != MatchVideoVerificationStatuses.SourceBlocked
+                    && existing.ExternalVideoId == candidate.ExternalVideoId)
+                    return await ReinstateAsync(existing, candidate, verdict, ct).ConfigureAwait(false);
                 return new MatchVideoRegistration(false, "Duplicate", "bu video zaten kayıtlı", existing.Id);
+            }
 
             // ── AYNI VİDEO İKİ FARKLI MAÇA BAĞLANAMAZ ────────────────────────────
             // ÖLÇÜLDÜ (03.09.2026): tek bir TRT SPOR stüdyo programı (29GROlpBfYo) hem
@@ -148,10 +188,15 @@ namespace Formax.Infrastructure.PostMatch
                 // IsRegionRestricted yalnız liste doluyken true olur.
                 AvailableCountries = countries.Count == 0 ? null : string.Join(",", countries),
                 IsRegionRestricted = countries.Count > 0,
-                EventMinute        = candidate.EventMinute,
-                EventExtraMinute   = candidate.EventExtraMinute,
-                EventPlayer        = TrimOrNull(candidate.EventPlayer, 120),
-                EventTeam          = TrimOrNull(candidate.EventTeam, 120),
+                // Gol klibinde dakika/oyuncu KANONİK golden yazılır (başlıktan değil).
+                EventMinute        = verdict.Goal?.Minute ?? candidate.EventMinute,
+                EventExtraMinute   = verdict.Goal?.ExtraMinute ?? candidate.EventExtraMinute,
+                EventPlayer        = TrimOrNull(verdict.Goal?.PlayerName ?? candidate.EventPlayer, 120),
+                EventTeam          = TrimOrNull(verdict.Goal == null ? candidate.EventTeam : verdict.Goal.HomeSide ? fixture.HomeTeamName : fixture.AwayTeamName, 120),
+                DiscoveryProvenance = hasWebEvidence ? MatchVideoRules.OfficialWebProvenance : null,
+                EvidencePageUrl    = TrimOrNull(candidate.EvidencePageUrl, 1000),
+                EvidenceSourceKey  = hasWebEvidence ? TrimOrNull(verdict.Source.Key, 80) : null,
+                RevalidatedAtUtc   = DateTime.UtcNow,
                 VerificationStatus = canPlay
                     ? MatchVideoVerificationStatuses.Verified
                     : MatchVideoVerificationStatuses.EmbedBlocked,
@@ -169,6 +214,34 @@ namespace Formax.Infrastructure.PostMatch
                 "[POST-MATCH VIDEO] {MatchId} — {Publisher} / {Type} kaydedildi (oynatilabilir={CanPlay}).",
                 matchId, row.OfficialPublisher, row.VideoType, canPlay);
 
+            return new MatchVideoRegistration(true, row.VerificationStatus, row.VerificationNote, row.Id);
+        }
+
+        /// <summary>
+        /// Eski (RSS kaynaklı) satırı resmî web kanıtıyla yeniden etkinleştirir: kimlik kuralları yeni adayla GEÇTİ,
+        /// gömme izni yeniden sorulur, gerekçe temizlenir. Kaldırılmış/engelli (SourceBlocked) satır bu yolla açılmaz.
+        /// </summary>
+        private async Task<MatchVideoRegistration> ReinstateAsync(MatchVideo row, OfficialVideoCandidate candidate,
+            MatchVideoVerdict verdict, CancellationToken ct)
+        {
+            var embed = await _embedVerifier.VerifyAsync(candidate, verdict.Source!, ct).ConfigureAwait(false);
+            var canPlay = embed.Embeddable && !string.IsNullOrWhiteSpace(embed.EmbedUrl);
+            row.DiscoveryProvenance = MatchVideoRules.OfficialWebProvenance;
+            row.EvidencePageUrl = TrimOrNull(candidate.EvidencePageUrl, 1000);
+            row.EvidenceSourceKey = TrimOrNull(verdict.Source!.Key, 80);
+            row.OfficialPublisher = Trim(verdict.Source.Publisher, 120);
+            row.VideoType = verdict.VideoType!;
+            row.IsEmbeddable = embed.Embeddable;
+            row.CanPlayInApp = canPlay;
+            row.EmbedUrl = canPlay ? TrimOrNull(embed.EmbedUrl, 600) : null;
+            row.VerificationStatus = canPlay ? MatchVideoVerificationStatuses.Verified : MatchVideoVerificationStatuses.EmbedBlocked;
+            row.RejectionReason = null;
+            row.VerificationNote = Trim($"resmî web kanıtıyla yeniden etkinleşti: {verdict.Reason} | embed: {embed.Reason}", 400);
+            row.RevalidatedAtUtc = DateTime.UtcNow;
+            row.VerifiedAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            _log.LogInformation("[POST-MATCH VIDEO] {MatchId} — {VideoId} resmî web kanıtıyla yeniden etkinleşti ({Page}).",
+                row.MatchId, row.ExternalVideoId, row.EvidencePageUrl);
             return new MatchVideoRegistration(true, row.VerificationStatus, row.VerificationNote, row.Id);
         }
 

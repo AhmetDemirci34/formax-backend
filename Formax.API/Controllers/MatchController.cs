@@ -223,6 +223,13 @@ namespace Formax.API.Controllers
 
                 return Ok(result);
             }
+            catch (Formax.Infrastructure.Concurrency.SchedulerSaturatedException sat)
+            {
+                // Sınırlı kuyruk dolu: istek sessizce bekletilmez/kaybolmaz; istemci kısa süre sonra yeniden dener.
+                _logger.LogWarning("GetMatchDetail saturated for matchId={MatchId}: {Reason}", matchId, sat.Message);
+                Response.Headers["Retry-After"] = "2";
+                return StatusCode(503, new { error = "Detail queue saturated", matchId });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "GetMatchDetail failed for matchId={MatchId}", matchId);

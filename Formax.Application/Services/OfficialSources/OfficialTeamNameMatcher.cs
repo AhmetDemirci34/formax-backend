@@ -25,7 +25,9 @@ namespace Formax.Application.Services.OfficialSources
         {
             "fc", "fk", "sk", "as", "a", "s", "ac", "afc", "cf", "sc", "ssc", "acf", "us", "ss", "cfc",
             "club", "kulubu", "futbol", "the", "and", "de", "calcio", "sad", "sd", "cd", "ud", "rcd",
-            "jk", "sportif", "faaliyetler", "anonim", "sirketi"
+            "jk", "sportif", "faaliyetler", "anonim", "sirketi",
+            // İspanyolca/Galiçyaca tanımlık: LALIGA "Real Club Deportivo de A Coruña" ↔ FORMAX "Deportivo La Coruna" (15.09.2026).
+            "la"
         };
 
         /// <summary>

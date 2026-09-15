@@ -83,6 +83,15 @@ namespace Formax.Application.DTOs.Matches
 
         /// <summary>Kuyruktaki bir sonraki planlı deneme (tam özet bulunduysa null).</summary>
         public System.DateTime? NextAttemptUtc { get; init; }
+
+        /// <summary>Maç kalıcı arama kuyruğunda mı? (sayfa açılışı kuyruğa YAZMAZ; yalnız okunur)</summary>
+        public bool InQueue { get; init; }
+
+        /// <summary>Yaş kovası: Today | Yesterday | Last7Days | Last30Days | CurrentSeason | OlderSeason.</summary>
+        public string? QueueBucket { get; init; }
+
+        /// <summary>Son yeniden kuyruğa alma nedeni (ör. "PlayerError:150", "Revalidation:RssOnlyEvidence").</summary>
+        public string? RequeueReason { get; init; }
     }
 
     /// <summary>Bitmiş maç analiz metni — yalnız DB satırından.</summary>
@@ -90,6 +99,9 @@ namespace Formax.Application.DTOs.Matches
     {
         public System.Collections.Generic.IReadOnlyList<string> Sentences { get; init; } = System.Array.Empty<string>();
         public string Generator { get; init; } = "Deterministic";
+
+        /// <summary>"Available" | "InsufficientData" (doğrulanmış veri yetersiz; metin uydurulmaz) | "Pending" (arka plan henüz yazmadı).</summary>
+        public string Status { get; init; } = "Available";
         public System.DateTime GeneratedAtUtc { get; init; }
     }
 }

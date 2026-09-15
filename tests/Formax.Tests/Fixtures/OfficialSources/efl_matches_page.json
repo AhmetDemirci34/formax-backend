@@ -1,0 +1,152 @@
+{
+ "data": [
+  {
+   "type": "match",
+   "id": "g2647250",
+   "attributes": {
+    "kickOffDateUTC": "2026-08-14 19:00:00",
+    "TBC": null,
+    "homeTeam": {
+     "crest": "https://crests.gc.eflservices.co.uk/t39.png",
+     "name": "Wolverhampton Wanderers",
+     "officialName": "Wolverhampton Wanderers",
+     "shortName": null,
+     "initials": null,
+     "score": 2,
+     "halfScore": 1,
+     "penaltyScore": null,
+     "liveStreamingUrl": null,
+     "teamURL": null
+    },
+    "awayTeam": {
+     "crest": "https://crests.gc.eflservices.co.uk/t5.png",
+     "name": "Blackburn Rovers",
+     "officialName": "Blackburn Rovers",
+     "shortName": "Blackburn",
+     "initials": null,
+     "score": 2,
+     "halfScore": 1,
+     "penaltyScore": null,
+     "liveStreamingUrl": "https://www.rovers.co.uk/videos",
+     "teamURL": "https://www.rovers.co.uk/"
+    },
+    "matchMinutes": 96,
+    "matchPeriod": "FullTime",
+    "formattedMatchTime": "90' +6'",
+    "resultType": "NormalResult",
+    "postponementReason": null,
+    "competitionID": 10,
+    "matchWinner": {}
+   },
+   "links": {
+    "self": "https://multi-club-matches.webapi.gc.eflservices.co.uk/v2/matches/g2647250"
+   }
+  },
+  {
+   "type": "match",
+   "id": "g2647251",
+   "attributes": {
+    "kickOffDateUTC": "2026-08-15 11:30:00",
+    "TBC": null,
+    "homeTeam": {
+     "crest": "https://crests.gc.eflservices.co.uk/t30.png",
+     "name": "Bolton Wanderers",
+     "officialName": "Bolton Wanderers",
+     "shortName": "Bolton",
+     "initials": null,
+     "score": 2,
+     "halfScore": 2,
+     "penaltyScore": null,
+     "liveStreamingUrl": "https://www.bwfc.co.uk/",
+     "teamURL": "https://www.bwfc.co.uk/"
+    },
+    "awayTeam": {
+     "crest": "https://crests.gc.eflservices.co.uk/t107.png",
+     "name": "Preston North End",
+     "officialName": "Preston North End",
+     "shortName": "PNE",
+     "initials": null,
+     "score": 1,
+     "halfScore": 0,
+     "penaltyScore": null,
+     "liveStreamingUrl": "https://www.pnefc.net/videos/subscriptions",
+     "teamURL": "https://www.pnefc.net/"
+    },
+    "matchMinutes": 95,
+    "matchPeriod": "FullTime",
+    "formattedMatchTime": "90' +5'",
+    "resultType": "NormalResult",
+    "postponementReason": null,
+    "competitionID": 10,
+    "matchWinner": {
+     "name": "Bolton Wanderers",
+     "crest": "https://crests.gc.eflservices.co.uk/t30.png",
+     "officialName": "Bolton Wanderers",
+     "shortName": "Bolton",
+     "initials": null,
+     "teamURL": "https://www.bwfc.co.uk/"
+    }
+   },
+   "links": {
+    "self": "https://multi-club-matches.webapi.gc.eflservices.co.uk/v2/matches/g2647251"
+   }
+  },
+  {
+   "type": "match",
+   "id": "g2647252",
+   "attributes": {
+    "kickOffDateUTC": "2026-08-15 14:00:00",
+    "TBC": null,
+    "homeTeam": {
+     "crest": "https://crests.gc.eflservices.co.uk/t113.png",
+     "name": "Bristol City",
+     "officialName": "Bristol City",
+     "shortName": "Bristol C",
+     "initials": null,
+     "score": 0,
+     "halfScore": 0,
+     "penaltyScore": null,
+     "liveStreamingUrl": "https://robinstv.bcfc.co.uk/",
+     "teamURL": "https://www.bcfc.co.uk/"
+    },
+    "awayTeam": {
+     "crest": "https://crests.gc.eflservices.co.uk/t103.png",
+     "name": "Millwall",
+     "officialName": "Millwall",
+     "shortName": "Millwall",
+     "initials": null,
+     "score": 2,
+     "halfScore": 1,
+     "penaltyScore": null,
+     "liveStreamingUrl": "https://www.millwallfc.co.uk/videos",
+     "teamURL": "https://www.millwallfc.co.uk/"
+    },
+    "matchMinutes": 96,
+    "matchPeriod": "FullTime",
+    "formattedMatchTime": "90' +6'",
+    "resultType": "NormalResult",
+    "postponementReason": null,
+    "competitionID": 10,
+    "matchWinner": {
+     "name": "Millwall",
+     "crest": "https://crests.gc.eflservices.co.uk/t103.png",
+     "officialName": "Millwall",
+     "shortName": "Millwall",
+     "initials": null,
+     "teamURL": "https://www.millwallfc.co.uk/"
+    }
+   },
+   "links": {
+    "self": "https://multi-club-matches.webapi.gc.eflservices.co.uk/v2/matches/g2647252"
+   }
+  }
+ ],
+ "meta": {
+  "totalCount": 552,
+  "count": 100
+ },
+ "links": {
+  "self": "https://multi-club-matches.webapi.gc.eflservices.co.uk/v2/matches?competitionID=10&page.number=1&page.size=100&seasonID=2026",
+  "next": "https://multi-club-matches.webapi.gc.eflservices.co.uk/v2/matches?page.number=2&competitionID=10&page.size=100&seasonID=2026"
+ }
+}
