@@ -349,6 +349,27 @@ public class GlobalVideoAndSameDayResultsTests
         Assert.Equal(RobotsTxtPolicy.RobotsState.Unreachable, RobotsTxtPolicy.StateFor(null));
     }
 
+    [Fact]
+    public async Task SosyalYouTubeRss_Kapali_AgaHicIstekCikmaz()
+    {
+        var inner = new RecordingHandler(_ => (HttpStatusCode.OK, "<feed xmlns=\"http://www.w3.org/2005/Atom\"><entry><title>x</title></entry></feed>"));
+        var provider = new Formax.Infrastructure.Social.Providers.YouTubeRssSocialProvider(new SingleClientFactory(inner),
+            NullLogger<Formax.Infrastructure.Social.Providers.YouTubeRssSocialProvider>.Instance);
+
+        var items = await provider.FetchAsync(new OfficialSocialAccount { Platform = "YouTube", Handle = "inter" });
+
+        Assert.False(provider.IsEnabled);
+        Assert.Empty(items);
+        Assert.Empty(inner.Requests);
+    }
+
+    private sealed class SingleClientFactory : IHttpClientFactory
+    {
+        private readonly HttpMessageHandler _handler;
+        public SingleClientFactory(HttpMessageHandler handler) => _handler = handler;
+        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
+    }
+
     private sealed class RecordingHandler : HttpMessageHandler
     {
         public readonly List<string> Requests = new();

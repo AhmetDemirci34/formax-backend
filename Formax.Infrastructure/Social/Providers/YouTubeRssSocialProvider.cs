@@ -32,7 +32,13 @@ namespace Formax.Infrastructure.Social.Providers
         }
 
         public string Platform => "YouTube";
-        public bool IsEnabled => true; // RSS herkese açık; key yok.
+
+        /// <summary>
+        /// KAPALI (15.09.2026, kullanıcı kararı): youtube.com/robots.txt <c>Disallow: /feeds/videos.xml</c>.
+        /// "Feed okuyucu istisnası" kullanılmaz; bu yola hiçbir otomatik istek gönderilmez. Sağlayıcı DI'da
+        /// kalır ama ağa çıkmaz — YouTube hesapları bu kanaldan boş döner.
+        /// </summary>
+        public bool IsEnabled => false;
 
         public bool CanHandle(OfficialSocialAccount account)
             => string.Equals(account.Platform, "YouTube", StringComparison.OrdinalIgnoreCase);
@@ -40,6 +46,8 @@ namespace Formax.Infrastructure.Social.Providers
         public async Task<IReadOnlyList<SocialCandidate>> FetchAsync(
             OfficialSocialAccount account, CancellationToken ct = default)
         {
+            if (!IsEnabled) return Array.Empty<SocialCandidate>();
+
             var url = ResolveFeedUrl(account);
             if (string.IsNullOrWhiteSpace(url)) return Array.Empty<SocialCandidate>();
 
