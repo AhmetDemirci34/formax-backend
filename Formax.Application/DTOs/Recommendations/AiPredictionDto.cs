@@ -36,6 +36,9 @@ public sealed class AiPredictionDto
     public string Market { get; init; } = "";
     public int Probability { get; init; }
     public string Confidence { get; init; } = "";
+    /// <summary>Olasılık ailesi (MatchResult / TotalGoals / BothTeamsScore) ve başlığı — snapshot'tan.</summary>
+    public string? Family { get; init; }
+    public string? FamilyTitle { get; init; }
 
     /// <summary>
     /// GERÇEK market oranı (MatchMarketOdds). Sağlayıcıda karşılığı olmayan markette null —

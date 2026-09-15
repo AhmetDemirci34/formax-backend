@@ -33,6 +33,36 @@ namespace Formax.API.Controllers.Admin
                 : Ok(new { type = scheduler.GetType().Name });
 
         /// <summary>
+        /// ÖZELLİK DURUMU — video özelliği kapalı mı, host'ta video işi kayıtlı mı, süreçte video dış isteği çıktı mı.
+        /// Hosted service listesi çalışan sürecin kendisinden okunur (yapılandırma bayrağından değil).
+        /// </summary>
+        [HttpGet("features")]
+        public IActionResult Features([FromServices] OutboundHttpObserver observer,
+            [FromServices] System.Collections.Generic.IEnumerable<Microsoft.Extensions.Hosting.IHostedService> hosted)
+        {
+            var names = hosted.Select(h => h.GetType().Name).ToList();
+            var videoJobs = names.Where(n => n.Contains("Video", System.StringComparison.OrdinalIgnoreCase)
+                                             || n.Contains("YouTube", System.StringComparison.OrdinalIgnoreCase)
+                                             || n.Contains("OEmbed", System.StringComparison.OrdinalIgnoreCase)
+                                             || n == "OfficialWebFeedCrawlJob").ToList();
+            var since = System.DateTime.UtcNow.AddHours(-24);
+            var recent = observer.Since(since);
+            return Ok(new
+            {
+                VideoFeatureEnabled = false,
+                activeVideoJobCount = videoJobs.Count,
+                activeVideoJobs = videoJobs,
+                videoOutboundRequestsSinceStart = observer.VideoRequestCount,
+                lastVideoOutboundRequest = observer.LastVideoRequest,
+                youtubeRequestsLast24h = recent.Count(r => r.Host.Contains("youtube", System.StringComparison.OrdinalIgnoreCase) || r.Host.Contains("ytimg", System.StringComparison.OrdinalIgnoreCase)),
+                oembedRequestsLast24h = recent.Count(r => r.Path.Contains("oembed", System.StringComparison.OrdinalIgnoreCase)),
+                videoSitemapRequestsLast24h = recent.Count(r => OutboundHttpObserver.IsVideoRequest(r.Host, r.Path) && r.Path.Contains("sitemap", System.StringComparison.OrdinalIgnoreCase)),
+                outboundTrackedSinceStart = observer.Total,
+                hostedServices = names
+            });
+        }
+
+        /// <summary>
         /// GİDEN HTTP KAYDI — süreç içindeki bütün HttpClient istekleri; <c>inbound</c> dolu olanlar bir kullanıcı isteğinin
         /// yolunda çıkmıştır. <c>inboundPrefix</c> ile süzülür (ör. "/api/matches/"). Host + yol; sorgu dizesi yok.
         /// </summary>

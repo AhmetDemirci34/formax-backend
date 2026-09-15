@@ -112,7 +112,9 @@ namespace Formax.Infrastructure.OfficialSources
                     outcomes.Add(outcome);
                     recorded += rec;
                     notified += notes;
-                    if (record != null)
+                    // SONUÇ/DURUM YAZIMI resmî sonuç botunundur (OfficialResultBotService: kalıcı kontrol planı, gözlem defteri,
+                    // uzlaşma). Bot kapalıysa (yalnız teşhis) eski tur yazımı çalışır; iki yazıcı aynı anda çalışmaz.
+                    if (record != null && !OfficialResultBotJob.Enabled(_config))
                     {
                         var r = await ApplyStatusAndResultAsync(match.Id, source, record, roundKey, utcNow, ct);
                         if (r != null) outcomes.Add(r);
@@ -321,15 +323,6 @@ namespace Formax.Infrastructure.OfficialSources
                 tracked.ResultVerificationStatus = "Verified";
                 _db.MatchResultObservations.Add(observation);
                 await _db.SaveChangesAsync(ct);
-
-                // Maç SONUÇLAR'a geçti: video keşfi aynı anda kuyruğa girer (planı maç bitişinden). Maç sonu analizi
-                // PostMatchEnrichmentJob'un bir sonraki turunda (son 96 saat penceresi) yazılır; sayfa açılışı üretmez.
-                try
-                {
-                    await Formax.Infrastructure.PostMatch.MatchVideoDiscoveryQueueService.EnsureQueuedAfterResultAsync(_db, tracked, utcNow, ct);
-                    await _db.SaveChangesAsync(ct);
-                }
-                catch (Exception ex) { _log.LogWarning(ex, "[MATCH CENTRE] {MatchId} video kuyruğu açılamadı", matchId); }
 
                 // Maç başlığı/karar okuması skoru MatchLiveStats'tan da okur — iki kayıt aynı hizada tutulur.
                 if (_liveStats != null)

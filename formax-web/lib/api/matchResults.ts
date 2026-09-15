@@ -31,8 +31,8 @@ export interface MatchResultItemDto {
   halfTimeHomeScore?: number | null;
   halfTimeAwayScore?: number | null;
   status: string;
-  /** true ise kartta küçük "Video var" işareti gösterilir; false ise HİÇ işaret yok. */
-  hasPlayableOfficialVideo: boolean;
+  /** Kesin sonucun biçimi (resmî kaynak): "FT" | "AET" | "PEN"; eski kayıtta null. */
+  resultDetail?: string | null;
 }
 
 export interface MatchResultDayDto {

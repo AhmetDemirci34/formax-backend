@@ -45,7 +45,6 @@ namespace Formax.Application.UseCases
         private readonly IFixtureSyncRepository _fixtureSync;
         private readonly IMatchMomentumRepository _matchMomentumRepository;
         private readonly IMatchLiveEventIngestionRepository _matchLiveEventRepository;
-        private readonly IMatchVideoReader _videoReader;
         private readonly INabizFeedRepository _nabizFeedRepository;
         private readonly IUserMatchFollowRepository _followRepository;
         // Radar v2 — anlatı zenginleştirme (opsiyonel; mevcut Execute akışını bozmaz).
@@ -88,7 +87,6 @@ namespace Formax.Application.UseCases
             IFixtureSyncRepository fixtureSync,
             IMatchMomentumRepository matchMomentumRepository,
             IMatchLiveEventIngestionRepository matchLiveEventRepository,
-            IMatchVideoReader videoReader,
             INabizFeedRepository nabizFeedRepository,
             IUserMatchFollowRepository followRepository,
             Formax.Application.Services.MatchAnalysis.IMatchAnalysisReader analysisReader,
@@ -126,7 +124,6 @@ namespace Formax.Application.UseCases
             _fixtureSync = fixtureSync;
             _matchMomentumRepository = matchMomentumRepository;
             _matchLiveEventRepository = matchLiveEventRepository;
-            _videoReader = videoReader;
             _nabizFeedRepository = nabizFeedRepository;
             _followRepository = followRepository;
             _analysisReader = analysisReader;
@@ -299,10 +296,8 @@ namespace Formax.Application.UseCases
                 _                     => "Bu maç için AI şu aşamada yönlendirici bir analiz sunmamayı tercih etmiştir."
             };
 
-            // Bitmiş maçın videoları SALT DB'den okunur (arka planda önceden doğrulanmıştır);
-            // arama durumu da aynı listeye ve kalıcı deftere bakar.
+            // VİDEO ÖZELLİĞİ KALDIRILDI (15.09.2026 ürün kararı): detay DTO'su video alanı taşımaz.
             var isFinished = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase);
-            var finishedVideos = isFinished ? _videoReader.GetVideos(match.Id) : new List<MatchVideoDto>();
 
             return new MatchDetailDto
             {
@@ -340,13 +335,9 @@ namespace Formax.Application.UseCases
                 Events       = string.Equals(match.Status, MatchStatuses.Finished, StringComparison.OrdinalIgnoreCase)
                     ? BuildEvents(match.Id)
                     : new List<MatchEventDto>(),
-                // Maç videoları SALT DB'den okunur — arka planda önceden doğrulanmıştır.
-                // Bu okuma hiçbir sağlayıcıya, arama motoruna veya YouTube'a çıkmaz.
-                Videos       = finishedVideos,
-                // ARAMA DURUMU — kalıcı defterden; saatten türetilmez. Sıfır dış istek.
-                VideoSearch  = isFinished ? BuildVideoSearch(match.Id, match.MatchDate, finishedVideos) : null,
                 // MAÇ SONRASI ANALİZ — arka planda doğrulanmış veriden yazılmış satır okunur (LLM 0).
                 PostMatchSummary = isFinished ? BuildPostMatchSummary(match.Id) : null,
+                ResultDetail = isFinished ? match.ResultDetail : null,
                 // İSTATİSTİK — ÖNCE KANONİK KAYIT (nullable ölçümler), sonra eski tablo.
                 // Kanonik satırda sağlayıcının vermediği ölçüm null kalır ve o satır hiç
                 // gösterilmez; eski tabloda her alan int olduğu için "veri yok" ile
@@ -975,42 +966,6 @@ namespace Formax.Application.UseCases
 
             var canonical = MatchStatisticsDto.FromTeamRows(home, away);
             return canonical ?? MatchStatisticsDto.From(_matchLiveStatsRepository.GetByMatchId(matchId));
-        }
-
-        /// <summary>
-        /// RESMÎ ÖZET ARAMASININ DURUMU — kural <see cref="Services.PostMatch.PostMatchVideoSearchStatus"/>.
-        /// Defter okuması salt DB'dir; bu metot hiçbir sağlayıcıya çıkmaz.
-        /// </summary>
-        private VideoSearchDto BuildVideoSearch(int matchId, DateTime kickoffUtc, IReadOnlyList<MatchVideoDto> videos)
-        {
-            // KALICI KUYRUK (salt DB). Kayıtlı videolar durumun önündedir: oynatılabilir tam özet varsa
-            // kuyruk henüz güncellenmemiş olsa da ekran player gösterir.
-            var queue = _postMatchData.GetVideoDiscovery(matchId);
-            var full = videos.Any(v => v.CanPlayInApp && (v.VideoType == MatchVideoTypes.MatchHighlights || v.VideoType == MatchVideoTypes.ExtendedHighlights));
-            var goals = videos.Any(v => v.CanPlayInApp && (v.VideoType == MatchVideoTypes.Goal || v.VideoType == "Penalty"));
-            var blocked = videos.Any(v => !v.CanPlayInApp);
-            var end = Services.PostMatch.MatchVideoIdentityValidator.EndOf(kickoffUtc);
-
-            var status = full ? Services.PostMatch.VideoDiscoveryStates.FullHighlightsAvailable
-                : goals ? Services.PostMatch.VideoDiscoveryStates.GoalClipsAvailable
-                : queue != null ? queue.State
-                : blocked ? Services.PostMatch.VideoDiscoveryStates.SourceBlocked
-                // Kuyruğa henüz alınmamış yeni biten maç: ilk gün "aranıyor", daha eskisi "henüz bulunamadı".
-                : DateTime.UtcNow - end < TimeSpan.FromHours(24) ? Services.PostMatch.VideoDiscoveryStates.Searching
-                : Services.PostMatch.VideoDiscoveryStates.NotAvailableYet;
-
-            return new VideoSearchDto
-            {
-                Status = status,
-                AttemptsMade = queue?.AttemptCount ?? 0,
-                MaxAttempts = Services.PostMatch.VideoDiscoverySchedule.SearchingAttempts,
-                LastAttemptUtc = queue?.LastAttemptUtc,
-                NextAttemptUtc = queue?.NextAttemptUtc,
-                Reason = queue?.LastError,
-                InQueue = queue != null,
-                QueueBucket = queue?.EnqueueReason,
-                RequeueReason = queue?.RequeueReason
-            };
         }
 
         /// <summary>Maç sonrası analiz metni — yalnız arka planda yazılmış DB satırı; üretim YOK.</summary>

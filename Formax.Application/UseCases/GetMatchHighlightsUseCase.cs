@@ -89,7 +89,8 @@ namespace Formax.Application.UseCases
             var events  = Clean(_events.GetByMatchId(match.Id));
             var minutes = events.Select(e => e.Minute).Distinct().ToList();
 
-            dto.Videos  = BuildVideos(match, homeName, awayName, minutes);
+            // VİDEO ÖZELLİĞİ KALDIRILDI (15.09.2026 ürün kararı): önemli anlar yalnız resmî olaylardan; video listesi boş.
+            dto.Videos  = new List<MatchHighlightVideoDto>();
             dto.Moments = BuildMoments(events, dto.Videos);
 
             dto.Status = (dto.Moments.Count > 0 || dto.Videos.Count > 0) ? "Ready" : "NoContent";

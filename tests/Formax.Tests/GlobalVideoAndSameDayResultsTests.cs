@@ -811,7 +811,7 @@ public class GlobalVideoAndSameDayResultsTests
         src.Records.Add(new OfficialMatchRecord(OfficialSourceRegistry.LaLigaSite, "102289", null, "Sevilla Fútbol Club SAD", "Valencia Club de Fútbol SAD",
             kickoff, OfficialMatchStatuses.Finished, 1, 0, "FullTime"));
 
-        await Centre(name, src, new DateTime(2026, 9, 15, 9, 0, 0, DateTimeKind.Utc));   // 3,5 gün sonra
+        await Bot(name, src, new DateTime(2026, 9, 15, 9, 0, 0, DateTimeKind.Utc));      // 3,5 gün sonra (bot 10 gün geriye bakar)
 
         using var check = Db(name);
         var m = check.Matches.AsNoTracking().Single();
@@ -872,6 +872,15 @@ public class GlobalVideoAndSameDayResultsTests
             => Task.FromResult(new OfficialRead<OfficialLineupDocument>(null, OfficialReadOutcomes.NotSupported, null, null));
     }
 
+    private static async Task<ResultBotCycleReport> Bot(string dbName, IOfficialCompetitionSource source, DateTime now)
+    {
+        using var db = Db(dbName);
+        var bot = new OfficialResultBotService(db, new[] { source }, new OfficialDataSourceCatalog(db),
+            new OfficialResultWriter(db, NullLogger<OfficialResultWriter>.Instance), new ConfigurationBuilder().Build(),
+            NullLogger<OfficialResultBotService>.Instance);
+        return await bot.RunCycleAsync(now);
+    }
+
     private static async Task<MatchCentreRoundReport> Centre(string dbName, IOfficialCompetitionSource source, DateTime now)
     {
         using var db = Db(dbName);
@@ -882,7 +891,7 @@ public class GlobalVideoAndSameDayResultsTests
     }
 
     [Fact]
-    public async Task AyniGunSonuc_BaslamisMacFinishedOlur_VideoKuyruguAcilir_CeliskiKorlemesineEzilmez()
+    public async Task AyniGunSonuc_SonucBotuFinishedYazar_IstatistikPlaniAcilir_CeliskiKorlemesineEzilmez()
     {
         var name = Guid.NewGuid().ToString();
         var kickoff = new DateTime(2026, 9, 14, 19, 0, 0, DateTimeKind.Utc);
@@ -905,7 +914,7 @@ public class GlobalVideoAndSameDayResultsTests
         src.Records.Remove(celta);
         src.Records.Add(celta with { HomeScore = 2, AwayScore = 1 });
 
-        var report = await Centre(name, src, now);
+        var report = await Bot(name, src, now);
 
         using (var db = Db(name))
         {
@@ -913,9 +922,15 @@ public class GlobalVideoAndSameDayResultsTests
             Assert.Equal(MatchStatuses.Finished, vb.Status);                          // aynı gün: ertesi gün beklenmedi
             Assert.Equal((1, 2), (vb.HomeScore, vb.AwayScore));
             Assert.Equal("official:laliga-site", vb.ResultSource);
-            var q = db.MatchVideoDiscoveryQueue.AsNoTracking().Single(x => x.MatchId == 104860);
-            Assert.Equal("OfficialResult", q.RequeueReason);
-            Assert.Equal(VideoDiscoveryStates.Searching, q.State);
+            Assert.Equal("FT", vb.ResultDetail);
+            Assert.Equal("Resolved", db.MatchResultChecks.AsNoTracking().Single(c => c.MatchId == 104860).State);
+            var st = db.MatchStatisticsChecks.AsNoTracking().Single(x => x.MatchId == 104860);   // istatistik takvimi aynı işlemde
+            Assert.Equal("Pending", st.State);
+            Assert.False(db.MatchVideoDiscoveryQueue.Any(x => x.MatchId == 104860));             // video kuyruğu AÇILMAZ
+            var obs = db.MatchResultObservations.AsNoTracking().Single(o => o.MatchId == 104860 && o.Decision == "Applied");
+            Assert.Equal("laliga-nextdata-v2", obs.ParserVersion);
+            Assert.False(string.IsNullOrWhiteSpace(obs.ContentHash));
+            Assert.NotNull(obs.SourceMatchId);
 
             var cm = db.Matches.AsNoTracking().Single(m => m.Id == 15432);
             Assert.Equal((1, 1), (cm.HomeScore, cm.AwayScore));                       // ilk gözlemde ezilmedi
@@ -924,7 +939,7 @@ public class GlobalVideoAndSameDayResultsTests
         }
         Assert.Contains(report.Matches, o => o.MatchId == 15432 && o.Outcome == "ResultConflict");
 
-        await Centre(name, src, now.AddMinutes(10));                                    // ikinci resmî gözlem aynı skor
+        await Bot(name, src, now.AddMinutes(10));                                       // ikinci resmî gözlem aynı skor
         using (var db = Db(name))
         {
             var cm = db.Matches.AsNoTracking().Single(m => m.Id == 15432);
@@ -1008,7 +1023,7 @@ public class GlobalVideoAndSameDayResultsTests
             Assert.DoesNotContain(forbidden, uc);
         var reader = File.ReadAllText(Path.Combine(dir.FullName, "Formax.Infrastructure", "PostMatch", "MatchVideoReader.cs"));
         Assert.DoesNotContain("HttpClient", reader);
-        var playback = File.ReadAllText(Path.Combine(dir.FullName, "Formax.API", "Controllers", "MatchVideoPlaybackController.cs"));
-        Assert.DoesNotContain("DiscoverAsync", playback);
+        // Video oynatıcı telemetrisi ucu 15.09.2026'da tamamen kaldırıldı.
+        Assert.False(File.Exists(Path.Combine(dir.FullName, "Formax.API", "Controllers", "MatchVideoPlaybackController.cs")));
     }
 }

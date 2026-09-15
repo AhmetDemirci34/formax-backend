@@ -2,21 +2,15 @@
 
 import { TeamCrest } from "@/components/ui/TeamCrest";
 import { formatMatchDateTR } from "@/lib/matchClock";
-import { useState } from "react";
 import {
   ANALYSIS_INSUFFICIENT_TEXT,
   ANALYSIS_PENDING_TEXT,
-  VIDEO_SOURCE_BLOCKED_TEXT,
-  arrangeVideos,
-  mainHighlightCandidates,
-  nextCandidateAfterError,
-  videoEmptyStateText,
-} from "@/lib/video/videoSearch";
+  STATISTICS_NOT_PUBLISHED_PREFIX,
+} from "@/lib/matches/postMatchTexts";
 import { eventLabel } from "@/lib/matches/eventLabels";
 import { hasVerifiedLineup } from "@/lib/lineup/lineupStatus";
-import { VideoPlayerCard } from "./VideoPlayerCard";
 import { LineupPanel } from "@/components/match-center/lineup/LineupPanel";
-import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto, MatchVideoDto } from "@/types/api";
+import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto } from "@/types/api";
 
 /**
  * BİTMİŞ MAÇ ÖZETİ — kilitli ekran (02.09.2026 ürün kararı).
@@ -26,8 +20,7 @@ import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto, MatchVideoDto }
  *
  * KAPSAM (kapalı liste): lig/aşama → tarih → TR saati → stadyum → takımlar → MS →
  * İY/2Y/MS → maç sonrası analiz metni (arka planda doğrulanmış skor/olay/istatistikten;
- * maç öncesi AI yorumu DEĞİL) → resmî maç özeti videosu → varsa ayrı GOLLER klipleri →
- * varsa doğrulanmış olaylar → varsa doğrulanmış istatistikler → yalnız uygun lig
+ * maç öncesi AI yorumu DEĞİL) → varsa doğrulanmış olaylar → varsa doğrulanmış istatistikler → yalnız uygun lig
  * maçında puan durumu.
  *
  * KAPSAM DIŞI (UI'da karşılığı YOK, boş başlık olarak da yok): maç sonrası haber,
@@ -36,27 +29,16 @@ import type { MatchDetailDto, MatchEventDto, MatchStatisticsDto, MatchVideoDto }
  * KAYNAK: yalnız backend DTO'su (DB). Bu ekran hiçbir sağlayıcıya istek ÜRETMEZ ve
  * hiçbir veriyi kendisi türetmez — 2Y çıkarması bile backend'de yapılır.
  *
- * BOŞ BÖLÜM YOK: verisi olmayan bölümün BAŞLIĞI da basılmaz. Tek istisna MAÇ ÖZETİ
- * video bölümüdür; kullanıcının aradığı asıl şey odur ve sessizce kaybolması
- * "ekran bozuk" hissi verir.
+ * BOŞ BÖLÜM YOK: verisi olmayan bölümün BAŞLIĞI da basılmaz.
+ *
+ * VİDEO YOK (15.09.2026 ürün kararı): maç özeti/gol videosu, oynatıcı ve video arama durumu bu ekrandan
+ * tamamen kaldırıldı; DTO video alanı taşımaz.
  */
 export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   const sb = match.scoreBreakdown ?? null;
   const events = match.events ?? [];
   const stats = match.statistics ?? null;
   const when = formatMatchDateTR(match.matchDate);
-  const videos = match.videos ?? [];
-
-  // ANA VİDEO = oynatılabilen ilk özet; önemli anlar yalnız AYRI klipler (ana özet
-  // TEKRAR düşmez); ana video yoksa oynatılamayan ama gerçek resmî kaynaklar. Backend
-  // sıralaması korunur — kural lib/video/videoSearch.arrangeVideos'tadır.
-  const { main, goals, otherMoments, blocked } = arrangeVideos(videos);
-
-  // ARAMA DURUMU KALICI DEFTERDEN (11.09.2026 ürün kuralı): "bulunamadı" YALNIZ backend
-  // dört gerçek denemenin tamamlandığını söylediğinde. Maçtan sonra geçen süre tek başına
-  // hiçbir şey kanıtlamaz — iş hiç çalışmamış ya da rate limit'e takılmış olabilir.
-  const videoEmptyText = videoEmptyStateText(match.videoSearch);
-
   // KADRO — maç bitmiş olsa bile DB'de doğrulanmış kadro varsa kaybolmaz.
   const showLineup = hasVerifiedLineup(match.lineup);
 
@@ -66,10 +48,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   // tablo KAVRAM OLARAK yoktur; frontend bu kararı yeniden HESAPLAMAZ.
   const showStandings = match.standing?.standingsAvailability === "Table";
 
-  // Sonuç kartı dışında hiçbir ayrıntı yoksa tek bir genel mesaj. Ana video boş
-  // durumu zaten aynı anlamı verdiği için ikisi ASLA birlikte gösterilmez.
-  // Arama durumu (videoSearch) da bir ayrıntıdır: "kontrol ediliyor" cümlesi, genel
-  // "ayrıntı yok" mesajının yerine geçer ve ikisi yine ASLA birlikte gösterilmez.
+  // Sonuç kartı dışında hiçbir ayrıntı yoksa tek bir genel mesaj.
   // MAÇ SONRASI ANALİZ — yalnız arka planda yazılmış DB metni; ekran cümle ÜRETMEZ.
   const analysis = match.postMatchSummary?.sentences?.filter((x) => x.trim().length > 0) ?? [];
   // Analiz durumu backend'den: yetersiz veri → dürüst cümle; henüz yazılmadı → "hazırlanıyor". Cümle UYDURULMAZ.
@@ -83,13 +62,8 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
           ? ANALYSIS_PENDING_TEXT
           : null;
 
-  // Tam özet yoksa ama oynatılabilir gol klipleri varsa ekran GOLLER der; boş "Maç Özeti"
-  // kutusu ve "kontrol ediliyor" cümlesi o hâlde basılmaz (gol klibi tam özet sayılmaz).
-  const showSummaryVideoPanel = !!main || blocked.length > 0 || goals.length === 0;
-
   const hasAnyDetail =
-    videos.length > 0 || events.length > 0 || !!stats || showStandings || showLineup || !!match.videoSearch ||
-    analysis.length > 0 || !!analysisNotice;
+    events.length > 0 || !!stats || showStandings || showLineup || analysis.length > 0 || !!analysisNotice;
 
   return (
     <div className="flex min-h-0 w-full max-w-full flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 pb-28">
@@ -102,7 +76,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
               {match.matchTypeLabel ? ` · ${match.matchTypeLabel}` : ""}
             </span>
             <span className="shrink-0 whitespace-nowrap rounded-md bg-white/[0.08] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/70">
-              Maç Bitti
+              {match.resultDetail === "AET" ? "Uzatmalarda Bitti" : match.resultDetail === "PEN" ? "Penaltılarla Bitti" : "Maç Bitti"}
             </span>
           </div>
 
@@ -170,7 +144,7 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
         )}
       </section>
 
-      {/* Hiçbir ayrıntı yoksa TEK genel mesaj (video boş durumu ile birlikte ASLA). */}
+      {/* Hiçbir ayrıntı yoksa TEK genel mesaj. */}
       {!hasAnyDetail && (
         <p className="px-3 py-4 text-center text-[12px] leading-relaxed text-white/50">
           Bu maçın sonucu kesinleşti. Ayrıntılı özet verileri henüz bulunmuyor.
@@ -194,56 +168,6 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
           <div data-testid="post-match-analysis-notice">
             <Empty text={analysisNotice} />
           </div>
-        </Panel>
-      )}
-
-      {/* ── MAÇ ÖZETİ ─────────────────────────────────────────────────────── */}
-      {hasAnyDetail && showSummaryVideoPanel && (
-        <Panel title="Maç Özeti">
-          {main ? (
-            <div className="p-3">
-              <MainHighlightPlayer candidates={mainHighlightCandidates(videos)} matchId={match.matchId} />
-            </div>
-          ) : (
-            <>
-              {goals.length === 0 && <Empty text={videoEmptyText} />}
-              {blocked.length > 0 && (
-                <ul className="flex flex-col gap-2 px-3 pb-3">
-                  {blocked.map((v) => (
-                    <li key={v.sourcePageUrl}>
-                      <VideoPlayerCard video={v} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </Panel>
-      )}
-
-      {/* ── GOLLER — yalnız oynatılabilir AYRI gol klipleri (tam özet değildir) ── */}
-      {goals.length > 0 && (
-        <Panel title="Goller">
-          <ul className="flex flex-col gap-2.5 p-3">
-            {goals.map((v) => (
-              <li key={v.embedUrl ?? v.sourcePageUrl}>
-                <VideoPlayerCard video={v} compact matchId={match.matchId} />
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
-
-      {/* ── DİĞER RESMÎ KLİPLER (kart/VAR/önemli an) — yalnız AYRI klipler ──── */}
-      {otherMoments.length > 0 && (
-        <Panel title="Önemli Anlar">
-          <ul className="flex flex-col gap-2.5 p-3">
-            {otherMoments.map((v) => (
-              <li key={v.sourcePageUrl}>
-                <VideoPlayerCard video={v} compact />
-              </li>
-            ))}
-          </ul>
         </Panel>
       )}
 
@@ -284,46 +208,12 @@ export function FinishedMatchSummary({ match }: { match: MatchDetailDto }) {
   );
 }
 
-/**
- * ANA ÖZET OYNATICISI — oynatıcı gömme/bölge engeli bildirirse aynı maçın bir sonraki doğrulanmış resmî
- * özetine geçer ve bunu açıkça yazar. Aday kalmazsa kartın kendi dürüst hata metni kalır.
- */
-function MainHighlightPlayer({ candidates, matchId }: { candidates: MatchVideoDto[]; matchId: number }) {
-  const [index, setIndex] = useState(0);
-  const [exhausted, setExhausted] = useState(false);
-  const video = candidates[Math.min(index, candidates.length - 1)];
-  if (!video) return null;
-  return (
-    <div className="flex flex-col gap-2">
-      {exhausted && (
-        <p className="text-[11px] leading-relaxed text-white/70" data-testid="video-exhausted-note">
-          {VIDEO_SOURCE_BLOCKED_TEXT}
-        </p>
-      )}
-      {index > 0 && (
-        <p className="text-[11px] leading-relaxed text-white/70" data-testid="video-fallback-note">
-          Önceki resmî video bu bölgede ya da uygulama içinde oynatılamadı; aynı maçın başka bir resmî kaynağı gösteriliyor.
-        </p>
-      )}
-      <VideoPlayerCard
-        key={video.sourcePageUrl}
-        video={video}
-        autoStart={index > 0}
-        matchId={matchId}
-        onPlaybackError={(code) => {
-          const next = nextCandidateAfterError(candidates.length, index, code);
-          if (next !== null) setIndex(next);
-          else setExhausted(true);
-        }}
-      />
-    </div>
-  );
-}
-
 /** İstatistik tablosu — ev solda, deplasman sağda, arada oransal bar. */
 function StatisticsTable({ stats }: { stats: MatchStatisticsDto }) {
+  const notPublished = stats.notPublished ?? [];
   return (
-    <ul className="flex flex-col gap-2.5 px-3 py-3">
+    <>
+    <ul className="flex flex-col gap-2.5 px-3 py-3" data-testid="statistics-rows">
       {stats.rows.map((r) => {
         const total = r.home + r.away;
         const homePct = total > 0 ? (r.home / total) * 100 : 50;
@@ -349,6 +239,18 @@ function StatisticsTable({ stats }: { stats: MatchStatisticsDto }) {
         );
       })}
     </ul>
+    {/* VERİ YOK ≠ 0: kaynağın yayımlamadığı alan satır olarak "0" basılmaz, burada adıyla söylenir. */}
+    {(notPublished.length > 0 || stats.sourceName) && (
+      <div className="flex flex-col gap-0.5 border-t border-goalai-border/40 px-3 py-2">
+        {notPublished.length > 0 && (
+          <p className="text-[10.5px] leading-relaxed text-white/55" data-testid="statistics-not-published">
+            {STATISTICS_NOT_PUBLISHED_PREFIX} {notPublished.join(", ")}
+          </p>
+        )}
+        {stats.sourceName && <p className="text-[10px] text-white/45">Resmî kaynak: {stats.sourceName}</p>}
+      </div>
+    )}
+    </>
   );
 }
 

@@ -25,6 +25,12 @@ namespace Formax.Domain.Constants
         public const string Over25  = "UST_2_5";
         public const string Under25 = "ALT_2_5";
 
+        // Toplam gol 1.5 / 3.5 (15.09.2026, additive — olası sonuç motorunun gol ailesi)
+        public const string Over15  = "UST_1_5";
+        public const string Under15 = "ALT_1_5";
+        public const string Over35  = "UST_3_5";
+        public const string Under35 = "ALT_3_5";
+
         // Karşılıklı gol
         public const string BttsYes = "KG_VAR";
         public const string BttsNo  = "KG_YOK";

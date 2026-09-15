@@ -26,6 +26,10 @@ namespace Formax.Application.Services.Odds
 
             ["2.5 Üst"]                   = OddsMarketKeys.Over25,
             ["2.5 Alt"]                   = OddsMarketKeys.Under25,
+            ["1.5 Üst"]                   = OddsMarketKeys.Over15,
+            ["1.5 Alt"]                   = OddsMarketKeys.Under15,
+            ["3.5 Üst"]                   = OddsMarketKeys.Over35,
+            ["3.5 Alt"]                   = OddsMarketKeys.Under35,
 
             ["Karşılıklı Gol Var"]        = OddsMarketKeys.BttsYes,
             ["Karşılıklı Gol Yok"]        = OddsMarketKeys.BttsNo,

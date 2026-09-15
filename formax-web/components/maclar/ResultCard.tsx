@@ -53,7 +53,7 @@ export function ResultCard({ result: r, onOpen }: Props) {
         <TeamLine name={r.awayTeam.name} logoUrl={r.awayTeam.logoUrl} score={r.awayScore} />
       </button>
 
-      {/* Alt satır: İY (varsa) + video işareti + MAÇ ÖZETİ */}
+      {/* Alt satır: İY (varsa) + sonuç biçimi (AET/PEN) + MAÇ ÖZETİ. Video işareti 15.09.2026'da kaldırıldı. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 pb-2">
         {hasHalfTime ? (
           <span className="whitespace-nowrap text-[11px] tabular-nums text-text-muted">
@@ -61,12 +61,9 @@ export function ResultCard({ result: r, onOpen }: Props) {
           </span>
         ) : null}
 
-        {/* İşaret YALNIZ backend "doğrulanmış ve oynatılabilir video var" derse.
-            Rejected / NeedsManualReview kayıtlar bu bayrağı ASLA true yapmaz. */}
-        {r.hasPlayableOfficialVideo ? (
-          <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[6px] bg-neon/[0.10] px-1.5 py-[2px] text-[9.5px] font-bold tracking-wide text-neon">
-            <PlayGlyph />
-            Video var
+        {r.resultDetail === "AET" || r.resultDetail === "PEN" ? (
+          <span className="shrink-0 whitespace-nowrap rounded-[6px] bg-white/[0.08] px-1.5 py-[2px] text-[9.5px] font-bold tracking-wide text-white/75">
+            {r.resultDetail === "AET" ? "Uzatmalarda" : "Penaltılarla"}
           </span>
         ) : null}
 
@@ -104,10 +101,3 @@ function TeamLine({
   );
 }
 
-function PlayGlyph() {
-  return (
-    <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M8 5l11 7-11 7z" />
-    </svg>
-  );
-}

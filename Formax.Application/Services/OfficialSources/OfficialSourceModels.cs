@@ -76,6 +76,12 @@ namespace Formax.Application.Services.OfficialSources
         public const string Scheduled = "Scheduled";
         public const string Live = "Live";
         public const string Finished = "Finished";
+        /// <summary>Uzatmalarda bitti (kaynak açıkça yayımladıysa).</summary>
+        public const string FinishedAfterExtraTime = "FinishedAET";
+        /// <summary>Seri penaltılarla bitti (kaynak açıkça yayımladıysa).</summary>
+        public const string FinishedAfterPenalties = "FinishedPEN";
+        /// <summary>Yarıda kaldı.</summary>
+        public const string Abandoned = "Abandoned";
         public const string Postponed = "Postponed";
         public const string Cancelled = "Cancelled";
         public const string Suspended = "Suspended";

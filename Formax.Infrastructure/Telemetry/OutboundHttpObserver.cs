@@ -58,9 +58,33 @@ namespace Formax.Infrastructure.Telemetry
             }
         }
 
+        private long _video;
+        private Entry? _lastVideo;
+
+        /// <summary>Süreç başından beri video niteliğindeki dış istek sayısı (YouTube, oEmbed, video sitemap).</summary>
+        public long VideoRequestCount => Interlocked.Read(ref _video);
+
+        /// <summary>Son video dış isteği; hiç yoksa null.</summary>
+        public Entry? LastVideoRequest => _lastVideo;
+
+        /// <summary>
+        /// VİDEO İSTEĞİ SINIFI — YouTube ve YouTube-nocookie alanları, herhangi bir alandaki oEmbed yolu, video sitemap
+        /// ve TRT SPOR video sitemap. Video özelliği kapalıyken bu sayaç 0 kalmalıdır.
+        /// </summary>
+        public static bool IsVideoRequest(string host, string path)
+        {
+            var h = host.ToLowerInvariant();
+            var pth = (path ?? string.Empty).ToLowerInvariant();
+            return h == "youtube.com" || h.EndsWith(".youtube.com") || h.EndsWith("youtube-nocookie.com") || h == "youtu.be"
+                   || h.EndsWith("ytimg.com") || h.EndsWith("googlevideo.com")
+                   || pth.Contains("oembed") || pth.Contains("sitemap_video") || pth.Contains("video-sitemap") || pth.Contains("videositemap")
+                   || (pth.Contains("sitemap") && pth.Contains("video"));
+        }
+
         private void Add(Entry e)
         {
             Interlocked.Increment(ref _total);
+            if (IsVideoRequest(e.Host, e.Path)) { Interlocked.Increment(ref _video); _lastVideo = e; }
             _entries.Enqueue(e);
             while (_entries.Count > Max && _entries.TryDequeue(out _)) { }
         }

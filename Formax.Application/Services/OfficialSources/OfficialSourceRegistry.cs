@@ -56,10 +56,13 @@ namespace Formax.Application.Services.OfficialSources
             // ── 140 · LALIGA ─────────────────────────────────────────────────────
             new(LaLigaSite, "LALIGA", new[] { 140 }, OfficialSourceTier.LeagueMatchCentre,
                 OfficialContentKinds.HtmlEmbeddedJson, new[] { "www.laliga.com" },
-                new[] { OfficialPurposes.Schedule, OfficialPurposes.Result },
+                new[] { OfficialPurposes.Schedule, OfficialPurposes.Result, OfficialPurposes.Statistics },
                 OfficialSourceStatuses.Verified,
                 "15.09.2026: /laliga-easports/resultados sunucu çıktısı __NEXT_DATA__ içinde haftanın maçlarını taşıyor " +
                 "(status FullTime, home_score/away_score, ISO tarih); Villarreal–Betis 1-2 okundu; robots.txt izin veriyor. " +
+                "İstatistik: /partido/{slug} (robots 'Allow: /partido/*') __NEXT_DATA__ data.stats.home/away — possession_percentage, " +
+                "total_scoring_att, ontarget_scoring_att, shot_off_target, blocked_scoring_att, won_corners, fk_foul_lost, total_offside, " +
+                "total_yel_card, saves, total_pass, accurate_pass (Real Sociedad–Celta ölçüldü); sıfır değerli alanlar yayımlanmıyor. " +
                 "Kadro sekmesi sunucu çıktısında yok. Veri uçları (apim.laliga.com) abonelik anahtarı istiyor — KULLANILMAZ."),
 
             // ── 135 · Serie A ────────────────────────────────────────────────────

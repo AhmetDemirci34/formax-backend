@@ -69,7 +69,7 @@ namespace Formax.Infrastructure.Repositories
                 {
                     m.Id, m.ExternalMatchId, m.LeagueId, m.League, m.Round, m.MatchDate,
                     m.HomeTeamId, m.AwayTeamId, m.HomeScore, m.AwayScore,
-                    m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.Status,
+                    m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.Status, m.ResultDetail,
                     HomeName = home != null ? home.Name : null,
                     HomeLogo = home != null ? home.LogoUrl : null,
                     AwayName = away != null ? away.Name : null,
@@ -87,19 +87,6 @@ namespace Formax.Infrastructure.Repositories
                     : $"fx:{r.ExternalMatchId!.Trim()}")
                 .Select(g => g.OrderBy(x => x.Id).First())
                 .ToList();
-
-            // Oynatılabilir resmî video işareti — TEK sorgu, kart başına sorgu yok.
-            //
-            // KURAL EKRANLA AYNI YERDEN GELİR (<see cref="MatchVideoRules.IsPlayable"/>):
-            // Rejected, NeedsManualReview, gerekçesi dolu ya da gömme adresi olmayan
-            // hiçbir kayıt "Video var" işareti ÜRETMEZ. Kart "var" derken ekranın boş
-            // kalması, kullanıcı için ürünün bozuk olduğu anlamına gelir.
-            var matchIds = deduped.Select(r => r.Id).ToList();
-            var videoRows = await _db.MatchVideos.AsNoTracking()
-                .Where(v => matchIds.Contains(v.MatchId))
-                .ToListAsync(ct).ConfigureAwait(false);
-            var playableSet = new HashSet<int>(
-                videoRows.Where(MatchVideoRules.IsPlayable).Select(v => v.MatchId).Distinct());
 
             return deduped
                 // DETERMİNİSTİK SIRA (ürün kararı 13.09.2026): EN SON BİTEN ÖNCE — kickoff
@@ -132,7 +119,7 @@ namespace Formax.Infrastructure.Repositories
                         HalfTimeHomeScore      = r.HalfTimeHomeScore,
                         HalfTimeAwayScore      = r.HalfTimeAwayScore,
                         Status                 = r.Status,
-                        HasPlayableOfficialVideo = playableSet.Contains(r.Id)
+                        ResultDetail = r.ResultDetail
                     };
                 })
                 .ToList();
@@ -232,7 +219,7 @@ namespace Formax.Infrastructure.Repositories
                 {
                     m.Id, m.ExternalMatchId, m.LeagueId, m.League, m.Round, m.MatchDate,
                     m.HomeTeamId, m.AwayTeamId, m.HomeScore, m.AwayScore,
-                    m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.Status,
+                    m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.Status, m.ResultDetail,
                     HomeName = home != null ? home.Name : null,
                     HomeLogo = home != null ? home.LogoUrl : null,
                     AwayName = away != null ? away.Name : null,
@@ -260,13 +247,6 @@ namespace Formax.Infrastructure.Repositories
 
             var page = ordered.Take(Math.Clamp(maxResults, 1, 100)).ToList();
 
-            var matchIds = page.Select(r => r.Id).ToList();
-            var videoRows = await _db.MatchVideos.AsNoTracking()
-                .Where(v => matchIds.Contains(v.MatchId))
-                .ToListAsync(ct).ConfigureAwait(false);
-            var playableSet = new HashSet<int>(
-                videoRows.Where(MatchVideoRules.IsPlayable).Select(v => v.MatchId).Distinct());
-
             return page.Select(r =>
             {
                 var round = string.IsNullOrWhiteSpace(r.Round) ? null : r.Round!.Trim();
@@ -292,7 +272,7 @@ namespace Formax.Infrastructure.Repositories
                     HalfTimeHomeScore      = r.HalfTimeHomeScore,
                     HalfTimeAwayScore      = r.HalfTimeAwayScore,
                     Status                 = r.Status,
-                    HasPlayableOfficialVideo = playableSet.Contains(r.Id)
+                    ResultDetail = r.ResultDetail
                 };
             }).ToList();
         }

@@ -27,6 +27,10 @@ namespace Formax.Application.Services.Picks
         /// <summary>2,5 gol çizgisi — alt/üst.</summary>
         public const string TotalGoals25 = "TOTAL_2_5";
 
+        /// <summary>1,5 ve 3,5 gol çizgileri — alt/üst (çizgi düzeyinde ayrı grup).</summary>
+        public const string TotalGoals15 = "TOTAL_1_5";
+        public const string TotalGoals35 = "TOTAL_3_5";
+
         /// <summary>Karşılıklı gol — var/yok.</summary>
         public const string BothTeamsToScore = "BTTS";
 
@@ -55,6 +59,10 @@ namespace Formax.Application.Services.Picks
 
             [OddsMarketKeys.Over25]  = TotalGoals25,
             [OddsMarketKeys.Under25] = TotalGoals25,
+            [OddsMarketKeys.Over15]  = TotalGoals15,
+            [OddsMarketKeys.Under15] = TotalGoals15,
+            [OddsMarketKeys.Over35]  = TotalGoals35,
+            [OddsMarketKeys.Under35] = TotalGoals35,
 
             [OddsMarketKeys.BttsYes] = BothTeamsToScore,
             [OddsMarketKeys.BttsNo]  = BothTeamsToScore,

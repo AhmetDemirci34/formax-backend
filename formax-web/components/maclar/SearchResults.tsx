@@ -84,11 +84,6 @@ export function SearchResults({ results, isSearching, onOpen }: Props) {
                       )}
                     </div>
                   </div>
-                  {m.hasPlayableOfficialVideo && (
-                    <span className="shrink-0 rounded-md bg-[#A855F7]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#A855F7]">
-                      VİDEO
-                    </span>
-                  )}
                 </button>
               ))}
             </div>

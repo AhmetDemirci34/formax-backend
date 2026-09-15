@@ -268,7 +268,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             "FirstHalf" or "HalfTime" or "SecondHalf" or "ExtraTime" or "ExtraFirstHalf" or "ExtraHalfTime"
                 or "ExtraSecondHalf" or "ShootOut" or "Live" => OfficialMatchStatuses.Live,
             "Postponed" => OfficialMatchStatuses.Postponed,
-            "Abandoned" or "Cancelled" or "Canceled" => OfficialMatchStatuses.Cancelled,
+            "Abandoned" => OfficialMatchStatuses.Abandoned,
+            "Cancelled" or "Canceled" => OfficialMatchStatuses.Cancelled,
             "Suspended" => OfficialMatchStatuses.Suspended,
             _ => OfficialMatchStatuses.Unknown
         };

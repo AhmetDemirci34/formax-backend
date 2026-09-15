@@ -298,9 +298,9 @@ public class MatchResultsTests
     // ── Video işareti: yalnız gerçekten oynatılabilir kayıt varsa ─────────────
 
     [Fact]
-    public async Task VideoIsareti_YalnizOynatilabilirKayitVarsa()
+    public async Task VideoOzelligiKapali_OynatilabilirKayitOlsaBileSonucKartiVideoTasimaz()
     {
-        using var db = SeededDb(nameof(VideoIsareti_YalnizOynatilabilirKayitVarsa));
+        using var db = SeededDb(nameof(VideoOzelligiKapali_OynatilabilirKayitOlsaBileSonucKartiVideoTasimaz));
         db.MatchVideos.AddRange(
             new MatchVideo
             {
@@ -327,8 +327,10 @@ public class MatchResultsTests
         db.SaveChanges();
 
         var reader = TestReaders.Results(db);
-        Assert.True((await reader.GetResultsAsync(Aug18))[0].HasPlayableOfficialVideo);
-        Assert.False((await reader.GetResultsAsync(Aug26))[0].HasPlayableOfficialVideo);
+        // 15.09.2026: video özelliği kaldırıldı — DTO'da video alanı yok; eski kayıtlar sonuç kartına sızmaz.
+        Assert.Null(typeof(Formax.Application.DTOs.Matches.MatchResultItemDto).GetProperty("HasPlayableOfficialVideo"));
+        var json = System.Text.Json.JsonSerializer.Serialize(await reader.GetResultsAsync(Aug18));
+        Assert.DoesNotContain("Video", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

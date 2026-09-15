@@ -265,75 +265,11 @@ public static class DependencyInjection
         services.AddSingleton<Formax.Infrastructure.PostMatch.HostRateLimiter>();
         services.AddSingleton<Formax.Infrastructure.PostMatch.RobotsTxtPolicy>();
         services.AddTransient<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
-        // YouTube Data API zincirden ÇIKARILDI (ürün kuralı: anahtar istenmez, Data API kullanılmaz).
-        services.AddSingleton<Formax.Infrastructure.PostMatch.OfficialVideoSourceCatalog>();
-        services.AddSingleton<IOfficialVideoSourceCatalog>(sp => sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialVideoSourceCatalog>());
-        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialVideoSourceDiscoveryService>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoDiscoveryQueueService>();
-        services.AddHttpClient(Formax.Infrastructure.PostMatch.OfficialVideoSourceDiscoveryService.HttpClientName, c =>
-        {
-            c.Timeout = TimeSpan.FromSeconds(30);
-            c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxVideoSourceCatalog/1.0 (+https://github.com/AhmetDemirci34/formax-backend)");
-        })
-        // Yönlendirme nezaket katmanında izlenir (her atlamada robots.txt); gövde sıkıştırması açılır.
-        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
-        {
-            AllowAutoRedirect = false, AutomaticDecompression = System.Net.DecompressionMethods.All, ConnectTimeout = TimeSpan.FromSeconds(10)
-        })
-        .AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
-        services.AddHttpClient("postmatch-video", c =>
-        {
-            // Bu istemci YALNIZ resmî video uçlarına (YouTube kanal akışı + oembed) gider.
-            // api-football istemcisiyle karışmaz: video araması futbol veri kotasına
-            // dokunmamalıdır.
-            c.Timeout = TimeSpan.FromSeconds(15);
-            c.DefaultRequestHeaders.UserAgent.ParseAdd("FormaxPostMatchVideo/1.0");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
-        {
-            AllowAutoRedirect = false, AutomaticDecompression = System.Net.DecompressionMethods.All, ConnectTimeout = TimeSpan.FromSeconds(10)
-        })
-        .AddHttpMessageHandler<Formax.Infrastructure.PostMatch.PoliteHttpHandler>();
-        services.AddScoped<IMatchVideoReader, Formax.Infrastructure.PostMatch.MatchVideoReader>();
-        services.AddScoped<IVideoEmbedVerifier, Formax.Infrastructure.PostMatch.YouTubeEmbedVerifier>();
-        services.AddScoped<IMatchVideoRegistrar, Formax.Infrastructure.PostMatch.MatchVideoRegistrar>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoAuditService>();
-        // ── RESMÎ VİDEO KEŞİF ZİNCİRİ ─────────────────────────────────────────
-        //
-        // Tek sağlayıcı yerine ÖNCELİKLİ ZİNCİR (07.09.2026): keşfin tamamı YouTube
-        // RSS akışının son ~15 videosuna bağlıydı; akıştan düşen resmî özet kalıcı
-        // olarak kayboluyordu. Zincir hak sahipliği sırasına göre çalışır ve
-        // yapılandırılmamış sağlayıcıyı SESSİZCE atlar (NotConfigured).
-        //
-        // Sağlayıcılar zincire ÜYE olarak kaydedilir; dışarıya açılan tek
-        // IOfficialMatchVideoProvider zincirin kendisidir.
+        // ── VİDEO ÖZELLİĞİ KALDIRILDI (15.09.2026 ürün kararı) ─────────────────
+        // Video keşfi, backfill, yeniden doğrulama, YouTube/oEmbed/video sitemap istemcileri, oynatıcı telemetrisi
+        // ve video okuma yolu DI'dan çıkarıldı: hiçbir iş veya uç bu servisleri çözemez, dış istek üretilemez.
+        // MatchVideos ve kuyruk tabloları geri dönüş için SİLİNMEDİ; yalnız okunmaz/yazılmaz.
         services.AddScoped<Formax.Infrastructure.Picks.UserPickSettlementService>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.YouTubeChannelFeedVideoProvider>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.VideoHttpBudget>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialWebVideoProvider>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.OfficialWebFeedCrawler>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoRevalidationService>();
-        services.AddScoped<Formax.Infrastructure.PostMatch.MatchVideoPlaybackReportService>();
-        services.AddScoped<IOfficialMatchVideoProvider>(sp =>
-        {
-            // "Disabled" tek anahtarla tüm keşfi kapatır — sıfır dış istek.
-            if (sp.GetRequiredService<IConfiguration>()
-                  .GetValue("PostMatch:Video:Provider", "OfficialVideoChain") is "Disabled")
-                return new Formax.Infrastructure.PostMatch.DisabledOfficialMatchVideoProvider();
-
-            // YouTube RSS zincirde YOK (robots.txt Disallow, 15.09.2026 kullanıcı kararı). Keşif yalnız resmî
-            // sitelerin kendi yayımladığı sayfa/sitemap/JSON-LD bağlantılarından yapılır.
-            var members = new IOfficialMatchVideoProvider[]
-            {
-                sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialWebVideoProvider>(),
-                sp.GetRequiredService<Formax.Infrastructure.PostMatch.OfficialSiteFeedVideoProvider>()
-            };
-
-            return new Formax.Infrastructure.PostMatch.CompositeOfficialMatchVideoProvider(
-                members,
-                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Formax.Infrastructure.PostMatch.CompositeOfficialMatchVideoProvider>>());
-        });
         services.AddScoped<IFixtureSyncLockRepository, FixtureSyncLockRepository>();
 
         // ── RESMÎ KAYNAK ALTYAPISI ───────────────────────────────────────────
@@ -379,6 +315,21 @@ public static class DependencyInjection
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialMatchCentreService>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialPostMatchDataService>();
+        // ── API'SİZ RESMÎ SONUÇ + İSTATİSTİK BOTU (15.09.2026) ──────────────────
+        // Kalıcı kontrol planı (MatchResultChecks / MatchStatisticsChecks), kaynak kataloğu + sağlık (OfficialDataSources),
+        // gözlem defteri. Yalnız arka plan işleri çözer; kullanıcı yolu bu servisleri kullanmaz.
+        services.AddSingleton<Formax.Infrastructure.OfficialSources.PostMatchWorkSignal>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialDataSourceCatalog>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialResultWriter>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialResultBotService>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialStatisticsBotService>();
+
+        // ── OLASI SONUÇ MOTORU (15.09.2026) — tek skor dağılımı, zamansal backtest, kalibrasyon, snapshot ──
+        // Üretim yalnız arka plan işinde (OutcomeModelJob); kullanıcı yolu yalnız okuyucuyu çözer (salt DB).
+        services.AddScoped<Formax.Infrastructure.Outcomes.OutcomeHistoryLoader>();
+        services.AddScoped<Formax.Infrastructure.Outcomes.OutcomeModelTrainingService>();
+        services.AddScoped<Formax.Infrastructure.Outcomes.MatchPredictionSnapshotService>();
+        services.AddScoped<Formax.Application.Interfaces.IMatchOutcomeSnapshotReader, Formax.Infrastructure.Outcomes.MatchOutcomeSnapshotReader>();
         // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
         services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();
 

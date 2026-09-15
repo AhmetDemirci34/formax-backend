@@ -745,16 +745,12 @@ internal class Program
 
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PostMatchEnrichmentJob>());
-        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.MatchVideoDiscoveryJob>();
-        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialVideoSourceCatalogJob>();
-        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialWebFeedCrawlJob>();
-        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.MatchVideoRevalidationJob>();
+        // VİDEO İŞLERİ KALDIRILDI (15.09.2026 ürün kararı): MatchVideoDiscoveryJob, OfficialVideoSourceCatalogJob,
+        // OfficialWebFeedCrawlJob ve MatchVideoRevalidationJob host'a KAYITLI DEĞİL — video dış isteği üretilemez.
 
         // ---------------- Phase 7 — SOCIAL DISCOVERY (resmi sosyal medya) ----------------
-        // Platform-genişletilebilir ISocialProvider koleksiyonu (yeni platform = yeni satır).
-        // YouTube RSS gerçek+key'siz; X/IG/FB kimlik-bilgisi olmadan IsEnabled=false (fake yok).
-        builder.Services.AddSingleton<Formax.Application.Services.Social.Discovery.ISocialProvider,
-            Formax.Infrastructure.Social.Providers.YouTubeRssSocialProvider>();
+        // YouTube sosyal sağlayıcısı KAYITLI DEĞİL (15.09.2026 ürün kararı: video/YouTube kullanılmaz; robots.txt
+        // /feeds/videos.xml yasağı). Koleksiyon boş olduğu için iş dış istek üretmez.
         // Singleton + hosted → admin manuel tetik (AdminSocialController) için de çözülür.
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.SocialDiscoveryJob>();
         builder.Services.AddHostedService(sp =>
@@ -925,7 +921,6 @@ internal class Program
         // İstek başına SIRSIZ kayıt (job, uç, fikstür, cache, bütçe, HTTP sonucu). Video keşfinin
         // sayacı API-Football'dan tamamen AYRIDIR.
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.ApiFootballRequestLog>();
-        builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.VideoDiscoveryRequestLog>();
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.TimelineSyncTelemetry>();
         builder.Services.AddTransient<Formax.Infrastructure.Http.ApiFootballMeteringHandler>();
         // Job attribution — pipeline'ın EN İÇİNE eklenir (resilience'tan SONRA), böylece her
@@ -966,6 +961,11 @@ internal class Program
         // Singleton + hosted: admin teşhis ucu (POST /admin/lineup/sync) AYNI örneği
         // çözüp tek maç için ingestion tetikleyebilsin diye (Odds ile aynı desen).
         // RESMÎ MAÇ MERKEZİ — kritik gelişme + resmî başlama saati (admin tetiği aynı örnek).
+        // API'SİZ RESMÎ SONUÇ + İSTATİSTİK BOTU — kalıcı plan; API-Football çağrılmaz.
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialResultBotJob>();
+        builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialStatisticsBotJob>();
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>());
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>());
         // AI MAÇ ANALİZİ — yaklaşan maçlar için arka planda kanıttan üretim (admin tetiği aynı örnek).

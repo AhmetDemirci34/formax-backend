@@ -130,6 +130,9 @@ public class RecommendationCardDto
     /// <summary>Maçın tek en güçlü AI tahmini. Backend hesaplar; gelmezse null.</summary>
     public TopPredictionDto? TopPrediction { get; set; }
 
+    /// <summary>AI Olası Sonuçlar snapshot kimliği — Maç Detayı aynı kimliği gösterir.</summary>
+    public string? OutcomeSnapshotId { get; set; }
+
     /// <summary>Maçın ilk 3 AI tahmini (oran + hareket). Backend hesaplar; gelmezse boş.</summary>
     public List<AiPredictionDto> Predictions { get; set; } = new();
 

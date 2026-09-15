@@ -66,10 +66,11 @@ namespace Formax.Application.Services.OfficialSources
                 list.Add(Make(matchId, CriticalDevelopmentTypes.Postponed, CriticalSeverities.Critical,
                     previous?.Status, current.Status, $"{pair} maçı resmî kaynağa göre ertelendi."));
 
-            if (current.Status == OfficialMatchStatuses.Cancelled && previous?.Status != OfficialMatchStatuses.Cancelled
-                && !AlreadyKnown("Cancelled"))
+            if ((current.Status == OfficialMatchStatuses.Cancelled && previous?.Status != OfficialMatchStatuses.Cancelled && !AlreadyKnown("Cancelled"))
+                || (current.Status == OfficialMatchStatuses.Abandoned && previous?.Status != OfficialMatchStatuses.Abandoned && !AlreadyKnown("Abandoned")))
             {
-                var abandoned = current.RawStatus?.Contains("ABANDON", StringComparison.OrdinalIgnoreCase) == true;
+                var abandoned = current.Status == OfficialMatchStatuses.Abandoned
+                                || current.RawStatus?.Contains("ABANDON", StringComparison.OrdinalIgnoreCase) == true;
                 list.Add(Make(matchId, CriticalDevelopmentTypes.Cancelled, CriticalSeverities.Critical,
                     previous?.Status, current.RawStatus ?? current.Status,
                     abandoned ? $"{pair} maçı resmî kaynağa göre yarıda kaldı." : $"{pair} maçı resmî kaynağa göre iptal edildi."));

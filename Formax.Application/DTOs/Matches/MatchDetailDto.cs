@@ -32,26 +32,15 @@ public class MatchDetailDto
     /// </summary>
     public List<MatchEventDto> Events { get; set; } = new();
 
-    /// <summary>
-    /// MAÇ VİDEOLARI — özet, gol ve önemli an. Yalnız DOĞRULANMIŞ resmî kayıtlar.
-    ///
-    /// MAÇ SONRASI HABER YOKTUR (02.09.2026 ürün kararı): bitmiş maç ekranı haber,
-    /// teknik direktör/oyuncu açıklaması ve basın/sosyal yorum GÖSTERMEZ. Bu alanın
-    /// bir haber karşılığı bilerek bırakılmamıştır — boş bir başlık bile gösterilmez.
-    /// </summary>
-    public List<MatchVideoDto> Videos { get; set; } = new();
-
-    /// <summary>
-    /// RESMÎ ÖZET ARAMASININ DURUMU — YALNIZ kalıcı defterden (FixtureRefreshAttempts,
-    /// amaç PostMatchVideo) türetilir; saatten türetilmez. Yalnız bitmiş maçta dolar.
-    /// </summary>
-    public VideoSearchDto? VideoSearch { get; set; }
 
     /// <summary>
     /// MAÇ SONRASI ANALİZ METNİ — arka planda doğrulanmış skor/devre/olay/istatistikten yazılır
     /// (MatchPostMatchSummaries). Maç öncesi AI yorumu DEĞİLDİR. Sayfa açılışı üretmez; yoksa null.
     /// </summary>
     public PostMatchSummaryDto? PostMatchSummary { get; set; }
+
+    /// <summary>Kesin sonucun biçimi (resmî kaynak): "FT" | "AET" | "PEN"; eski kayıtta null.</summary>
+    public string? ResultDetail { get; set; }
 
     /// <summary>
     /// MAÇ İSTATİSTİKLERİ — yalnız GERÇEK veri varsa dolu, aksi hâlde null.

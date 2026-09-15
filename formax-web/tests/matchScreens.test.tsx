@@ -4,20 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { ActionGrid } from "@/components/match-center/dashboard/ActionGrid";
 import { MATCH_ACTIONS } from "@/components/match-center/aiContext";
-import type { LineupPlayerDto, MatchDetailDto, MatchVideoDto } from "@/types/api";
-import {
-  VIDEO_CHECKING_TEXT,
-  VIDEO_NOT_FOUND_TEXT,
-  arrangeVideos,
-  mainHighlightCandidates,
-  nextCandidateAfterError,
-  videoEmptyStateText,
-  orderGoalClips,
-  ANALYSIS_INSUFFICIENT_TEXT,
-  ANALYSIS_PENDING_TEXT,
-} from "@/lib/video/videoSearch";
-import { BLOCKING_PLAYER_CODES, shouldReport, youtubeIdFromEmbed } from "@/lib/video/playbackReport";
-import { nextPlaybackState, parsePlayerMessage, playbackErrorText } from "@/lib/video/youtubePlayback";
+import type { LineupPlayerDto, MatchDetailDto } from "@/types/api";
+import type { OutcomeSnapshotDto } from "@/types/outcomes";
+import { ANALYSIS_INSUFFICIENT_TEXT, ANALYSIS_PENDING_TEXT } from "@/lib/matches/postMatchTexts";
+import { OutcomeCards } from "@/components/outcomes/OutcomeCards";
+import { outcomeViewState, OUTCOME_INSUFFICIENT_TEXT, OUTCOME_PENDING_TEXT } from "@/lib/outcomes/outcomeView";
 import { formatLastCheck, lineupWaitingText, LINEUP_TEXT_NOT_FOUND } from "@/lib/lineup/lineupStatus";
 import { eventLabel, UNKNOWN_EVENT_LABEL } from "@/lib/matches/eventLabels";
 import { FinishedMatchSummary } from "@/components/match-center/views/FinishedMatchSummary";
@@ -29,29 +20,11 @@ import {
   ANALYSIS_PREPARING_TEXT,
 } from "@/components/match-center/analysis/AnalysisSections";
 import { seasonRecordText } from "@/components/match-center/views/FormStatusView";
-import { VideoPlayerCard } from "@/components/match-center/views/VideoPlayerCard";
 import { TeamCrest, crestInitials } from "@/components/ui/TeamCrest";
 import { groupByDateAndLeague } from "@/components/maclar/SearchResults";
 import type { MatchResultItemDto } from "@/lib/api/matchResults";
 
 // ── Yardımcı fixture'lar — gerçek /detail yanıtının biçimi ──────────────────
-
-function video(p: Partial<MatchVideoDto>): MatchVideoDto {
-  return {
-    title: "ÖZET",
-    publisher: "TRT SPOR",
-    sourcePageUrl: "https://www.youtube.com/watch?v=x",
-    embedUrl: "https://www.youtube-nocookie.com/embed/x",
-    thumbnailUrl: null,
-    videoType: "MatchHighlights",
-    publishedAtUtc: null,
-    durationSeconds: 494,
-    canPlayInApp: true,
-    availableCountries: [],
-    isRegionRestricted: false,
-    ...p,
-  } as MatchVideoDto;
-}
 
 function player(n: number, name: string, grid: string | null = null): LineupPlayerDto {
   return { shirtNumber: n, playerName: name, position: "M", grid } as LineupPlayerDto;
@@ -67,61 +40,11 @@ function finishedMatch(p: Partial<MatchDetailDto> = {}): MatchDetailDto {
     awayTeam: { name: "Cambuur", logoUrl: null },
     scoreBreakdown: { fullTime: { home: 2, away: 2 }, halfTime: { home: 0, away: 0 }, secondHalf: { home: 2, away: 2 } },
     events: [],
-    videos: [],
     statistics: null,
     lineup: { lineupsAnnounced: false, homeStartingXI: [], homeBench: [], awayStartingXI: [], awayBench: [] },
     ...p,
   } as unknown as MatchDetailDto;
 }
-
-// ── 1. VİDEO DURUMU LEDGER SONUCUNA GÖRE ─────────────────────────────────────
-
-describe("video arama durumu", () => {
-  it("yalnız defter NotFound derse 'bulunamadı' der", () => {
-    expect(videoEmptyStateText({ status: "NotFound", attemptsMade: 4, maxAttempts: 4 })).toBe(VIDEO_NOT_FOUND_TEXT);
-    expect(videoEmptyStateText({ status: "Checking", attemptsMade: 2, maxAttempts: 4 })).toBe(VIDEO_CHECKING_TEXT);
-    // Defter bilgisi hiç gelmediyse de "bulunamadı" DENMEZ.
-    expect(videoEmptyStateText(undefined)).toBe(VIDEO_CHECKING_TEXT);
-  });
-
-  // ── 2. TAKVİM GEÇMİŞ AMA DENEME YOK → "bulunamadı" GÖSTERİLMEZ ──────────────
-  it("maç günler önce bitmiş ama defterde deneme yoksa ekranda 'bulunamadı' yok", () => {
-    const html = renderToStaticMarkup(
-      <FinishedMatchSummary
-        match={finishedMatch({
-          matchDate: "2026-08-01T18:00:00.000Z", // saat "çoktan bitti" der
-          videoSearch: { status: "Checking", attemptsMade: 0, maxAttempts: 4, lastAttemptUtc: null },
-        })}
-      />
-    );
-    expect(html).toContain(VIDEO_CHECKING_TEXT);
-    expect(html).not.toContain(VIDEO_NOT_FOUND_TEXT);
-  });
-
-  it("dört deneme tamamlanıp defter NotFound derse ekranda 'bulunamadı'", () => {
-    const html = renderToStaticMarkup(
-      <FinishedMatchSummary
-        match={finishedMatch({ videoSearch: { status: "NotFound", attemptsMade: 4, maxAttempts: 4 } })}
-      />
-    );
-    expect(html).toContain(VIDEO_NOT_FOUND_TEXT);
-    expect(html).not.toContain(VIDEO_CHECKING_TEXT);
-  });
-
-  it("oynatılabilir video varsa player çizilir, boş durum metni yok", () => {
-    const html = renderToStaticMarkup(
-      <FinishedMatchSummary
-        match={finishedMatch({
-          videos: [video({ title: "Fenerbahçe - Lyon (Özet)" })],
-          videoSearch: { status: "Found", attemptsMade: 1, maxAttempts: 4 },
-        })}
-      />
-    );
-    expect(html).toContain("Fenerbahçe - Lyon (Özet) — oynat");
-    expect(html).not.toContain(VIDEO_CHECKING_TEXT);
-    expect(html).not.toContain(VIDEO_NOT_FOUND_TEXT);
-  });
-});
 
 // ── 3. KADRO SON KONTROL ZAMANI ────────────────────────────────────────────
 
@@ -185,63 +108,6 @@ describe("kadro paneli", () => {
   });
 });
 
-// ── 6. BÖLGE NEDENİYLE OYNATILAMAYAN VİDEO AKTİF PLAYER DEĞİL ───────────────
-
-describe("gerçek oynatılabilirlik", () => {
-  it("oynatıcı hata bildirirse durum 'error' olur ve bir daha 'playing'e dönmez", () => {
-    const [err] = parsePlayerMessage(JSON.stringify({ event: "onError", info: 150 }));
-    expect(err).toEqual({ kind: "error", code: 150 });
-    const s = nextPlaybackState("loading", err);
-    expect(s).toBe("error");
-    expect(nextPlaybackState(s, { kind: "state", state: 1 })).toBe("error");
-  });
-
-  it("iframe yüklenmesi 'oynuyor' sayılmaz; yalnız playerState=1 ya da ilerleyen zaman", () => {
-    expect(nextPlaybackState("loading", { kind: "ready" })).toBe("loading");
-    expect(nextPlaybackState("loading", { kind: "state", state: -1 })).toBe("loading");
-    const [info] = parsePlayerMessage({ event: "infoDelivery", info: { playerState: 1 } });
-    expect(nextPlaybackState("loading", info)).toBe("playing");
-  });
-
-  it("bölge kısıtlı videonun hatası 'bulunduğunuz bölgede oynatılamıyor' olarak söylenir", () => {
-    expect(playbackErrorText(150, { isRegionRestricted: true, availableCountries: ["TR"] })).toBe(
-      "Bu resmî video bulunduğunuz bölgede oynatılamıyor (yalnız TR)."
-    );
-  });
-
-  it("uygulama içinde oynatılamayan video için oynatıcı hiç kurulmaz", () => {
-    const html = renderToStaticMarkup(<VideoPlayerCard video={video({ canPlayInApp: false, embedUrl: null })} />);
-    expect(html).not.toContain("<iframe");
-    expect(html).toContain("Uygulama içinde oynatılamıyor.");
-    expect(html).toContain("Resmî kaynakta izle");
-  });
-
-  it("aynı video maç özeti ve önemli anlarda iki kez gösterilmez", () => {
-    const main = video({ title: "Özet" });
-    const goal = video({ title: "Gol", videoType: "Goal", embedUrl: "https://www.youtube-nocookie.com/embed/goal1" });
-    const { main: m, moments } = arrangeVideos([main, goal]);
-    expect(m).toBe(main);
-    expect(moments).toEqual([goal]);
-    // Ana özetle AYNI gömme adresli kayıt gol/önemli an olarak ikinci kez listelenmez.
-    const sameAsMain = video({ title: "Aynı video", videoType: "Goal" });
-    expect(arrangeVideos([main, sameAsMain]).moments).toEqual([]);
-  });
-
-  it("GOLLER dakika sırasıyla; aynı gol ve aynı video bir kez", () => {
-    const g = (id: string, minute: number, player: string, extra?: number) =>
-      video({ title: id, videoType: "Goal", embedUrl: `https://www.youtube-nocookie.com/embed/${id}`, eventMinute: minute, eventExtraMinute: extra ?? null, eventPlayer: player });
-    const late = g("late", 90, "Pohjanpalo", 4);
-    const first = g("first", 12, "Pohjanpalo");
-    const mid = g("mid", 51, "Ghedjemis");
-    const dupGoal = g("dup", 51, "Ghedjemis");
-    const dupVideo = { ...first, title: "first again" };
-    const ordered = orderGoalClips([late, mid, first, dupGoal, dupVideo]);
-    expect(ordered.map((v) => v.title)).toEqual(["first", "mid", "late"]);
-    const { goals } = arrangeVideos([late, mid, first]);
-    expect(goals.map((v) => v.eventMinute)).toEqual([12, 51, 90]);
-  });
-});
-
 // ── 7. TAKIM LOGOSU YÜKLENMEZSE GERÇEK FALLBACK ────────────────────────────
 
 describe("takım arması", () => {
@@ -275,11 +141,6 @@ describe("backend sırası", () => {
     expect(groups.map((g) => g.date)).toEqual(["2026-09-06", "2026-08-30", "2026-07-20"]);
   });
 
-  it("video sırası backend'in verdiği gibi kalır", () => {
-    const g2 = video({ title: "Gol 2", videoType: "Goal" });
-    const g1 = video({ title: "Gol 1", videoType: "Goal" });
-    expect(arrangeVideos([g2, g1]).moments.map((v) => v.title)).toEqual(["Gol 2", "Gol 1"]);
-  });
 });
 
 // ── 9. OLAY TERİMLERİ ──────────────────────────────────────────────────────
@@ -430,62 +291,11 @@ describe("önemli anlar aksiyonu", () => {
     expect(hits).toEqual([]);
   });
 
-  it("bitmiş maçta doğrulanmış resmî MAÇ ÖZETİ oynatıcısı korunur", () => {
-    const html = renderToStaticMarkup(
-      <FinishedMatchSummary
-        match={finishedMatch({
-          videos: [video({ title: "Telstar - Cambuur (Özet)", videoType: "MatchHighlights" })],
-        })}
-      />
-    );
-    expect(html).toMatch(/Maç Özeti/i);
-    expect(html).toContain("Telstar - Cambuur (Özet)");
-    expect(html).not.toMatch(forbidden);
-  });
 });
 
 // ── BİTMİŞ MAÇ: GOLLER, VİDEO DURUMU VE MAÇ SONRASI ANALİZ (13.09.2026) ─────
 
-describe("bitmiş maç: goller ve maç sonrası analiz", () => {
-  it("gol klibi tam maç özeti olarak etiketlenmez; yalnız GOLLER başlığında görünür", () => {
-    const goal = video({ title: "Delap golü", videoType: "Goal" });
-    const { main, goals } = arrangeVideos([goal]);
-    expect(main).toBeNull();
-    expect(goals).toEqual([goal]);
-
-    const html = renderToStaticMarkup(
-      <FinishedMatchSummary
-        match={finishedMatch({ videos: [goal], videoSearch: { status: "Found", attemptsMade: 1, maxAttempts: 4 } })}
-      />
-    );
-    expect(html).toContain(">Goller</h3>");
-    expect(html).not.toContain(">Maç Özeti</h3>");
-    expect(html).not.toContain(VIDEO_CHECKING_TEXT);
-    expect(html).not.toContain(VIDEO_NOT_FOUND_TEXT);
-  });
-
-  it("gömme veya bölge engelli klip oynatılabilir gol sayılmaz", () => {
-    const blockedGoal = video({ title: "Engelli gol", videoType: "Goal", canPlayInApp: false, embedUrl: null });
-    const { goals } = arrangeVideos([blockedGoal]);
-    expect(goals).toEqual([]);
-  });
-
-  it("bir gündür deneme yapılmayan arama 'kontrol ediliyor' değil, 'bulunamadı' gösterir", () => {
-    const html = renderToStaticMarkup(
-      <FinishedMatchSummary
-        match={finishedMatch({
-          videoSearch: { status: "NotFound", reason: "NoAttemptFor24h", attemptsMade: 1, maxAttempts: 4 },
-        })}
-      />
-    );
-    expect(html).toContain("Uygulama içinde oynatılabilir resmî video bulunamadı.");
-    expect(html).not.toContain(VIDEO_CHECKING_TEXT);
-  });
-
-  it("gerçek denemeler sürerken metin 'Resmî video kontrol ediliyor' olur", () => {
-    expect(VIDEO_CHECKING_TEXT).toBe("Resmî video kontrol ediliyor.");
-  });
-
+describe("bitmiş maç: maç sonrası analiz", () => {
   it("maç sonrası analiz yalnız backend'in DB metnini gösterir; yoksa bölüm hiç çizilmez", () => {
     const sentences = [
       "Nottingham Forest, Aston Villa deplasmanında 1-2 kazandı; ilk yarı 0-0 tamamlanmıştı.",
@@ -519,85 +329,6 @@ describe("bitmiş maç: goller ve maç sonrası analiz", () => {
   });
 });
 
-// ── KALICI VİDEO KEŞFİ DURUMLARI (14.09.2026) ───────────────────────────────
-
-describe("bitmiş maç: kalıcı video keşfi durumları", () => {
-  const render = (status: string, videos: MatchVideoDto[] = []) =>
-    renderToStaticMarkup(
-      <FinishedMatchSummary match={finishedMatch({ videos, videoSearch: { status, attemptsMade: 3, maxAttempts: 8 } })} />
-    );
-
-  it("Searching → 'kontrol ediliyor'", () => {
-    expect(render("Searching")).toContain("Resmî video kontrol ediliyor.");
-  });
-
-  it("NotAvailableYet → dürüst 'bulunamadı' + kontrollerin sürdüğü; sonsuz 'kontrol ediliyor' yok", () => {
-    const html = render("NotAvailableYet");
-    // 15.09.2026 ürün metni: arama durmaz; eski sonuçlanmış maçta da aynı dürüst durum.
-    expect(html).toContain("Bu maçın resmî özeti henüz bulunamadı. FORMAX doğrulanmış kaynakları aramaya devam ediyor.");
-    expect(html).not.toContain("Resmî video kontrol ediliyor.");
-  });
-
-  it("SourceBlocked → engel açıkça söylenir, oynatıcı kurulmaz, resmî kaynak bağlantısı gösterilir", () => {
-    const html = render("SourceBlocked", [video({ title: "Forest özet", canPlayInApp: false, embedUrl: null })]);
-    expect(html).not.toContain("<iframe");
-    // Engelli ama gösterilebilir kayıt yoksa dürüst durum + aramanın sürdüğü söylenir.
-    expect(render("SourceBlocked")).toContain("FORMAX alternatif doğrulanmış kaynakları aramaya devam ediyor.");
-    expect(html).not.toContain("<iframe");
-    expect(html).toContain("Resmî kaynakta izle");
-  });
-
-  it("Failed → teknik hata ve yeniden deneme bilgisi", () => {
-    expect(render("Failed")).toContain("yeniden denenecek");
-  });
-
-  it("FullHighlightsAvailable → MAÇ ÖZETİ oynatıcısı; GoalClipsAvailable → GOLLER", () => {
-    expect(render("FullHighlightsAvailable", [video({ title: "Tam özet" })])).toContain("Tam özet — oynat");
-    const goals = render("GoalClipsAvailable", [video({ title: "Gol klibi", videoType: "Goal" })]);
-    expect(goals).toContain(">Goller</h3>");
-    expect(goals).not.toContain(">Maç Özeti</h3>");
-  });
-
-  it("hiçbir durumda 'Önemli Anları İzle' butonu görünmez", () => {
-    for (const s of ["Searching", "FullHighlightsAvailable", "GoalClipsAvailable", "NotAvailableYet", "SourceBlocked", "Failed"]) {
-      expect(render(s, [video({ title: "x" })])).not.toContain("Önemli Anları İzle");
-    }
-  });
-
-  it("maç sayfası açılışı video keşfi/yeniden arama isteği atmaz (yalnız /detail)", () => {
-    const root = path.resolve(__dirname, "..");
-    const files = [
-      "app/match/[id]/page.tsx",
-      "components/match-center/views/FinishedMatchSummary.tsx",
-      "components/match-center/views/VideoPlayerCard.tsx",
-      "lib/video/videoSearch.ts",
-    ].map((f) => fs.readFileSync(path.join(root, f), "utf8"));
-    for (const src of files) {
-      expect(src).not.toMatch(/video-discovery|\/discover|queue\/run|catalog\/discover/);
-    }
-  });
-});
-
-// ── GERÇEK OYNATICI ENGELİNDE YEDEK RESMÎ ÖZET (14.09.2026 ölçümü: Serie A İtalyanca sürüm 150) ──
-
-describe("ana özet: oynatıcı engelinde yedek aday", () => {
-  it("oynatılabilir tam özetler backend sırasıyla aday olur; gol klibi ve engelli video aday değildir", () => {
-    const it1 = video({ title: "COMO-PARMA IT" });
-    const en = video({ title: "COMO-PARMA EN" });
-    const goal = video({ title: "gol", videoType: "Goal" });
-    const blocked = video({ title: "engelli", canPlayInApp: false, embedUrl: null });
-    expect(mainHighlightCandidates([it1, goal, blocked, en]).map((v) => v.title)).toEqual(["COMO-PARMA IT", "COMO-PARMA EN"]);
-  });
-
-  it("yalnız gömme/bölge engeli kodunda ve aday varsa bir sonrakine geçilir", () => {
-    expect(nextCandidateAfterError(2, 0, 150)).toBe(1);
-    expect(nextCandidateAfterError(2, 0, 101)).toBe(1);
-    expect(nextCandidateAfterError(2, 1, 150)).toBeNull();   // aday kalmadı → dürüst hata metni
-    expect(nextCandidateAfterError(2, 0, 100)).toBe(1);      // kaldırılmış video da yedeğe geçer (backend SourceBlocked yazar)
-    expect(nextCandidateAfterError(2, 0, 2)).toBeNull();     // geçersiz parametre hatası yedeğe geçirmez
-  });
-});
-
 // ── 15.09.2026: ANALİZ DURUMU, OYNATICI HATASI BİLDİRİMİ, SONUÇ AKIŞI ──────────────────────────
 
 describe("maç sonu analizi: backend durumu", () => {
@@ -622,32 +353,119 @@ describe("maç sonu analizi: backend durumu", () => {
   });
 });
 
-describe("oynatıcı hatası backend'e bildirilir", () => {
-  it("yalnız kaydı kapatan kodlar (2/5/100/101/150/152) bildirilir; kimlik gömme adresinden", () => {
-    for (const code of [2, 5, 100, 101, 150, 152]) expect(shouldReport(code)).toBe(true);
-    expect(shouldReport(0)).toBe(false);
-    expect(BLOCKING_PLAYER_CODES.has(150)).toBe(true);
-    expect(youtubeIdFromEmbed("https://www.youtube-nocookie.com/embed/l30ncafwuGk")).toBe("l30ncafwuGk");
-    expect(youtubeIdFromEmbed(null)).toBeNull();
-  });
-
-  it("oynatıcı kartı hata olayında bildirim yapar; bildirim keşif başlatmaz", () => {
-    const root = path.resolve(__dirname, "..");
-    const card = fs.readFileSync(path.join(root, "components/match-center/views/VideoPlayerCard.tsx"), "utf8");
-    expect(card).toContain("reportPlaybackError(matchId, video, s.code)");
-    const report = fs.readFileSync(path.join(root, "lib/video/playbackReport.ts"), "utf8");
-    expect(report).toContain("/videos/playback-error");
-    expect(report).not.toMatch(/video-discovery|queue\/run|catalog\/discover|crawl|revalidate/);
-    const screen = fs.readFileSync(path.join(root, "components/match-center/views/FinishedMatchSummary.tsx"), "utf8");
-    expect(screen).toContain("matchId={match.matchId}");
-  });
-});
-
 describe("sonuç akışı: manuel yenilemesiz", () => {
   it("Maçlar listesi arka planda değilken periyodik tazelenir (biten maç YAKLAŞAN'dan düşer)", () => {
     const root = path.resolve(__dirname, "..");
     const hook = fs.readFileSync(path.join(root, "hooks/useMatchList.ts"), "utf8");
     expect(hook).toContain("refetchInterval: 5 * 60_000");
     expect(hook).toContain("refetchIntervalInBackground: false");
+  });
+});
+
+// ── 15.09.2026 (2): VİDEO TAMAMEN KALDIRILDI ────────────────────────────────────
+
+describe("video özelliği kapalı", () => {
+  const root = path.resolve(__dirname, "..");
+  const walk = (dir: string, out: string[] = []) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(p, out);
+      else if (/\.(tsx?|jsx?)$/.test(entry.name)) out.push(p);
+    }
+    return out;
+  };
+
+  it("bitmiş maç ekranında MAÇ ÖZETİ / GOLLER video paneli, oynatıcı ve arama cümlesi yok", () => {
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary match={finishedMatch({ events: [{ minute: 12, eventType: "Goal", label: "Gol", kind: "Goal", player: "X", team: "Telstar" }] } as never)} />
+    );
+    expect(html).not.toContain(">Maç Özeti</h3>");
+    expect(html).not.toContain(">Goller</h3>");
+    expect(html).not.toContain("<iframe");
+    expect(html).not.toMatch(/Resmî maç özeti kontrol ediliyor|Maç özetini izle|Video var|Önemli Anları İzle/i);
+  });
+
+  it("uygulama kaynaklarında video oynatıcı, YouTube adresi ve video durum metinleri yok", () => {
+    const files = [...walk(path.join(root, "app")), ...walk(path.join(root, "components")), ...walk(path.join(root, "lib")), ...walk(path.join(root, "hooks"))];
+    const hits = files.filter((f) =>
+      /youtube-nocookie|VideoPlayerCard|videoSearch|hasPlayableOfficialVideo|Video var|Maç özetini izle|NotAvailableYet|SourceBlocked|FullHighlightsAvailable|GoalClipsAvailable/.test(fs.readFileSync(f, "utf8"))
+    );
+    expect(hits.map((h) => path.relative(root, h))).toEqual([]);
+    expect(fs.existsSync(path.join(root, "lib/video"))).toBe(false);
+  });
+
+  it("istatistikte kaynakta yayımlanmayan alan '0' diye basılmaz, adıyla söylenir; gerçek 0 satırda kalır", () => {
+    const html = renderToStaticMarkup(
+      <FinishedMatchSummary
+        match={finishedMatch({
+          statistics: {
+            rows: [{ key: "yellow", label: "Sarı kart", home: 0, away: 2, isPercentage: false }],
+            notPublished: ["Kırmızı kart", "Başarılı pas %"],
+            sourceName: "LALIGA",
+          },
+        })}
+      />
+    );
+    expect(html).toContain("Kaynakta yayımlanmadı: Kırmızı kart, Başarılı pas %");
+    expect(html).toContain("Resmî kaynak: LALIGA");
+    expect(html).toMatch(/>0<\/span>/);
+  });
+});
+
+// ── AI OLASI SONUÇLAR: SNAPSHOT, ÜÇ AİLE, ÇİFTE ŞANS YOK ─────────────────────────
+
+const snapshot = (p: Partial<OutcomeSnapshotDto> = {}): OutcomeSnapshotDto => {
+  const card = (family: string, familyTitle: string, market: string, marketKey: string | null, probability: number) => ({
+    family, familyTitle, market, marketKey, probability, rawProbability: probability / 100, calibratedProbability: probability / 100,
+    baselineProbability: 0.4, informationLift: 0.05, evidenceCoverage: 1, sampleQuality: "Rich", uncertainty: 0, selectionScore: 0.1,
+    reasonCodes: ["RESULT_HOME_STRONGER"], reason: market + " gerekçesi", limitation: null,
+  });
+  return {
+    snapshotId: "snp-abc", matchId: 1, modelVersion: "formax-outcome-2.0", status: "Available", evidenceCoverage: 1, sampleQuality: "Rich",
+    homeSampleSize: 20, awaySampleSize: 20, reasonCodes: [], topScores: [{ home: 1, away: 0, probability: 12 }],
+    mainCards: [
+      card("MatchResult", "Maç Sonucu", "Ev Sahibi Kazanır", "MS1", 52),
+      card("TotalGoals", "Gol Beklentisi", "2.5 Alt", "ALT_2_5", 58),
+      card("BothTeamsScore", "İki Takımın Gol Durumu", "Karşılıklı Gol Yok", "KG_YOK", 55),
+    ],
+    families: [
+      { family: "MatchResult", title: "Maç Sonucu", items: [card("MatchResult", "Maç Sonucu", "Ev Sahibi Kazanır", "MS1", 52), card("MatchResult", "Maç Sonucu", "Beraberlik", "MSX", 27), card("MatchResult", "Maç Sonucu", "Deplasman Kazanır", "MS2", 21)] },
+      { family: "Other", title: "Diğer", items: [card("Other", "Diğer", "Çifte Şans (1X)", "CS_1X", 79)] },
+    ],
+    ...p,
+  } as OutcomeSnapshotDto;
+};
+
+describe("AI olası sonuçlar", () => {
+  it("üç ana kart backend sırasıyla ve 'Beklenti' etiketiyle çizilir; çifte şans ana kartta yok, oran yok", () => {
+    const html = renderToStaticMarkup(<OutcomeCards snapshot={snapshot()} />);
+    const order = ["Maç Sonucu", "Gol Beklentisi", "İki Takımın Gol Durumu"].map((t) => html.indexOf(t));
+    expect(order.every((i, k) => i >= 0 && (k === 0 || i > order[k - 1]))).toBe(true);
+    expect(html).toContain("Beklenti");
+    expect(html).not.toContain("Güven");
+    expect(html).not.toContain("Çifte Şans");
+    expect(html).toContain('data-snapshot-id="snp-abc"');
+    expect(html).toContain("Tüm Olasılıkları Gör");
+    expect(html).toContain("2.5 Alt gerekçesi");
+  });
+
+  it("yetersiz veri ve bekleyen snapshot dürüst metin gösterir, sahte kart yok", () => {
+    expect(outcomeViewState(snapshot({ status: "InsufficientData", mainCards: [], notice: null }))).toEqual({ kind: "insufficient", text: OUTCOME_INSUFFICIENT_TEXT });
+    expect(outcomeViewState(undefined)).toEqual({ kind: "pending", text: OUTCOME_PENDING_TEXT });
+    expect(outcomeViewState(snapshot()).kind).toBe("ready");
+  });
+
+  it("Keşfet ve Detay aynı uç ve aynı cache anahtarını kullanır; frontend sıralama/hesap yapmaz", () => {
+    const root = path.resolve(__dirname, "..");
+    const discover = fs.readFileSync(path.join(root, "components/discover/AIPredictionsSection.tsx"), "utf8");
+    const detail = fs.readFileSync(path.join(root, "components/match-center/views/AIAnalysisView.tsx"), "utf8");
+    const cards = fs.readFileSync(path.join(root, "components/outcomes/OutcomeCards.tsx"), "utf8");
+    for (const src of [discover, detail]) {
+      expect(src).toContain("useMatchOutcomes(");
+      expect(src).not.toContain("useMatchDecision(");
+      expect(src).not.toMatch(/\.sort\(|probability\s*>=\s*30|currentOdd|toFixed\(2\)/);
+    }
+    expect(cards).not.toMatch(/\.sort\(|\.filter\(|Math\./);
+    expect(fs.readFileSync(path.join(root, "lib/api/outcomes.ts"), "utf8")).toContain("/outcomes");
   });
 });

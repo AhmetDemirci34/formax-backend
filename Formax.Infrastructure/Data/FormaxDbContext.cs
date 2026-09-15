@@ -58,6 +58,12 @@ namespace Formax.Infrastructure.Data
         public DbSet<OfficialWebFeed> OfficialWebFeeds { get; set; } = null!;
         public DbSet<OfficialWebVideoEntry> OfficialWebVideoEntries { get; set; } = null!;
         public DbSet<MatchResultObservation> MatchResultObservations { get; set; } = null!;
+        public DbSet<OfficialDataSource> OfficialDataSources { get; set; } = null!;
+        public DbSet<MatchResultCheck> MatchResultChecks { get; set; } = null!;
+        public DbSet<MatchStatisticsCheck> MatchStatisticsChecks { get; set; } = null!;
+        public DbSet<MatchStatisticObservation> MatchStatisticObservations { get; set; } = null!;
+        public DbSet<MatchPredictionSnapshot> MatchPredictionSnapshots { get; set; } = null!;
+        public DbSet<PredictionModelRun> PredictionModelRuns { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1206,7 +1212,95 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.ExistingStatus).HasMaxLength(32);
                 entity.Property(x => x.ExistingSource).HasMaxLength(120);
                 entity.Property(x => x.Decision).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.SourceMatchId).HasMaxLength(80);
+                entity.Property(x => x.SourceUrl).HasMaxLength(400);
+                entity.Property(x => x.SourceHomeName).HasMaxLength(120);
+                entity.Property(x => x.SourceAwayName).HasMaxLength(120);
+                entity.Property(x => x.OfficialResultDetail).HasMaxLength(8);
+                entity.Property(x => x.ValidationResult).HasMaxLength(40);
+                entity.Property(x => x.ConflictStatus).HasMaxLength(16);
+                entity.Property(x => x.ParserVersion).HasMaxLength(32);
+                entity.Property(x => x.ContentHash).HasMaxLength(64);
                 entity.HasIndex(x => new { x.MatchId, x.ObservedAtUtc }).HasDatabaseName("IX_MatchResultObservations_Match");
+            });
+            modelBuilder.Entity<OfficialDataSource>(entity =>
+            {
+                entity.ToTable("OfficialDataSources");
+                entity.HasKey(x => x.SourceId);
+                entity.Property(x => x.SourceId).HasMaxLength(80);
+                entity.Property(x => x.SourceName).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.OfficialDomain).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.OrganizationIds).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.SourceType).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ContentKind).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Capabilities).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.VerificationEvidence).HasMaxLength(1200).IsRequired();
+                entity.Property(x => x.RegistryStatus).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.RobotsStatus).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.ParserVersion).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.LastError).HasMaxLength(400);
+            });
+            modelBuilder.Entity<MatchResultCheck>(entity =>
+            {
+                entity.ToTable("MatchResultChecks");
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.State).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.LastOutcome).HasMaxLength(120);
+                entity.Property(x => x.LastSourceKey).HasMaxLength(80);
+                entity.Property(x => x.ResolvedStatus).HasMaxLength(16);
+                entity.Property(x => x.LockOwner).HasMaxLength(64);
+                entity.HasIndex(x => new { x.State, x.NextCheckUtc }).HasDatabaseName("IX_MatchResultChecks_Due");
+            });
+            modelBuilder.Entity<MatchStatisticsCheck>(entity =>
+            {
+                entity.ToTable("MatchStatisticsChecks");
+                entity.HasKey(x => x.MatchId);
+                entity.Property(x => x.MatchId).ValueGeneratedNever();
+                entity.Property(x => x.State).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.Completeness).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.LastOutcome).HasMaxLength(160);
+                entity.Property(x => x.LastSourceKey).HasMaxLength(80);
+                entity.Property(x => x.LockOwner).HasMaxLength(64);
+                entity.HasIndex(x => new { x.State, x.NextCheckUtc }).HasDatabaseName("IX_MatchStatisticsChecks_Due");
+            });
+            modelBuilder.Entity<MatchStatisticObservation>(entity =>
+            {
+                entity.ToTable("MatchStatisticObservations");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.SourceUrl).HasMaxLength(400);
+                entity.Property(x => x.Side).HasMaxLength(8).IsRequired();
+                entity.Property(x => x.FieldsJson).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ParserVersion).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Decision).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ConflictDetail).HasMaxLength(400);
+                entity.HasIndex(x => new { x.MatchId, x.SourceKey, x.Side, x.ContentHash }).HasDatabaseName("IX_MatchStatisticObservations_Dedupe");
+            });
+            modelBuilder.Entity<MatchPredictionSnapshot>(entity =>
+            {
+                entity.ToTable("MatchPredictionSnapshots");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SnapshotId).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.CalibrationRunId).HasMaxLength(40);
+                entity.Property(x => x.Status).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.PayloadJson).IsRequired();
+                entity.Property(x => x.InputHash).HasMaxLength(64).IsRequired();
+                entity.HasIndex(x => x.SnapshotId).IsUnique().HasDatabaseName("UX_MatchPredictionSnapshots_SnapshotId");
+                entity.HasIndex(x => new { x.MatchId, x.IsCurrent }).HasDatabaseName("IX_MatchPredictionSnapshots_Current");
+            });
+            modelBuilder.Entity<PredictionModelRun>(entity =>
+            {
+                entity.ToTable("PredictionModelRuns");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.RunId).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.ParametersJson).IsRequired();
+                entity.Property(x => x.MetricsJson).IsRequired();
+                entity.HasIndex(x => x.RunId).IsUnique().HasDatabaseName("UX_PredictionModelRuns_RunId");
             });
             modelBuilder.Entity<MatchVideoDiscoveryQueueItem>(entity =>
             {
@@ -1246,6 +1340,7 @@ namespace Formax.Infrastructure.Data
             modelBuilder.Entity<OfficialMatchLink>().Property(x => x.OfficialStatus).HasMaxLength(32);
             modelBuilder.Entity<Match>().Property(x => x.ScheduleSource).HasMaxLength(80);
             modelBuilder.Entity<Match>().Property(x => x.ResultVerificationStatus).HasMaxLength(32);
+            modelBuilder.Entity<Match>().Property(x => x.ResultDetail).HasMaxLength(8);
 
             // ── AI MAÇ ANALİZİ (arka planda üretilmiş, maç başına tek satır) ──
             modelBuilder.Entity<MatchAnalysisSnapshot>(entity =>

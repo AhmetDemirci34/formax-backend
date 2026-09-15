@@ -153,12 +153,13 @@ public class MatchesResultsScreenContractTests
     }
 
     [Fact]
-    public void VideoIsareti_YalnizBackendVarDediginde()
+    public void VideoIsaretiKaldirildi_IYYalnizVarsaBasilir()
     {
         var card = Card();
 
-        Assert.Contains("r.hasPlayableOfficialVideo ? (", card, StringComparison.Ordinal);
-        Assert.Contains("Video var", card, StringComparison.Ordinal);
+        // 15.09.2026: video özelliği kaldırıldı — kartta video işareti yok.
+        Assert.DoesNotContain("hasPlayableOfficialVideo", card, StringComparison.Ordinal);
+        Assert.DoesNotContain("Video var", card, StringComparison.Ordinal);
         // İY yoksa satır hiç basılmaz — "İY 0-0" uydurulmaz.
         Assert.Contains("r.halfTimeHomeScore != null && r.halfTimeAwayScore != null",
             card, StringComparison.Ordinal);

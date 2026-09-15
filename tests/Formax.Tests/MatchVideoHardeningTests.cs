@@ -350,30 +350,6 @@ public class MatchVideoHardeningTests
         Assert.Contains("sz4AJjiol84", leg2.EmbedUrl);
     }
 
-    [Fact]
-    public async Task DenetimSonrasi_SonucKartlarindaVideoVarIsaretiDuzelir()
-    {
-        using var db = RealWorldDb(nameof(DenetimSonrasi_SonucKartlarindaVideoVarIsaretiDuzelir));
-        var results = TestReaders.Results(db);
-
-        // ÖNCE: yanlış kayıtlar yüzünden iki maç "Video var" diyordu.
-        var before = await results.GetResultsAsync(new DateOnly(2026, 8, 31));
-        Assert.True(before.Single(r => r.MatchId == Bjk).HasPlayableOfficialVideo);
-
-        await Audit(db).RunAsync(apply: true);
-
-        // SONRA: işaret kalkar.
-        var after = await results.GetResultsAsync(new DateOnly(2026, 8, 31));
-        Assert.False(after.Single(r => r.MatchId == Bjk).HasPlayableOfficialVideo);
-        Assert.False(after.Single(r => r.MatchId == Amed).HasPlayableOfficialVideo);
-
-        // Doğru maçlarda işaret KORUNUR.
-        Assert.True((await results.GetResultsAsync(new DateOnly(2026, 8, 18)))
-            .Single(r => r.MatchId == Leg1).HasPlayableOfficialVideo);
-        Assert.True((await results.GetResultsAsync(new DateOnly(2026, 8, 26)))
-            .Single(r => r.MatchId == Leg2).HasPlayableOfficialVideo);
-    }
-
     // ── Kayıt kapısı: aynı video ikinci bir maça bağlanamaz ─────────────────
 
     [Fact]

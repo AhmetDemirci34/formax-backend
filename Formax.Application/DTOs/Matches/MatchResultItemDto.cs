@@ -18,7 +18,7 @@ namespace Formax.Application.DTOs.Matches
     /// Sonuç listesi bunu yapamaz: bir maç ertelenmiş, iptal olmuş ya da hâlâ oynanıyor
     /// olabilir. Burada durum DEPODAN gelir ve yalnız gerçekten bitmiş maçlar döner.
     /// Ayrıca kart, listede olmayan alanlara ihtiyaç duyar: fikstür kimliği, lig id'si,
-    /// tur/aşama ve videonun gerçekten oynatılabilir olup olmadığı.
+    /// tur/aşama ve sonucun biçimi (FT/AET/PEN).
     ///
     /// Hiçbir alan türetilmez: skorlar, İY skorları ve tur adı depoda ne ise odur.
     /// </summary>
@@ -54,13 +54,8 @@ namespace Formax.Application.DTOs.Matches
         /// <summary>Depodaki gerçek durum (Finished).</summary>
         public string Status { get; init; } = string.Empty;
 
-        /// <summary>
-        /// Bu maçın uygulama İÇİNDE oynatılabilen doğrulanmış resmî videosu var mı?
-        ///
-        /// false ise kartta hiçbir video işareti gösterilmez. "Belki vardır" işareti
-        /// koymak, kullanıcıyı boş bir ekrana göndermenin en kısa yoludur.
-        /// </summary>
-        public bool HasPlayableOfficialVideo { get; init; }
+        /// <summary>Kesin sonucun biçimi — resmî kaynaktan "FT" / "AET" / "PEN"; eski kayıtlarda null. (Video alanı 15.09.2026 kaldırıldı.)</summary>
+        public string? ResultDetail { get; init; }
     }
 
     /// <summary>

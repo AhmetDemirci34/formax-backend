@@ -31,7 +31,7 @@ export function ConfidenceGauge({ score, level }: AiConfidence) {
         transition={{ duration: 2.6, ease: "easeInOut", repeat: Infinity }}
       />
 
-      <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" role="img" aria-label={`AI Güveni ${score}, ${level}`}>
+      <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" role="img" aria-label={`AI Beklentisi ${score}, ${level}`}>
         <defs>
           <linearGradient id="goalaiGaugeGrad" x1="0.15" y1="0" x2="0.9" y2="1">
             <stop offset="0%" stopColor="#CCFF00" />
@@ -73,7 +73,7 @@ export function ConfidenceGauge({ score, level }: AiConfidence) {
       {/* iç metin — çemberin tam ortasında */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[8px] font-semibold uppercase tracking-[0.12em] text-white/45">
-          AI Güveni
+          AI Beklentisi
         </span>
         <span className="text-[21px] font-bold leading-none text-white">{score}</span>
         <span className="text-[9px] font-bold uppercase tracking-wide text-goalai-accent">

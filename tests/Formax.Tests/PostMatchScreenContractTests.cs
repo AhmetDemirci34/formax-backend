@@ -23,11 +23,9 @@ public class PostMatchScreenContractTests
 {
     // EKRAN = bitmiş maç özeti + ayrı video kartı + saf video kuralları (11.09.2026: video kartı
     // ve arama kuralları ayrı dosyalara taşındı; sözleşme aynı kalır, okunan kaynak genişler).
+    // 15.09.2026: video özelliği kaldırıldı — video kartı ve arama kuralları dosyaları silindi; ekran yalnız özet bileşenidir.
     private static string Screen() =>
-        Read("formax-web/components/match-center/views/FinishedMatchSummary.tsx") + Environment.NewLine +
-        Read("formax-web/components/match-center/views/VideoPlayerCard.tsx") + Environment.NewLine +
-        Read("formax-web/lib/video/videoSearch.ts") + Environment.NewLine +
-        Read("formax-web/lib/video/youtubePlayback.ts");
+        Read("formax-web/components/match-center/views/FinishedMatchSummary.tsx");
     private static string Types() => Read("formax-web/types/api.ts");
     private static string MatchPage() => Read("formax-web/app/match/[id]/page.tsx");
     private static string PredictionCard() => Read("formax-web/components/predictions/PredictionCard.tsx");
@@ -77,7 +75,8 @@ public class PostMatchScreenContractTests
     {
         // Bitmiş maçta ekran "Maç Detayı" değildir; başlık ürün adını söylemelidir.
         Assert.Contains("title=\"Maç Özeti\"", MatchPage(), StringComparison.Ordinal);
-        Assert.Contains("<Panel title=\"Maç Özeti\">", Screen(), StringComparison.Ordinal);
+        // Ekran başlığı özet ekranının adıdır; video "Maç Özeti" paneli 15.09.2026 kaldırıldı.
+        Assert.DoesNotContain("<Panel title=\"Maç Özeti\">", Screen(), StringComparison.Ordinal);
     }
 
     // ── 1-2. TARİH, SAAT VE EV/DEPLASMAN YÖNÜ ────────────────────────────────
@@ -121,56 +120,12 @@ public class PostMatchScreenContractTests
     // ── 10-11-12. BOŞ BÖLÜM YOK, ANA ÖZET TEKRARLANMAZ ───────────────────────
 
     [Fact]
-    public void AnaOzet_OnemliAnlarListesinde_Tekrarlanmaz()
-    {
-        var screen = Screen();
-
-        // Liste hem tür süzgeci hem de kimlik karşılaştırmasıyla ana videoyu dışlar.
-        Assert.Contains("isMoment(v.videoType) && v !== main", screen, StringComparison.Ordinal);
-        // Ana kart yalnız MatchHighlights/ExtendedHighlights kabul eder.
-        Assert.Contains("v.canPlayInApp && isMainHighlight(v.videoType)", screen, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void OlayVeIstatistikBolumleri_VeriYoksaRenderEdilmez()
     {
         var screen = Screen();
 
         Assert.Contains("{events.length > 0 && (", screen, StringComparison.Ordinal);
-        // 13.09.2026: gol klipleri ayrı GOLLER bölümüdür; diğer klipler ayrı bölümdür.
-        Assert.Contains("{goals.length > 0 && (", screen, StringComparison.Ordinal);
-        Assert.Contains("{otherMoments.length > 0 && (", screen, StringComparison.Ordinal);
         Assert.Contains("{stats && stats.rows.length > 0 && (", screen, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TekBosDurum_VideoIcin_VeGenelMesajlaBirlikteGosterilmez()
-    {
-        var screen = Screen();
-
-        // ÜÇ DURUM (07.09.2026): tek bir "henüz bulunmuyor" metni, denemeler sürerken
-        // de bittiğinde de aynı şeyi söylüyordu. Maç biteli 40 dakika olmuşken
-        // "bulunamadı" demek yanlıştır — daha hiç bakılmamıştır.
-        // 13.09.2026: metin "video" der — arama tam özeti ve gol kliplerini birlikte kapsar.
-        const string searching = "Resmî video kontrol ediliyor.";
-        const string exhausted = "Uygulama içinde oynatılabilir resmî video bulunamadı.";
-        Assert.Contains(searching, screen, StringComparison.Ordinal);
-        Assert.Contains(exhausted, screen, StringComparison.Ordinal);
-
-        // Hangi metnin çıkacağı backend'in KALICI DEFTERİNDEN gelir; ekran saat hesabı yapmaz.
-        // 11.09.2026: karar SAATTEN değil KALICI DEFTERDEN (backend videoSearch) gelir.
-        Assert.Contains("videoEmptyStateText(match.videoSearch)", screen, StringComparison.Ordinal);
-        Assert.DoesNotContain("isVideoSearchWindowOver", screen, StringComparison.Ordinal);
-
-        // <Empty …/> yalnız ÜÇ yerde: video boş durumu, backend'in puan durumu metni ve (15.09.2026) backend'in
-        // maç sonu analiz durumu (yetersiz veri / hazırlanıyor) — ekran cümle üretmez, DTO durumunu yazar.
-        Assert.Equal(3, Regex.Matches(screen, @"<Empty\b").Count);
-
-        // Genel "ayrıntı yok" mesajı ile video boş durumu AYNI ANDA çıkamaz: biri
-        // hasAnyDetail false iken, diğeri true iken render edilir.
-        Assert.Contains("{!hasAnyDetail && (", screen, StringComparison.Ordinal);
-        // 13.09.2026: yalnız gol klibi varsa boş "Maç Özeti" kutusu da çizilmez (GOLLER yeterli).
-        Assert.Contains("{hasAnyDetail && showSummaryVideoPanel && (", screen, StringComparison.Ordinal);
     }
 
     // ── 14-15. PUAN DURUMU KARARI BACKEND'İNDİR ──────────────────────────────
@@ -191,66 +146,7 @@ public class PostMatchScreenContractTests
 
     // ── 16-17. AÇILIŞ VE TIKLAMA DIŞ KEŞİF İSTEĞİ ÜRETMEZ ────────────────────
 
-    [Fact]
-    public void SayfaAcilisinda_IframeKurulmaz_OtomatikOynatmaYok()
-    {
-        var screen = Screen();
-
-        Assert.Contains("state !== \"idle\" && video.embedUrl ? (", screen, StringComparison.Ordinal);
-        Assert.Contains("onClick={() => setState(\"loading\")}", screen, StringComparison.Ordinal);
-
-        var iframeIndex = screen.IndexOf("<iframe", StringComparison.Ordinal);
-        var playingIndex = screen.IndexOf("state !== \"idle\" && video.embedUrl ? (", StringComparison.Ordinal);
-        Assert.True(playingIndex >= 0 && iframeIndex > playingIndex,
-            "iframe, playing kontrolünden SONRA kurulmalı");
-    }
-
-    [Fact]
-    public void OynatmaTiklamasi_YeniKesifIstegiUretmez()
-    {
-        var screen = Screen();
-
-        // Ekran hiçbir veri çağrısı yapmaz: fetch/axios/useQuery yok. Tıklama yalnız
-        // yerel state'i değiştirir; keşif ya da API-Football sorgusu BAŞLATMAZ.
-        Assert.DoesNotContain("fetch(", screen, StringComparison.Ordinal);
-        Assert.DoesNotContain("axios", screen, StringComparison.Ordinal);
-        Assert.DoesNotContain("useQuery", screen, StringComparison.Ordinal);
-        Assert.DoesNotContain("api/", screen, StringComparison.Ordinal);
-    }
-
     // ── Player başarısızlığı ve bölgesel kısıt ───────────────────────────────
-
-    [Fact]
-    public void PlayerHatasinda_SonsuzSpinnerYok_DurustMesajVar()
-    {
-        var screen = Screen();
-
-        Assert.Contains("if (!video.canPlayInApp)", screen, StringComparison.Ordinal);
-        Assert.Contains("Uygulama içinde oynatılamıyor", screen, StringComparison.Ordinal);
-        Assert.Contains("Video şu an oynatılamıyor", screen, StringComparison.Ordinal);
-        Assert.DoesNotContain("animate-spin", screen, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void BolgeselKisit_EkrandaAcikcaSoylenir()
-    {
-        var screen = Screen();
-
-        Assert.Contains("video.isRegionRestricted", screen, StringComparison.Ordinal);
-        Assert.Contains("yalnız {countries.join(\", \")} bölgesinde oynatılabilir",
-            screen, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GommeAdresi_YalnizCerezsizYouTubeOlabilir()
-    {
-        // Ekran adresi kendisi ÜRETMEZ; backend'den geleni kullanır. Backend ise yalnız
-        // youtube-nocookie üretir — kural orada çivilidir ve engel AŞILMAZ.
-        var verifier = Read("Formax.Infrastructure/PostMatch/YouTubeEmbedVerifier.cs");
-        Assert.Contains("youtube-nocookie.com/embed/", verifier, StringComparison.Ordinal);
-        Assert.DoesNotContain("X-Frame-Options", verifier, StringComparison.Ordinal);
-        Assert.DoesNotContain("Referer", verifier, StringComparison.Ordinal);
-    }
 
     // ── 19. MOBİLDE YATAY TAŞMA OLMASIN ──────────────────────────────────────
 
@@ -260,8 +156,6 @@ public class PostMatchScreenContractTests
         var screen = Screen();
 
         Assert.Contains("overflow-x-hidden", screen, StringComparison.Ordinal);
-        // Video 16:9 oranla ölçeklenir; sabit piksel genişlik 375px'te taşmaya yol açardı.
-        Assert.Contains("aspect-video w-full max-w-full", screen, StringComparison.Ordinal);
         Assert.DoesNotContain("min-w-[", screen, StringComparison.Ordinal);
         Assert.DoesNotContain("overflow-x-auto", screen, StringComparison.Ordinal);
         // Uzun başlıklar düzeni bozmasın.
@@ -274,6 +168,17 @@ public class PostMatchScreenContractTests
             .ToList();
         Assert.NotEmpty(fixedWidths);   // regex bozulursa test sessizce boşa düşmesin
         Assert.All(fixedWidths, w => Assert.True(w <= 80, $"375px ekranda riskli sabit genişlik: {w}px"));
+    }
+
+    [Fact]
+    public void VideoOzelligiKaldirildi_EkranVeTiplerVideoTasimaz()
+    {
+        var screen = Screen();
+        foreach (var forbidden in new[] { "<iframe", "VideoPlayerCard", "videoSearch", "Maç Özeti\"", "\"Goller\"", "youtube", "arrangeVideos" })
+            Assert.DoesNotContain(forbidden, screen, StringComparison.OrdinalIgnoreCase);
+        var types = Types();
+        Assert.DoesNotContain("MatchVideoDto", types, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoSearchDto", types, StringComparison.Ordinal);
     }
 
     [Fact]

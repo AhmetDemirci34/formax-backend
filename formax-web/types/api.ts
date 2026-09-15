@@ -748,35 +748,6 @@ export interface MatchEventDto {
   playerOut?: string | null;
 }
 
-/**
- * RESMÎ ÖZET ARAMASI — kalıcı defterden. "Found" | "Checking" | "NotFound".
- * Ekran "bulunamadı" kararını YALNIZ bundan verir; saatten türetmez.
- */
-export interface VideoSearchDto {
-  status:
-    | "Searching"
-    | "FullHighlightsAvailable"
-    | "GoalClipsAvailable"
-    | "NotAvailableYet"
-    | "SourceBlocked"
-    | "Failed"
-    | "Found"
-    | "Checking"
-    | "NotFound"
-    | string;
-  attemptsMade: number;
-  maxAttempts: number;
-  /** Maç kalıcı arama kuyruğunda mı (sayfa açılışı kuyruğa yazmaz). */
-  inQueue?: boolean;
-  queueBucket?: string | null;
-  requeueReason?: string | null;
-  lastAttemptUtc?: string | null;
-  /** NotFound gerekçesi: "Exhausted" (dört deneme bitti) | "NoAttemptFor24h" (bir gündür yeni deneme yok). */
-  reason?: string | null;
-  /** Kalıcı kuyruktaki sonraki planlı deneme (tam özet bulunduysa null). */
-  nextAttemptUtc?: string | null;
-}
-
 /** Bitmiş maç analiz metni — arka planda doğrulanmış skor/olay/istatistikten; sayfa üretmez. */
 export interface PostMatchSummaryDto {
   sentences: string[];
@@ -784,45 +755,6 @@ export interface PostMatchSummaryDto {
   generatedAtUtc: string;
   /** "Available" | "InsufficientData" (doğrulanmış veri yetersiz) | "Pending" (arka plan henüz yazmadı). */
   status?: "Available" | "InsufficientData" | "Pending" | string;
-}
-
-/**
- * Maç videosu. canPlayInApp false ise uygulama içi oynatıcı AÇILMAZ ve backend
- * embedUrl'i null gönderir — ekranın deneyebileceği bir adres bırakılmaz.
- *
- * NOT: bitmiş maç ekranında MAÇ SONRASI HABER YOKTUR (02.09.2026 ürün kararı).
- * Bu yüzden haber kartı için bir tip de tanımlı değildir; geri gelmesi isteniyorsa
- * önce ürün kararının değişmesi gerekir.
- */
-export interface MatchVideoDto {
-  title: string;
-  /** Resmî yayıncı adı ("UEFA", "TRT SPOR"…). */
-  publisher: string;
-  /** Kaynağın kendi sayfası. */
-  sourcePageUrl: string;
-  embedUrl?: string | null;
-  thumbnailUrl?: string | null;
-  videoType:
-    | 'MatchHighlights'
-    | 'ExtendedHighlights'
-    | 'Goal'
-    | 'Penalty'
-    | 'RedCard'
-    | 'VAR'
-    | 'ImportantMoment'
-    | string;
-  publishedAtUtc?: string | null;
-  durationSeconds?: number | null;
-  canPlayInApp: boolean;
-  /** Videonun açık olduğu ülkeler (ISO alpha-2). Boş = kaynak söylemedi. */
-  availableCountries?: string[];
-  /** true ise video yalnız belirli ülkelerde oynar; ekran bunu açıkça söyler. */
-  isRegionRestricted?: boolean;
-  /** Olay klibi meta verisi — yalnız AYRI kliplerde dolu. */
-  eventMinute?: number | null;
-  eventExtraMinute?: number | null;
-  eventPlayer?: string | null;
-  eventTeam?: string | null;
 }
 
 /** Tek istatistik satırı — ev/deplasman karşılaştırması. */
@@ -840,12 +772,15 @@ export interface MatchStatisticRowDto {
  */
 export interface MatchStatisticsDto {
   rows: MatchStatisticRowDto[];
+  /** Kaynağın yayımlamadığı alanların etiketleri — "0" DEĞİL, veri yok. */
+  notPublished?: string[];
+  /** Resmî istatistik kaynağı ("LALIGA" …). */
+  sourceName?: string | null;
 }
 
 export interface MatchDetailDto {
-  videos?: MatchVideoDto[];
-  /** Resmî özet aramasının kalıcı defterdeki durumu (yalnız bitmiş maçta). */
-  videoSearch?: VideoSearchDto | null;
+  /** Kesin sonucun biçimi (resmî kaynak): "FT" | "AET" | "PEN". */
+  resultDetail?: string | null;
   /** Maç sonrası analiz (yalnız bitmiş maçta, DB satırı varsa). Maç öncesi AI yorumu DEĞİLDİR. */
   postMatchSummary?: PostMatchSummaryDto | null;
   scoreBreakdown?: MatchScoreBreakdownDto | null;

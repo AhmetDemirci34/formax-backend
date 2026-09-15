@@ -75,7 +75,9 @@ namespace Formax.Infrastructure.OfficialSources
 
                 var wantsEvents = descriptor.Capabilities.Contains(OfficialPurposes.Events)
                                   && !await _db.MatchEventRecords.AnyAsync(e => e.MatchId == match.Id, ct);
-                var wantsStats = descriptor.Capabilities.Contains(OfficialPurposes.Statistics)
+                // İstatistik yazımı resmî istatistik botunundur (kalıcı takvim + gözlem defteri); bot kapalıysa bu tur yazar.
+                var wantsStats = !_config.GetValue("OfficialSources:StatisticsBot:Enabled", true)
+                                 && descriptor.Capabilities.Contains(OfficialPurposes.Statistics)
                                  && !await _db.MatchTeamStatistics.AnyAsync(s => s.MatchId == match.Id, ct);
                 if (!wantsEvents && !wantsStats) continue;
 

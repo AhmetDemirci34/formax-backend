@@ -1,0 +1,148 @@
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Formax.Application.Services.OfficialSources;
+using Formax.Domain.Constants;
+using Formax.Infrastructure.Data;
+using Formax.Infrastructure.OfficialSources;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Formax.API.Controllers.Admin
+{
+    /// <summary>
+    /// API'SİZ RESMÎ SONUÇ + İSTATİSTİK BOTU — teşhis. GET uçları salt DB okur. POST uçları normal arka plan hattının bir
+    /// turunu çalıştırır (aynı plan, aynı kilit, aynı uzlaşma); elle sonuç ya da istatistik yazan uç YOKTUR.
+    /// </summary>
+    [ApiController]
+    [Route("admin/results")]
+    public sealed class AdminResultBotController : ControllerBase
+    {
+        private readonly FormaxDbContext _db;
+        public AdminResultBotController(FormaxDbContext db) => _db = db;
+
+        /// <summary>Organizasyon başına resmî sonuç kaynağı raporu (kaynak türü, robots, parser, sağlık, kapsanan maç).</summary>
+        [HttpGet("organizations")]
+        public async Task<IActionResult> Organizations(CancellationToken ct)
+        {
+            var sources = await _db.OfficialDataSources.AsNoTracking().ToListAsync(ct);
+            var since = DateTime.UtcNow.AddDays(-30);
+            var covered = await _db.Matches.AsNoTracking()
+                .Where(m => m.ResultSource != null && m.ResultSource.StartsWith("official:") && m.ResultUpdatedAtUtc >= since)
+                .GroupBy(m => m.ResultSource!).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
+            var stats = await _db.MatchTeamStatistics.AsNoTracking()
+                .Where(s => s.Source != null && s.Source.StartsWith("official:"))
+                .GroupBy(s => s.Source!).Select(g => new { g.Key, Matches = g.Select(x => x.MatchId).Distinct().Count() }).ToListAsync(ct);
+            var names = await _db.Matches.AsNoTracking().Where(m => LockedCompetitions.All.Contains(m.LeagueId))
+                .GroupBy(m => m.LeagueId).Select(g => new { LeagueId = g.Key, Name = g.Max(x => x.League) }).ToListAsync(ct);
+
+            var rows = LockedCompetitions.All.Select(leagueId =>
+            {
+                var result = OfficialSourceRegistry.All.Where(d => d.LeagueIds.Contains(leagueId)
+                        && d.Tier is OfficialSourceTier.Federation or OfficialSourceTier.LeagueMatchCentre)
+                    .OrderBy(d => d.Status == OfficialSourceStatuses.Verified ? 0 : 1).FirstOrDefault();
+                var row = result == null ? null : sources.FirstOrDefault(s => s.SourceId == result.Key);
+                var tag = result == null ? null : OfficialLineupCollector.ProviderPrefix + result.Key;
+                return new
+                {
+                    leagueId,
+                    organization = names.FirstOrDefault(n => n.LeagueId == leagueId)?.Name,
+                    resultSource = result?.Key,
+                    sourceName = result?.Organization,
+                    sourceType = result?.Tier.ToString(),
+                    contentKind = result?.Kind,
+                    registryStatus = result?.Status ?? "NotConfigured",
+                    capabilities = result?.Capabilities,
+                    robotsStatus = row?.RobotsStatus ?? "Unknown",
+                    parser = row?.ParserVersion,
+                    healthy = row != null && row.IsEnabled && row.ConsecutiveFailureCount == 0 && row.LastSuccessUtc != null,
+                    lastCheckedUtc = row?.LastCheckedUtc,
+                    lastSuccessUtc = row?.LastSuccessUtc,
+                    consecutiveFailures = row?.ConsecutiveFailureCount,
+                    circuitBreakerUntilUtc = row?.CircuitBreakerUntilUtc,
+                    lastError = row?.LastError,
+                    resultsWrittenLast30Days = tag == null ? 0 : covered.FirstOrDefault(c => c.Key == tag)?.Count ?? 0,
+                    matchesWithOfficialStatistics = tag == null ? 0 : stats.FirstOrDefault(c => c.Key == tag)?.Matches ?? 0,
+                    evidence = result?.EvidenceNote
+                };
+            }).ToList();
+            return Ok(new { generatedAtUtc = DateTime.UtcNow, organizations = rows, catalog = sources });
+        }
+
+        /// <summary>Türkiye günü (yyyy-MM-dd) için sonuç kontrol planı + kanonik durum + gözlem gecikmesi.</summary>
+        [HttpGet("day")]
+        public async Task<IActionResult> Day([FromQuery] string? date, CancellationToken ct)
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Turkey Standard Time" : "Europe/Istanbul");
+            var day = DateTime.TryParse(date, out var d) ? d.Date : TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz).Date;
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(day, tz);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(day.AddDays(1), tz);
+            var rows = await (from m in _db.Matches.AsNoTracking()
+                              where m.MatchDate >= startUtc && m.MatchDate < endUtc && LockedCompetitions.All.Contains(m.LeagueId)
+                              join c in _db.MatchResultChecks.AsNoTracking() on m.Id equals c.MatchId into cj
+                              from c in cj.DefaultIfEmpty()
+                              join s in _db.MatchStatisticsChecks.AsNoTracking() on m.Id equals s.MatchId into sj
+                              from s in sj.DefaultIfEmpty()
+                              orderby m.MatchDate
+                              select new
+                              {
+                                  m.Id, m.LeagueId, Home = m.HomeTeam!.Name, Away = m.AwayTeam!.Name, m.MatchDate, m.Status, m.HomeScore, m.AwayScore,
+                                  m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.ResultDetail, m.ResultSource, m.ResultUpdatedAtUtc, m.ResultVerificationStatus,
+                                  Check = c == null ? null : new { c.State, c.AttemptCount, c.NextCheckUtc, c.LastCheckUtc, c.LastOutcome, c.FirstFinalSeenUtc, c.ResolvedAtUtc, c.ResolvedStatus },
+                                  Statistics = s == null ? null : new { s.State, s.Completeness, s.AttemptCount, s.NextCheckUtc, s.LastOutcome, s.LastSourceKey }
+                              }).ToListAsync(ct);
+            return Ok(new
+            {
+                dayIstanbul = day.ToString("yyyy-MM-dd"), startUtc, endUtc,
+                matches = rows.Select(r => new
+                {
+                    r.Id, r.LeagueId, r.Home, r.Away, kickoffUtc = r.MatchDate, r.Status, score = r.Status == MatchStatuses.Finished ? $"{r.HomeScore}-{r.AwayScore}" : null,
+                    halfTime = r.HalfTimeHomeScore.HasValue ? $"{r.HalfTimeHomeScore}-{r.HalfTimeAwayScore}" : null,
+                    r.ResultDetail, r.ResultSource, r.ResultUpdatedAtUtc, r.ResultVerificationStatus, r.Check, r.Statistics,
+                    // Gecikme: kaynağın maçı ilk kez "bitti" gösterdiği gözlem ile kanonik yazım arası (dk).
+                    writeDelayMinutes = r.Check?.FirstFinalSeenUtc != null && r.Check.ResolvedAtUtc != null
+                        ? Math.Round((r.Check.ResolvedAtUtc.Value - r.Check.FirstFinalSeenUtc.Value).TotalMinutes, 1) : (double?)null,
+                    minutesFromKickoffToWrite = r.ResultUpdatedAtUtc != null ? Math.Round((r.ResultUpdatedAtUtc.Value - r.MatchDate).TotalMinutes, 1) : (double?)null
+                })
+            });
+        }
+
+        [HttpGet("observations/{matchId:int}")]
+        public async Task<IActionResult> Observations(int matchId, CancellationToken ct)
+            => Ok(new
+            {
+                results = await _db.MatchResultObservations.AsNoTracking().Where(o => o.MatchId == matchId).OrderBy(o => o.ObservedAtUtc).ToListAsync(ct),
+                statistics = await _db.MatchStatisticObservations.AsNoTracking().Where(o => o.MatchId == matchId).OrderBy(o => o.ObservedAtUtc).ToListAsync(ct),
+                canonicalStatistics = await _db.MatchTeamStatistics.AsNoTracking().Where(s => s.MatchId == matchId).ToListAsync(ct),
+                check = await _db.MatchResultChecks.AsNoTracking().FirstOrDefaultAsync(c => c.MatchId == matchId, ct),
+                statisticsCheck = await _db.MatchStatisticsChecks.AsNoTracking().FirstOrDefaultAsync(c => c.MatchId == matchId, ct)
+            });
+
+        /// <summary>İstatistik tamlık özeti (tam / kısmi / hiç) — plan satırlarından.</summary>
+        [HttpGet("statistics-summary")]
+        public async Task<IActionResult> StatisticsSummary(CancellationToken ct)
+            => Ok(await _db.MatchStatisticsChecks.AsNoTracking().GroupBy(s => new { s.State, s.Completeness })
+                .Select(g => new { g.Key.State, g.Key.Completeness, Count = g.Count() }).ToListAsync(ct));
+
+        [HttpGet("conflicts")]
+        public async Task<IActionResult> Conflicts(CancellationToken ct)
+            => Ok(new
+            {
+                results = await _db.MatchResultObservations.AsNoTracking().Where(o => o.ConflictStatus == "Conflict" || o.Decision == "ConflictRecorded" || o.Decision == "ConflictResolvedAfterConfirmation")
+                    .OrderByDescending(o => o.ObservedAtUtc).Take(200).ToListAsync(ct),
+                statistics = await _db.MatchStatisticObservations.AsNoTracking().Where(o => o.Decision == "ConflictRecorded")
+                    .OrderByDescending(o => o.ObservedAtUtc).Take(200).ToListAsync(ct)
+            });
+
+        /// <summary>Sonuç botunun bir turu (normal hat).</summary>
+        [HttpPost("run")]
+        public async Task<IActionResult> Run([FromServices] OfficialResultBotService bot, CancellationToken ct)
+            => Ok(await bot.RunCycleAsync(DateTime.UtcNow, ct));
+
+        /// <summary>İstatistik botunun bir turu (normal hat).</summary>
+        [HttpPost("statistics/run")]
+        public async Task<IActionResult> RunStatistics([FromServices] OfficialStatisticsBotService bot, CancellationToken ct)
+            => Ok(await bot.RunCycleAsync(DateTime.UtcNow, ct));
+    }
+}

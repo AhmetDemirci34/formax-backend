@@ -86,7 +86,10 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("[POST-MATCH VIDEO] Job started.");
+        _logger.LogInformation("[POST-MATCH] Job started.");
+        OfficialSources.PostMatchWorkSignal? signal;
+        using (var signalScope = _scopeFactory.CreateScope())
+            signal = signalScope.ServiceProvider.GetService<OfficialSources.PostMatchWorkSignal>();
         try { await Task.Delay(StartupDelay, stoppingToken); }
         catch (OperationCanceledException) { return; }
 
@@ -96,7 +99,12 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex) { _logger.LogError(ex, "[POST-MATCH VIDEO] Cycle failed."); }
 
-            try { await Task.Delay(LoopDelay, stoppingToken); }
+            // Kesin sonuç yazıldığında resmî sonuç botu bu turu bekletmeden uyandırır (maç sonu analiz metni).
+            try
+            {
+                if (signal != null) await signal.WaitAsync(LoopDelay, stoppingToken);
+                else await Task.Delay(LoopDelay, stoppingToken);
+            }
             catch (OperationCanceledException) { break; }
         }
     }
@@ -119,10 +127,6 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
         var sp = scope.ServiceProvider;
         var db = sp.GetRequiredService<FormaxDbContext>();
         var config = sp.GetRequiredService<IConfiguration>();
-        var registrar = sp.GetRequiredService<IMatchVideoRegistrar>();
-        var provider = sp.GetRequiredService<IOfficialMatchVideoProvider>();
-        var repo = sp.GetRequiredService<IFixtureSyncRepository>();
-        var videoLog = sp.GetService<Telemetry.VideoDiscoveryRequestLog>();
 
         // ── AŞAMA 1: OLAY + İSTATİSTİK ────────────────────────────────────────
         //

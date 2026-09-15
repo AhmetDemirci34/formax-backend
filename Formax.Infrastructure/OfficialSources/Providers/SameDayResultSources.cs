@@ -17,7 +17,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// home_score/away_score, ISO tarih, takımların tüzel ve kısa adları) taşır; Villarreal–Betis 1-2 "FullTime" okundu.
     /// robots.txt bu yola izin veriyor. Abonelik anahtarı isteyen veri ucu (apim.laliga.com) KULLANILMAZ; script çalıştırılmaz.
     /// </summary>
-    public sealed class LaLigaSiteSource : IOfficialCompetitionSource
+    public sealed class LaLigaSiteSource : IOfficialCompetitionSource, IOfficialPostMatchSource
     {
         public const string Key = "laliga-site";
         public const string ProviderName = "LaLigaSite";
@@ -52,6 +52,65 @@ namespace Formax.Infrastructure.OfficialSources.Providers
 
         public Task<OfficialRead<OfficialLineupDocument>> ReadLineupAsync(OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
             => Task.FromResult(new OfficialRead<OfficialLineupDocument>(null, OfficialReadOutcomes.NotSupported, null, null));
+
+        public Task<OfficialRead<IReadOnlyList<OfficialMatchEvent>>> ReadEventsAsync(OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+            => Task.FromResult(new OfficialRead<IReadOnlyList<OfficialMatchEvent>>(null, OfficialReadOutcomes.NotSupported, null, null));
+
+        /// <summary>
+        /// RESMÎ TAKIM İSTATİSTİĞİ — maç sayfası (www.laliga.com/partido/{slug}; robots.txt "Allow: /partido/*") sunucu çıktısındaki
+        /// <c>__NEXT_DATA__ props.pageProps.data.stats.home/away</c>. ÖLÇÜLDÜ 15.09.2026 (Real Sociedad–Celta): possession_percentage,
+        /// total_scoring_att, ontarget_scoring_att, shot_off_target, blocked_scoring_att, won_corners, fk_foul_lost, total_offside,
+        /// total_yel_card, saves, total_pass, accurate_pass. Kaynak sıfır değerli alanı YAZMIYOR (ör. kırmızı kart) → null kalır.
+        /// Pas yüzdesi yayımlanmıyor → null (başka alandan HESAPLANMAZ). Sayfadaki ev/deplasman takımı kayıttakiyle aynı yönde
+        /// değilse okuma reddedilir.
+        /// </summary>
+        public async Task<OfficialRead<OfficialMatchStatistics>> ReadStatisticsAsync(OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(match.OfficialUrl) || !OfficialSourceRegistry.IsOfficialUrl(Key, match.OfficialUrl))
+                return new(null, OfficialReadOutcomes.NotSupported, "NoMatchPage", null);
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(SourceKey, ProviderName, match.OfficialUrl!, OfficialPurposes.Statistics, round.RoundKey, round.MatchId, Accept: "text/html"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            try
+            {
+                var parsed = ParseMatchStatistics(f.Body!, match.HomeName, match.AwayName);
+                return parsed.Outcome == "Ok"
+                    ? new(parsed.Stats, OfficialReadOutcomes.Ok, null, f)
+                    : parsed.Outcome == "NotFinal" || parsed.Outcome == "NoStats"
+                        ? new(null, OfficialReadOutcomes.Ok, parsed.Outcome, f)
+                        : new(null, OfficialReadOutcomes.ParseFailed, parsed.Outcome, f);
+            }
+            catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+        }
+
+        /// <summary>Saf ayrıştırıcı: "Ok" | "NotFinal" | "NoStats" | "OrientationMismatch" | "NoNextData".</summary>
+        public static (string Outcome, OfficialMatchStatistics? Stats) ParseMatchStatistics(string html, string expectedHome, string expectedAway)
+        {
+            var m = NextData.Match(html ?? string.Empty);
+            if (!m.Success) return ("NoNextData", null);
+            using var doc = JsonDocument.Parse(m.Groups[1].Value);
+            var pp = doc.RootElement.Prop("props")?.Prop("pageProps");
+            var match = pp?.Prop("match");
+            if (match == null) return ("NoNextData", null);
+            if (MapStatus(match.Value.Str("status")) != OfficialMatchStatuses.Finished) return ("NotFinal", null);
+            bool Same(JsonElement? team, string expected)
+                => team is { } t && ((t.Str("name") is { } n && OfficialTeamNameMatcher.SameTeam(n, expected))
+                                     || (t.Str("nickname") is { } k && OfficialTeamNameMatcher.SameTeam(k, expected)));
+            if (!Same(match.Value.Prop("home_team"), expectedHome) || !Same(match.Value.Prop("away_team"), expectedAway))
+                return ("OrientationMismatch", null);
+            var stats = pp!.Value.Prop("data")?.Prop("stats");
+            if (stats?.Prop("home") is not { ValueKind: JsonValueKind.Object } h || stats?.Prop("away") is not { ValueKind: JsonValueKind.Object } a)
+                return ("NoStats", null);
+            OfficialTeamStatistics Map(JsonElement s)
+            {
+                int? I(string k) => s.Dbl(k) is double d ? (int)Math.Round(d, MidpointRounding.AwayFromZero) : null;
+                return new OfficialTeamStatistics(I("possession_percentage"), I("total_scoring_att"), I("ontarget_scoring_att"),
+                    I("shot_off_target"), I("blocked_scoring_att"), I("won_corners"), I("total_offside"), I("fk_foul_lost"),
+                    I("total_yel_card"), I("total_red_card"), I("saves"), I("total_pass"), I("accurate_pass"), null);
+            }
+            var home = Map(h);
+            var away = Map(a);
+            return home.HasAnyMeasurement || away.HasAnyMeasurement ? ("Ok", new OfficialMatchStatistics(home, away)) : ("NoStats", null);
+        }
 
         private static readonly Regex NextData = new(@"<script id=""__NEXT_DATA__"" type=""application/json"">([\s\S]*?)</script>", RegexOptions.Compiled);
 
@@ -95,6 +154,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             "firsthalf" or "halftime" or "secondhalf" or "extratime" or "penalties" or "live" or "playing" => OfficialMatchStatuses.Live,
             "postponed" => OfficialMatchStatuses.Postponed,
             "cancelled" or "canceled" => OfficialMatchStatuses.Cancelled,
+            "abandoned" => OfficialMatchStatuses.Abandoned,
             "suspended" or "interrupted" => OfficialMatchStatuses.Suspended,
             _ => OfficialMatchStatuses.Unknown
         };
@@ -263,14 +323,27 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                     if (id == null || a == null || homeName == null || awayName == null) continue;
                     var raw = a.Value.Str("matchPeriod");
                     var status = a.Value.Str("postponementReason") != null ? OfficialMatchStatuses.Postponed : MapStatus(raw);
+                    var extraInfo = new Dictionary<string, string>();
+                    if (status == OfficialMatchStatuses.Finished)
+                    {
+                        status = RefineFinal(a.Value.Str("resultType"), raw);
+                        if (status == OfficialMatchStatuses.FinishedAfterPenalties
+                            && home?.Int("penaltyScore") is int ph && away?.Int("penaltyScore") is int pa)
+                        {
+                            extraInfo["penaltyHome"] = ph.ToString(CultureInfo.InvariantCulture);
+                            extraInfo["penaltyAway"] = pa.ToString(CultureInfo.InvariantCulture);
+                        }
+                    }
+                    var final = status is OfficialMatchStatuses.Finished or OfficialMatchStatuses.FinishedAfterExtraTime or OfficialMatchStatuses.FinishedAfterPenalties;
                     int? hs = home?.Int("score"), aws = away?.Int("score"), hht = home?.Int("halfScore"), aht = away?.Int("halfScore");
-                    if (status != OfficialMatchStatuses.Finished) { hs = aws = hht = aht = null; }
+                    if (!final) { hs = aws = hht = aht = null; }
                     DateTime? kickoff = DateTime.TryParseExact(a.Value.Str("kickOffDateUTC"), "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
                         DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var k) ? DateTime.SpecifyKind(k, DateTimeKind.Utc) : null;
                     var extra = new Dictionary<string, string>();
                     if ((home?.Str("shortName") ?? home?.Str("name")) is { } hn) extra["homeAltName"] = hn;
                     if ((away?.Str("shortName") ?? away?.Str("name")) is { } an) extra["awayAltName"] = an;
                     if (a.Value.Str("TBC") == "true") extra["kickoffUnknown"] = "true";
+                    foreach (var kv in extraInfo) extra[kv.Key] = kv.Value;
                     list.Add(new OfficialMatchRecord(Key, id, null, homeName, awayName, kickoff, status, hs, aws, raw, null, hht, aht, extra));
                 }
             var hasNext = doc.RootElement.Prop("links")?.Str("next") != null;
@@ -281,10 +354,23 @@ namespace Formax.Infrastructure.OfficialSources.Providers
         {
             "fulltime" or "fulltimeaet" or "fulltimepens" or "aftereextratime" or "afterextratime" or "afterpenalties" => OfficialMatchStatuses.Finished,
             "prematch" or "notstarted" => OfficialMatchStatuses.Scheduled,
-            "abandoned" or "cancelled" or "canceled" => OfficialMatchStatuses.Cancelled,
+            "abandoned" => OfficialMatchStatuses.Abandoned,
+            "cancelled" or "canceled" => OfficialMatchStatuses.Cancelled,
             "postponed" => OfficialMatchStatuses.Postponed,
             "" => OfficialMatchStatuses.Unknown,
             _ => OfficialMatchStatuses.Live
         };
+
+        /// <summary>
+        /// Bitmiş maçın biçimi — kaynağın <c>resultType</c> (NormalResult / AfterExtraTime / PenaltyShootout …) ya da dönem adı
+        /// uzatma/penaltı diyorsa AET/PEN; aksi hâlde normal süre.
+        /// </summary>
+        public static string RefineFinal(string? resultType, string? rawPeriod)
+        {
+            var t = ((resultType ?? string.Empty) + "|" + (rawPeriod ?? string.Empty)).ToLowerInvariant();
+            if (t.Contains("penalt") || t.Contains("shootout") || t.Contains("pens")) return OfficialMatchStatuses.FinishedAfterPenalties;
+            if (t.Contains("extra") || t.Contains("aet")) return OfficialMatchStatuses.FinishedAfterExtraTime;
+            return OfficialMatchStatuses.Finished;
+        }
     }
 }

@@ -214,14 +214,15 @@ public class OfficialResultsTests
             using var db = NewDb();
             var svc = new OfficialMatchCentreService(db, new[] { source },
                 new MatchNotificationDispatcher(db, Delivery, NullLogger<MatchNotificationDispatcher>.Instance),
-                new ConfigurationBuilder().Build(), NullLogger<OfficialMatchCentreService>.Instance);
+                // Eski tur yazıcısı (bot kapalıyken) — bot yolu OfficialResultBotTests'te sınanır.
+                new ConfigurationBuilder().AddInMemoryCollection(new System.Collections.Generic.Dictionary<string, string?> { ["OfficialSources:ResultBot:Enabled"] = "false", ["OfficialSources:StatisticsBot:Enabled"] = "false" }).Build(), NullLogger<OfficialMatchCentreService>.Instance);
             return await svc.RunRoundAsync(now ?? Now);
         }
 
         public async Task<OfficialPostMatchCycleResult> PostMatchAsync(IOfficialCompetitionSource source, DateTime? now = null)
         {
             using var db = NewDb();
-            var svc = new OfficialPostMatchDataService(db, new[] { source }, new ConfigurationBuilder().Build(),
+            var svc = new OfficialPostMatchDataService(db, new[] { source }, new ConfigurationBuilder().AddInMemoryCollection(new System.Collections.Generic.Dictionary<string, string?> { ["OfficialSources:ResultBot:Enabled"] = "false", ["OfficialSources:StatisticsBot:Enabled"] = "false" }).Build(),
                 NullLogger<OfficialPostMatchDataService>.Instance);
             return await svc.RunCycleAsync(now ?? Now);
         }

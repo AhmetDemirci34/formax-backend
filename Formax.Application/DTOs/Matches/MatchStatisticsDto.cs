@@ -34,6 +34,15 @@ namespace Formax.Application.DTOs.Matches
         public List<MatchStatisticRowDto> Rows { get; init; } = new();
 
         /// <summary>
+        /// KAYNAKTA YAYIMLANMAYAN ALANLAR — resmî kaynak bu ölçümü vermedi (null). Ekran bunları "0" diye GÖSTERMEZ;
+        /// yalnız "kaynakta yayımlanmadı" diye listeler. Gerçek 0 ise <see cref="Rows"/> içinde 0 olarak durur.
+        /// </summary>
+        public List<string> NotPublished { get; init; } = new();
+
+        /// <summary>İstatistiğin resmî kaynağı ("LALIGA" …); eski/lisanslı kayıtta null.</summary>
+        public string? SourceName { get; init; }
+
+        /// <summary>
         /// KANONİK MAÇ SONRASI İSTATİSTİKLERİ — bitmiş maç ekranının ÖNCELİKLİ kaynağı.
         ///
         /// <see cref="MatchTeamStatistic"/> nullable'dır: sağlayıcının göndermediği ölçüm
@@ -51,10 +60,13 @@ namespace Formax.Application.DTOs.Matches
 
             var rows = new List<MatchStatisticRowDto>();
 
+            var notPublished = new List<string>();
             void Add(string key, string label, int? h, int? a, bool percentage = false)
             {
                 if (h.HasValue && a.HasValue)
                     rows.Add(Row(key, label, h.Value, a.Value, percentage));
+                else
+                    notPublished.Add(label);
             }
 
             Add("possession",    "Topa sahip olma",  home.BallPossession,  away.BallPossession, percentage: true);
@@ -73,7 +85,13 @@ namespace Formax.Application.DTOs.Matches
             Add("passAccuracy",  "Başarılı pas %",   home.PassAccuracy,    away.PassAccuracy, percentage: true);
 
             // HİÇ ÖLÇÜM YOKSA VERİ DE YOKTUR — boş bir tablo "0-0 istatistik" değildir.
-            return rows.Count == 0 ? null : new MatchStatisticsDto { Rows = rows };
+            var sourceKey = home.Source != null && home.Source.StartsWith("official:") ? home.Source.Substring("official:".Length) : null;
+            return rows.Count == 0 ? null : new MatchStatisticsDto
+            {
+                Rows = rows,
+                NotPublished = notPublished,
+                SourceName = sourceKey == null ? null : Formax.Application.Services.OfficialSources.OfficialSourceRegistry.ByKey(sourceKey)?.Organization
+            };
         }
 
         public static MatchStatisticsDto? From(MatchLiveStats? s)

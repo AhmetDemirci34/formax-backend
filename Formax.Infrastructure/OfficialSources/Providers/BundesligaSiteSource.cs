@@ -130,7 +130,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             "FIRST_HALF" or "HALF" or "SECOND_HALF" or "PRE_EXTRA" or "FIRST_HALF_EXTRA" or "HALF_EXTRA"
                 or "SECOND_HALF_EXTRA" or "PENALTY" => OfficialMatchStatuses.Live,
             "POSTPONED" => OfficialMatchStatuses.Postponed,
-            "CANCELLED" or "CANCELED" or "ABANDONED" => OfficialMatchStatuses.Cancelled,
+            "ABANDONED" => OfficialMatchStatuses.Abandoned,
+            "CANCELLED" or "CANCELED" => OfficialMatchStatuses.Cancelled,
             "INTERRUPTED" or "SUSPENDED" => OfficialMatchStatuses.Suspended,
             _ => OfficialMatchStatuses.Unknown
         };

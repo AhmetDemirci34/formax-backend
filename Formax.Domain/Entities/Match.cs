@@ -76,6 +76,17 @@ namespace Formax.Domain.Entities
         /// </summary>
         public string? ResultVerificationStatus { get; set; }
 
+        /// <summary>
+        /// Kesin sonucun biçimi — resmî kaynaktan: "FT" (normal süre), "AET" (uzatmalar), "PEN" (seri penaltılar).
+        /// Status "Finished" kalır (Sonuçlar listesi ve settlement bu durumu okur); bu alan ayrıntıyı taşır.
+        /// Eski kayıtlarda null.
+        /// </summary>
+        public string? ResultDetail { get; set; }
+
+        /// <summary>Seri penaltı skoru — yalnız kaynak yayımladıysa (PEN); aksi hâlde null.</summary>
+        public int? PenaltyHomeScore { get; set; }
+        public int? PenaltyAwayScore { get; set; }
+
         // ── TAKVİM GÜVENİLİRLİĞİ (01.09.2026) ───────────────────────────────────
 
         /// <summary>

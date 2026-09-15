@@ -45,6 +45,8 @@ public sealed class GetRecommendationFeedUseCase
     private readonly IMatchAiContextBuilder _aiContextBuilder;
     private readonly MarketProbabilityEngine _decisionEngine;
     private readonly IMatchOddsRepository _oddsRepo;
+    /// <summary>AI Olası Sonuçlar — arka planda üretilmiş snapshot (Maç Detayı ile aynı kayıt).</summary>
+    private readonly IMatchOutcomeSnapshotReader? _outcomeReader;
     private readonly IMemoryCache _cache;
 
     /// <summary>
@@ -137,9 +139,11 @@ public sealed class GetRecommendationFeedUseCase
         MarketProbabilityEngine decisionEngine,
         IMatchOddsRepository oddsRepo,
         IMemoryCache cache,
-        Formax.Application.AI.Radar.IRadarNarrativeStore narrativeStore)
+        Formax.Application.AI.Radar.IRadarNarrativeStore narrativeStore,
+        IMatchOutcomeSnapshotReader? outcomeReader = null)
     {
         _narrativeStore = narrativeStore;
+        _outcomeReader = outcomeReader;
         _teamReadRepo = teamReadRepo;
         _aiContextBuilder = aiContextBuilder;
         _decisionEngine = decisionEngine;
@@ -639,6 +643,10 @@ public sealed class GetRecommendationFeedUseCase
             .GroupBy(o => o.MatchId)
             .ToDictionary(g => g.Key, g => g.ToDictionary(o => o.MarketKey, StringComparer.Ordinal));
 
+        var outcomes = _outcomeReader == null
+            ? new Dictionary<int, Formax.Application.Services.Outcomes.OutcomeSnapshotDto>()
+            : await _outcomeReader.GetCurrentForMatchesAsync(cards.Select(c => c.MatchId).ToList());
+
         foreach (var card in cards)
         {
             if (!packagesByMatch.TryGetValue(card.MatchId, out var package)) continue;
@@ -650,51 +658,30 @@ public sealed class GetRecommendationFeedUseCase
                 ? card.ConfidenceLabel
                 : package.Confidence.Level;
 
-            oddsByMatch.TryGetValue(card.MatchId, out var oddRows);
-
-            decimal? OddFor(string market)
+            // AI OLASI SONUÇLAR (15.09.2026) — ham yüzdeye göre sıralama KALDIRILDI (çifte şans bileşik olasılık olduğu için
+            // hep ilk sıraya çıkıyordu). Kartlar arka planda üretilen snapshot'ın üç farklı aileden ana kartlarıdır; Maç Detayı
+            // aynı SnapshotId'yi okur. Snapshot yoksa tahmin gösterilmez (sayfa açılışında hesaplanmaz). Oran AI kartına eklenmez.
+            if (!outcomes.TryGetValue(card.MatchId, out var snapshot) || snapshot.Status != "Available" || snapshot.MainCards.Count == 0)
             {
-                if (oddRows == null) return null;
-                var key = DecisionMarketOddsMapper.ToOddsKey(market);
-                return key != null && oddRows.TryGetValue(key, out var row) ? row.Odd : null;
+                card.TopPrediction = null;
+                card.Predictions = new List<AiPredictionDto>();
+                card.OutcomeSnapshotId = snapshot?.SnapshotId;
+                continue;
             }
-
-            decimal? PrevOddFor(string market)
+            card.OutcomeSnapshotId = snapshot.SnapshotId;
+            var strongest = snapshot.MainCards.OrderByDescending(c => c.SelectionScore).First();
+            card.TopPrediction = new TopPredictionDto { Market = strongest.Market, Probability = strongest.Probability, Odd = null };
+            card.Predictions = snapshot.MainCards.Select(c => new AiPredictionDto
             {
-                if (oddRows == null) return null;
-                var key = DecisionMarketOddsMapper.ToOddsKey(market);
-                return key != null && oddRows.TryGetValue(key, out var row) ? row.PreviousOdd : null;
-            }
-
-            var top3 = package.Probabilities
-                .OrderByDescending(p => p.Probability)
-                .ThenBy(p => p.Market, StringComparer.Ordinal)   // deterministik eşitlik kırıcı
-                .Take(3)
-                .ToList();
-
-            if (top3.Count == 0) continue;
-
-            card.TopPrediction = new TopPredictionDto
-            {
-                Market = top3[0].Market,
-                Probability = top3[0].Probability,
-                Odd = OddFor(top3[0].Market)
-            };
-
-            card.Predictions = top3.Select(p =>
-            {
-                var current = OddFor(p.Market);
-                var previous = PrevOddFor(p.Market);
-                return new AiPredictionDto
-                {
-                    Market = p.Market,
-                    Probability = p.Probability,
-                    Confidence = p.Confidence,
-                    CurrentOdd = current,
-                    PreviousOdd = previous,
-                    Movement = ResolveMovement(current, previous),
-                    UpdatedAt = DateTime.UtcNow
-                };
+                Market = c.Market,
+                Probability = c.Probability,
+                Confidence = c.SampleQuality,
+                Family = c.Family,
+                FamilyTitle = c.FamilyTitle,
+                CurrentOdd = null,
+                PreviousOdd = null,
+                Movement = OddsMovement.None,
+                UpdatedAt = snapshot.ComputedAtUtc ?? DateTime.UtcNow
             }).ToList();
         }
     }

@@ -44,6 +44,7 @@ namespace Formax.Application.Services.Picks
                 OddsMarketKeys.DoubleChance1X or OddsMarketKeys.DoubleChanceX2
                     or OddsMarketKeys.DoubleChance12 => true,
                 OddsMarketKeys.Over25 or OddsMarketKeys.Under25 => true,
+                OddsMarketKeys.Over15 or OddsMarketKeys.Under15 or OddsMarketKeys.Over35 or OddsMarketKeys.Under35 => true,
                 OddsMarketKeys.BttsYes or OddsMarketKeys.BttsNo => true,
 
                 // İLK YARI: yalnız İY skoru GERÇEKTEN varsa. Depoda null iken 0-0
@@ -79,6 +80,10 @@ namespace Formax.Application.Services.Picks
 
                 OddsMarketKeys.Over25  => total > 2,   // 2,5 üst → 3 ve fazlası
                 OddsMarketKeys.Under25 => total < 3,   // 2,5 alt → 2 ve azı
+                OddsMarketKeys.Over15  => total > 1,
+                OddsMarketKeys.Under15 => total < 2,
+                OddsMarketKeys.Over35  => total > 3,
+                OddsMarketKeys.Under35 => total < 4,
 
                 OddsMarketKeys.BttsYes => s.HomeGoals > 0 && s.AwayGoals > 0,
                 OddsMarketKeys.BttsNo  => s.HomeGoals == 0 || s.AwayGoals == 0,
