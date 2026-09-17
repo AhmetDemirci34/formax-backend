@@ -91,6 +91,29 @@ namespace Formax.Application.Services.OfficialSources
     }
 
     /// <summary>
+    /// TEK MAÇ SAYFASI (TELAFİ YOLU) — maç listesi yalnız güncel haftayı/turu yayımlayan kaynaklarda (TFF)
+    /// hafta döndükten sonra kaçırılmış maç listede bulunmaz. Bu arayüz, kaynağın kendi maç sayfasını
+    /// KAYITLI resmî maç kimliğiyle okur; kimlik tahmin edilmez, gezinme yapılmaz, tek GET'tir.
+    /// Sonuç botu bunu yalnız (1) liste okuması başarılıyken maç listede bulunamadığında ve
+    /// (2) başlama saatinden <see cref="OfficialMatchPagePolicy.RecoveryAfter"/> geçtikten sonra dener.
+    /// </summary>
+    public interface IOfficialMatchPageSource
+    {
+        string SourceKey { get; }
+
+        /// <summary>Kaynağın maç sayfasından tek kayıt; sayfa skor yayımlamadıysa değer doludur ama durum final değildir.</summary>
+        Task<OfficialRead<OfficialMatchRecord>> ReadMatchAsync(
+            string officialMatchId, OfficialRoundContext round, CancellationToken ct = default);
+    }
+
+    /// <summary>Maç sayfası telafi yolunun tek ayarı.</summary>
+    public static class OfficialMatchPagePolicy
+    {
+        /// <summary>Başlama saatinden bu süre geçmeden telafi okuması yapılmaz (sıcak yolda liste kullanılır).</summary>
+        public static readonly System.TimeSpan RecoveryAfter = System.TimeSpan.FromHours(6);
+    }
+
+    /// <summary>
     /// SONUÇ TEYİDİ — maç listesi "bitti" bayrağı taşımayan kaynakta (TFF) skor, aynı resmî
     /// kaynağın maç sayfasıyla karşılaştırılır; uyuşmazsa sonuç kesinleştirilmez.
     /// </summary>

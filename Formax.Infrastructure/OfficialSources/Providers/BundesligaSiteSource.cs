@@ -42,15 +42,49 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
                 SourceKey, ProviderName, MatchdayPageUrl, round.Purpose, round.RoundKey, Accept: "text/html"), ct);
             if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
-            try
-            {
-                var records = ParseMatchdayPage(f.Body!);
-                return records.Count == 0
-                    ? new(null, OfficialReadOutcomes.ParseFailed, "ng-state içinde Bundesliga maçı bulunamadı", f)
-                    : new(records, OfficialReadOutcomes.Ok, null, f);
-            }
+            IReadOnlyList<OfficialMatchRecord> records;
+            try { records = ParseMatchdayPage(f.Body!); }
             catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+            if (records.Count == 0)
+                return new(null, OfficialReadOutcomes.ParseFailed, "ng-state içinde Bundesliga maçı bulunamadı", f);
+
+            // TELAFİ — /spieltag her zaman GÜNCEL haftayı verir. Güncel haftada hiç bitmiş maç yoksa (ölçüldü
+            // 17.09.2026: 4. hafta 18 maç PRE_MATCH) az önce oynanan hafta bir önceki haftadır; onun sayfası da
+            // okunur ki botun telafi kontrolü sonucu bulabilsin. Güncel haftada bitmiş maç varsa ek istek yapılmaz.
+            if (!records.Any(r => r.Status == OfficialMatchStatuses.Finished)
+                && PreviousMatchdayUrl(records) is { } previous)
+            {
+                var p = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                    SourceKey, ProviderName, previous, round.Purpose, round.RoundKey, Accept: "text/html"), ct);
+                if (p.Ok)
+                {
+                    try
+                    {
+                        var seen = records.Select(r => r.OfficialMatchId).ToHashSet(StringComparer.Ordinal);
+                        records = records.Concat(ParseMatchdayPage(p.Body!).Where(r => seen.Add(r.OfficialMatchId))).ToList();
+                    }
+                    catch (JsonException) { /* önceki hafta okunamadı: güncel hafta sonucu korunur */ }
+                }
+            }
+            return new(records, OfficialReadOutcomes.Ok, null, f);
         }
+
+        /// <summary>Güncel sayfadaki en küçük haftadan bir önceki haftanın herkese açık sayfası; 1. haftada null.</summary>
+        public static string? PreviousMatchdayUrl(IReadOnlyList<OfficialMatchRecord> current)
+        {
+            var withDay = current
+                .Select(r => (Day: Matchday(r), r.KickoffUtc))
+                .Where(x => x.Day is > 1 && x.KickoffUtc.HasValue)
+                .OrderBy(x => x.Day).FirstOrDefault();
+            if (withDay.Day is not int day || withDay.KickoffUtc is not { } kickoff) return null;
+            var y = kickoff.Month >= 7 ? kickoff.Year : kickoff.Year - 1;
+            return $"https://www.bundesliga.com/de/bundesliga/spieltag/{y}-{y + 1}/{day - 1}";
+        }
+
+        /// <summary>Kaydın hafta numarası (kaynağın kendi <c>matchday</c> alanı); yoksa null.</summary>
+        private static int? Matchday(OfficialMatchRecord r)
+            => r.Extra?.GetValueOrDefault("matchday") is { } raw
+               && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var d) ? d : null;
 
         /// <summary>Kadro bu kaynakta henüz bağlanmadı (kayıt defterinde Lineup yeteneği yok).</summary>
         public Task<OfficialRead<OfficialLineupDocument>> ReadLineupAsync(
@@ -111,6 +145,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             if (home?.Str("nameShort") is { } hShort) extra["homeAltName"] = hShort;
             if (away?.Str("nameShort") is { } aShort) extra["awayAltName"] = aShort;
             if (e.Str("matchDateFixed") == "false") extra["kickoffUnknown"] = "true";
+            if (e.Int("matchday") is int day) extra["matchday"] = day.ToString(CultureInfo.InvariantCulture);
 
             string? url = null;
             if (e.Prop("slugs")?.Str("slugLong") is { } slug && e.Int("matchday") is int md && kickoff.HasValue)

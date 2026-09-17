@@ -22,12 +22,20 @@ namespace Formax.API.Controllers.Admin
         private readonly FormaxDbContext _db;
         public AdminResultBotController(FormaxDbContext db) => _db = db;
 
-        /// <summary>Organizasyon başına resmî sonuç kaynağı raporu (kaynak türü, robots, parser, sağlık, kapsanan maç).</summary>
+        /// <summary>
+        /// KAPSAM VE SAĞLIK RAPORU — organizasyon başına resmî sonuç kaynağı: ana kaynak, yedek kaynak, kapsam durumu,
+        /// son başarılı okuma, son doğrulanmış maç, son hata sınıfı, sonraki deneme, botun dış istek sayısı, gerçek sonuç
+        /// yazım sayısı, çelişki sayısı ve şema sağlığı.
+        ///
+        /// Bu uç YALNIZ DB/yerel sağlık kayıtlarını okur; sayfa açıldığında dış kaynağa İSTEK ÇIKMAZ (ne indirici ne de
+        /// bot bu denetleyicide çözülür).
+        /// </summary>
         [HttpGet("organizations")]
         public async Task<IActionResult> Organizations(CancellationToken ct)
         {
+            var now = DateTime.UtcNow;
+            var since = now.AddDays(-30);
             var sources = await _db.OfficialDataSources.AsNoTracking().ToListAsync(ct);
-            var since = DateTime.UtcNow.AddDays(-30);
             var covered = await _db.Matches.AsNoTracking()
                 .Where(m => m.ResultSource != null && m.ResultSource.StartsWith("official:") && m.ResultUpdatedAtUtc >= since)
                 .GroupBy(m => m.ResultSource!).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
@@ -36,40 +44,133 @@ namespace Formax.API.Controllers.Admin
                 .GroupBy(s => s.Source!).Select(g => new { g.Key, Matches = g.Select(x => x.MatchId).Distinct().Count() }).ToListAsync(ct);
             var names = await _db.Matches.AsNoTracking().Where(m => LockedCompetitions.All.Contains(m.LeagueId))
                 .GroupBy(m => m.LeagueId).Select(g => new { LeagueId = g.Key, Name = g.Max(x => x.League) }).ToListAsync(ct);
+            // Botun dış istekleri (defter) — kaynak başına son 30 gün; RoundMemo/304 ağa çıkmayan okumadır.
+            var fetches = await _db.OfficialSourceFetches.AsNoTracking()
+                .Where(f => f.RequestedAtUtc >= since && f.Purpose == OfficialPurposes.Result)
+                .GroupBy(f => f.SourceKey)
+                .Select(g => new
+                {
+                    SourceKey = g.Key,
+                    Requests = g.Count(),
+                    Network = g.Count(x => !x.CacheHit && x.Outcome != OfficialFetchOutcomes.RoundMemo),
+                    Failures = g.Count(x => x.Outcome != OfficialFetchOutcomes.Fetched && x.Outcome != OfficialFetchOutcomes.NotModified
+                                            && x.Outcome != OfficialFetchOutcomes.RoundMemo),
+                    LastUtc = g.Max(x => x.RequestedAtUtc)
+                }).ToListAsync(ct);
+            var conflicts = await _db.MatchResultObservations.AsNoTracking()
+                .Where(o => o.ConflictStatus == "Conflict" || o.Decision == "ConflictRecorded")
+                .GroupBy(o => o.SourceKey).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
+            // Plan satırları — organizasyon başına sonraki deneme, bekleyen maç, son hata sınıfı.
+            var plans = await _db.MatchResultChecks.AsNoTracking()
+                .Where(c => LockedCompetitions.All.Contains(c.LeagueId))
+                .GroupBy(c => c.LeagueId)
+                .Select(g => new
+                {
+                    LeagueId = g.Key,
+                    Pending = g.Count(x => x.State == "Pending"),
+                    NoSource = g.Count(x => x.State == "NoOfficialSource"),
+                    Resolved = g.Count(x => x.State == "Resolved"),
+                    NextAttemptUtc = g.Where(x => x.State == "Pending" || x.State == "Postponed").Min(x => (DateTime?)x.NextCheckUtc),
+                    LastCheckUtc = g.Max(x => x.LastCheckUtc)
+                }).ToListAsync(ct);
+            var lastErrors = await _db.MatchResultChecks.AsNoTracking()
+                .Where(c => LockedCompetitions.All.Contains(c.LeagueId) && c.LastErrorClass != null)
+                .OrderByDescending(c => c.LastCheckUtc)
+                .Select(c => new { c.LeagueId, c.LastErrorClass, c.LastValidationStatus, c.LastCheckUtc })
+                .Take(400).ToListAsync(ct);
+            // Son doğrulanmış maç (organizasyon başına) — kanıt satırı.
+            var lastVerified = await _db.Matches.AsNoTracking()
+                .Where(m => LockedCompetitions.All.Contains(m.LeagueId) && m.ResultSource != null
+                            && m.ResultSource.StartsWith("official:") && m.ResultUpdatedAtUtc != null)
+                .OrderByDescending(m => m.ResultUpdatedAtUtc)
+                .Select(m => new { m.LeagueId, m.Id, Home = m.HomeTeam!.Name, Away = m.AwayTeam!.Name, m.HomeScore, m.AwayScore,
+                    m.MatchDate, m.ResultUpdatedAtUtc, m.ResultSource, m.ResultVerificationStatus })
+                .Take(600).ToListAsync(ct);
 
             var rows = LockedCompetitions.All.Select(leagueId =>
             {
-                var result = OfficialSourceRegistry.All.Where(d => d.LeagueIds.Contains(leagueId)
-                        && d.Tier is OfficialSourceTier.Federation or OfficialSourceTier.LeagueMatchCentre)
-                    .OrderBy(d => d.Status == OfficialSourceStatuses.Verified ? 0 : 1).FirstOrDefault();
+                var forLeague = OfficialSourceRegistry.All
+                    .Where(d => d.LeagueIds.Contains(leagueId) && d.Capabilities.Contains(OfficialPurposes.Result))
+                    .OrderBy(d => d.Status == OfficialSourceStatuses.Verified ? 0 : 1).ThenBy(d => d.Tier).ToList();
+                var result = forLeague.FirstOrDefault()
+                             ?? OfficialSourceRegistry.All.Where(d => d.LeagueIds.Contains(leagueId)
+                                     && d.Tier is OfficialSourceTier.Federation or OfficialSourceTier.LeagueMatchCentre)
+                                 .OrderBy(d => d.Status == OfficialSourceStatuses.Verified ? 0 : 1).FirstOrDefault();
+                var fallback = forLeague.Where(d => d.Status == OfficialSourceStatuses.Verified && d.Key != result?.Key)
+                    .Select(d => d.Key).FirstOrDefault();
                 var row = result == null ? null : sources.FirstOrDefault(s => s.SourceId == result.Key);
                 var tag = result == null ? null : OfficialLineupCollector.ProviderPrefix + result.Key;
+                var fetch = result == null ? null : fetches.FirstOrDefault(f => f.SourceKey == result.Key);
+                var plan = plans.FirstOrDefault(p => p.LeagueId == leagueId);
+                var verified = lastVerified.FirstOrDefault(v => v.LeagueId == leagueId);
+                var available = result?.Status == OfficialSourceStatuses.Verified;
                 return new
                 {
                     leagueId,
                     organization = names.FirstOrDefault(n => n.LeagueId == leagueId)?.Name,
                     resultSource = result?.Key,
+                    fallbackSource = fallback,
                     sourceName = result?.Organization,
                     sourceType = result?.Tier.ToString(),
                     contentKind = result?.Kind,
                     registryStatus = result?.Status ?? "NotConfigured",
+                    // Kapsam: Supported = doğrulanmış ana kaynak + yedek; Partial = yalnız ana kaynak;
+                    // Blocked = kaynak var ama erişilemiyor/yasak; Missing = hiç kaynak yok.
+                    coverage = !available
+                        ? result?.Status is OfficialSourceStatuses.Blocked or OfficialSourceStatuses.Unsupported ? "Blocked" : "Missing"
+                        : fallback == null ? "Partial" : "Supported",
                     // Teşhis: doğrulanmış resmî sonuç kaynağı yoksa bu organizasyonun maçları "ResultSourceUnavailable".
-                    resultSourceStatus = result?.Status == OfficialSourceStatuses.Verified ? "Available" : "ResultSourceUnavailable",
+                    resultSourceStatus = available ? "Available" : "ResultSourceUnavailable",
                     capabilities = result?.Capabilities,
                     robotsStatus = row?.RobotsStatus ?? "Unknown",
                     parser = row?.ParserVersion,
+                    // Şema sağlığı: son okuma ayrıştırılabildi mi (ParseFailed son hata olarak duruyorsa şema kaymış olabilir).
+                    schemaHealth = row == null ? "Unknown"
+                        : row.LastError != null && row.LastError.StartsWith(OfficialReadOutcomes.ParseFailed, StringComparison.Ordinal) ? "SchemaDrift"
+                        : row.LastSuccessUtc != null ? "Ok" : "Unknown",
                     healthy = row != null && row.IsEnabled && row.ConsecutiveFailureCount == 0 && row.LastSuccessUtc != null,
                     lastCheckedUtc = row?.LastCheckedUtc,
                     lastSuccessUtc = row?.LastSuccessUtc,
                     consecutiveFailures = row?.ConsecutiveFailureCount,
                     circuitBreakerUntilUtc = row?.CircuitBreakerUntilUtc,
                     lastError = row?.LastError,
+                    lastErrorClass = lastErrors.FirstOrDefault(e => e.LeagueId == leagueId)?.LastErrorClass,
+                    lastValidationStatus = lastErrors.FirstOrDefault(e => e.LeagueId == leagueId)?.LastValidationStatus,
+                    nextAttemptUtc = plan?.NextAttemptUtc,
+                    pendingChecks = plan?.Pending ?? 0,
+                    noSourceChecks = plan?.NoSource ?? 0,
+                    resolvedChecks = plan?.Resolved ?? 0,
+                    botExternalRequestsLast30Days = fetch?.Requests ?? 0,
+                    botNetworkRequestsLast30Days = fetch?.Network ?? 0,
+                    botFailedRequestsLast30Days = fetch?.Failures ?? 0,
+                    lastExternalRequestUtc = fetch?.LastUtc,
                     resultsWrittenLast30Days = tag == null ? 0 : covered.FirstOrDefault(c => c.Key == tag)?.Count ?? 0,
+                    conflicts = result == null ? 0 : conflicts.FirstOrDefault(c => c.Key == result.Key)?.Count ?? 0,
                     matchesWithOfficialStatistics = tag == null ? 0 : stats.FirstOrDefault(c => c.Key == tag)?.Matches ?? 0,
+                    lastVerifiedMatch = verified == null ? null : new
+                    {
+                        verified.Id, verified.Home, verified.Away,
+                        score = verified.HomeScore + "-" + verified.AwayScore,
+                        kickoffUtc = verified.MatchDate, verified.ResultUpdatedAtUtc, verified.ResultSource, verified.ResultVerificationStatus
+                    },
                     evidence = result?.EvidenceNote
                 };
             }).ToList();
-            return Ok(new { generatedAtUtc = DateTime.UtcNow, organizations = rows, catalog = sources });
+            return Ok(new
+            {
+                generatedAtUtc = now,
+                summary = new
+                {
+                    organizations = rows.Count,
+                    supported = rows.Count(r => r.coverage == "Supported"),
+                    partial = rows.Count(r => r.coverage == "Partial"),
+                    blocked = rows.Count(r => r.coverage == "Blocked"),
+                    missing = rows.Count(r => r.coverage == "Missing"),
+                    withVerifiedPrimarySource = rows.Count(r => r.resultSourceStatus == "Available")
+                },
+                organizations = rows,
+                catalog = sources
+            });
         }
 
         /// <summary>Türkiye günü (yyyy-MM-dd) için sonuç kontrol planı + kanonik durum + gözlem gecikmesi.</summary>

@@ -29,6 +29,7 @@ namespace Formax.Application.Services.OfficialSources
         public const string Ligue1Api = "ligue1-api";
         public const string EflApi = "efl-api";
         public const string UefaMatchApi = "uefa-match-api";
+        public const string KnvbSite = "knvb-site";
 
         private static readonly string[] None = Array.Empty<string>();
 
@@ -106,6 +107,21 @@ namespace Formax.Application.Services.OfficialSources
                 "bu sayfada yok — ÜRETİLMEZ."),
 
             // ── 88 · Eredivisie ──────────────────────────────────────────────────
+            new(KnvbSite, "Koninklijke Nederlandse Voetbalbond", new[] { 88 }, OfficialSourceTier.Federation,
+                OfficialContentKinds.Html, new[] { "www.knvb.nl" },
+                new[] { OfficialPurposes.Schedule, OfficialPurposes.Result },
+                OfficialSourceStatuses.Verified,
+                "17.09.2026: federasyonun kendi müsabaka sayfaları SUNUCUDA üretiliyor, anahtar/çerez yok. " +
+                "/competities/eredivisie/uitslagen 200 (58 satır; tarih başlıklı table-timetable blokları, resmî kulüp kodu " +
+                "logoapi clubcode, orta hücrede skor 'H-A'): Ajax 5-1 Willem II (15.09), PSV 4-1 Sparta Rotterdam (13.09), " +
+                "PEC Zwolle 0-7 Feyenoord (13.09), FC Utrecht 3-3 Go Ahead Eagles (08.09). " +
+                "/competities/eredivisie/programma 200 (149 satır; orta hücrede yerel başlama saati HH:mm, Europe/Amsterdam). " +
+                "robots: www.knvb.nl/robots.txt → HTTP 403; RFC 9309 §2.3.1.3 kısıt yok (EFL ile aynı). " +
+                "Kaynak 'bitti' bayrağı yayımlamaz → skor, FORMAX başlama saatinden +120 dk geçmeden kanonik yazılmaz " +
+                "(OfficialResultSettleGate) ve maç programma sayfasında hâlâ duruyorsa yazılmaz. İlk yarı skoru, " +
+                "uzatma/penaltı ve erteleme/iptal durumu yayımlanmıyor — ÜRETİLMEZ. Kadro/olay/istatistik ALINMAZ.")
+
+            ,
             new("eredivisie-site", "Eredivisie", new[] { 88 }, OfficialSourceTier.LeagueMatchCentre,
                 OfficialContentKinds.Html, new[] { "eredivisie.nl" }, None,
                 OfficialSourceStatuses.Unsupported,
@@ -114,7 +130,8 @@ namespace Formax.Application.Services.OfficialSources
                 "15.09.2026 BLOCKED (robots.txt): maç listesi yalnız /cache/site/EredivisieNL/json/fixtures.json içinde; " +
                 "eredivisie.nl/robots.txt 'Disallow: /cache/'. /competitie/wedstrijd/{ev-deplasman}/ sunucu çıktısında skor yok " +
                 "(yalnız data-opta-match-id). Ligin bağlantı verdiği yayıncı nos.nl sonuçları /api altından yüklüyor, " +
-                "nos.nl/robots.txt 'Disallow: /api'. Engel AŞILMAZ; sonuç yazılmaz."),
+                "nos.nl/robots.txt 'Disallow: /api'. Engel AŞILMAZ; bu alan adına istek üretilmez. " +
+                "Eredivisie sonucu bunun yerine federasyon kaynağından (knvb-site) alınır."),
 
             // ── 2 / 3 / 848 · UEFA ───────────────────────────────────────────────
             new(UefaMatchApi, "UEFA", new[] { 2, 3, 848 }, OfficialSourceTier.Federation,

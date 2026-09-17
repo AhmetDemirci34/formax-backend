@@ -151,12 +151,22 @@ namespace Formax.Infrastructure.OfficialSources
                     if (!feed.Ok || feed.Value == null) { lastFailure = d.Key + ":" + feed.Outcome + ":" + feed.Detail; continue; }
 
                     var (record, validation) = await ResolveRecordAsync(match, d.Key, feed.Value, nowUtc, ct).ConfigureAwait(false);
+                    // Liste bu maçı taşımıyorsa (hafta döndü) kaynağın maç sayfasından telafi okunur. Telafi yolu
+                    // uygulanamadıysa ASIL ret gerekçesi korunur (teşhis kaybolmaz).
+                    if (record == null && validation is "NoCandidate" or "WrongDate")
+                    {
+                        var recovered = await RecoverFromMatchPageAsync(match, d.Key, src!, roundKey, nowUtc, ct).ConfigureAwait(false);
+                        if (recovered.Record != null) (record, validation) = (recovered.Record, recovered.Validation!);
+                        else if (recovered.Validation != null) validation += "/" + recovered.Validation;
+                    }
                     if (record == null)
                     {
                         lastFailure = d.Key + ":" + validation;
                         continue;
                     }
-                    var decision = OfficialResultStatusPolicy.Decide(record);
+                    // Skor yayımlayan ama "bitti" bayrağı yayımlamayan kaynakta bekleme penceresi: canlı skor final sanılmaz.
+                    var decision = OfficialResultSettleGate.Apply(
+                        OfficialResultStatusPolicy.Decide(record), record, match.MatchDate, nowUtc);
                     if (decision.Kind == "Final" && check.FirstFinalSeenUtc == null) check.FirstFinalSeenUtc = nowUtc;
                     if (decision.Kind == "Final" && check.SourcePublishedFinalAtUtc == null
                         && record.Extra?.GetValueOrDefault("sourcePublishedAtUtc") is { } published
@@ -334,6 +344,39 @@ namespace Formax.Infrastructure.OfficialSources
             foreach (var c in mine) { c.LockedUntilUtc = until; c.LockOwner = _owner; }
             await _db.SaveChangesAsync(ct).ConfigureAwait(false);
             return mine;
+        }
+
+        /// <summary>
+        /// TELAFİ — kaynağın maç listesi güncel haftayı/turu yayımlıyorsa (TFF) hafta döndükten sonra kaçırılmış maç
+        /// listede bulunmaz. KAYITLI resmî maç kimliği varsa aynı kaynağın maç sayfası TEK GET ile okunur.
+        /// Kimlik tahmin edilmez; sayfadaki ev/deplasman adı ve başlama saati yeniden sınanır (ters yön reddedilir).
+        /// Sıcak yolu dövmemek için yalnız başlama saatinden <see cref="OfficialMatchPagePolicy.RecoveryAfter"/>
+        /// geçtikten sonra denenir.
+        /// </summary>
+        private async Task<(OfficialMatchRecord? Record, string? Validation)> RecoverFromMatchPageAsync(
+            Match match, string sourceKey, IOfficialCompetitionSource source, string roundKey, DateTime nowUtc, CancellationToken ct)
+        {
+            // Uygulanamayan durumlar null döner: çağıran asıl ret gerekçesini korur.
+            if (source is not IOfficialMatchPageSource page) return (null, null);
+            if (nowUtc - match.MatchDate < OfficialMatchPagePolicy.RecoveryAfter) return (null, null);
+
+            var link = await _db.OfficialMatchLinks.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.MatchId == match.Id && l.SourceKey == sourceKey, ct).ConfigureAwait(false);
+            if (link == null) return (null, null);
+
+            var read = await page.ReadMatchAsync(link.OfficialMatchId,
+                new OfficialRoundContext(roundKey, nowUtc, OfficialPurposes.Result, match.Id), ct).ConfigureAwait(false);
+            if (!read.Ok || read.Value == null) return (null, read.Outcome);
+
+            var record = read.Value;
+            var home = match.HomeTeam?.Name ?? string.Empty;
+            var away = match.AwayTeam?.Name ?? string.Empty;
+            if (!(OfficialMatchIdentityResolver.HomeMatches(record, home) && OfficialMatchIdentityResolver.AwayMatches(record, away)))
+                return (null, "OrientationMismatch");
+            if (record.KickoffUtc is not { } kickoff) return (null, "NoKickoff");
+            if ((kickoff - match.MatchDate).Duration() > OfficialMatchIdentityResolver.DefaultKickoffWindow)
+                return (null, "WrongDate");
+            return (record, "AcceptedFromMatchPage");
         }
 
         /// <summary>

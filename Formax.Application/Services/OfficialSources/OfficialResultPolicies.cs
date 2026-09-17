@@ -26,6 +26,13 @@ namespace Formax.Application.Services.OfficialSources
         /// <summary>Beklenen final penceresindeki en uzun kontrol aralığı (dk).</summary>
         public const int FinalWindowCadenceMinutes = 3;
 
+        /// <summary>
+        /// KAYNAK GERİYE BAKIŞI — kaynak maç listeleri en az bu kadar geriye bakmalı; aksi hâlde botun günlük
+        /// telafi kontrolü kaynakta karşılık bulamaz (17.09.2026 ölçümü: Premier League ve Serie A yalnız 1 gün
+        /// geriye bakıyordu, 5 gün önce kaçırılmış maç hiç kapanmıyordu). Botun LookBack'i ile aynıdır.
+        /// </summary>
+        public static readonly TimeSpan SourceLookBack = TimeSpan.FromDays(10);
+
         public static readonly TimeSpan DailyAfterPlan = TimeSpan.FromHours(24);
 
         /// <summary>İlk kontrol zamanı.</summary>
@@ -150,6 +157,32 @@ namespace Formax.Application.Services.OfficialSources
         }
 
         private static int? ParseInt(string? s) => int.TryParse(s, out var v) ? v : null;
+    }
+
+    /// <summary>
+    /// BEKLEME PENCERESİ KAPISI — "bitti" bayrağı yayımlamayan, yalnız SKOR yayımlayan kaynaklar için (KNVB, TFF
+    /// listesi). Kaynak kaydı <see cref="ExtraKey"/> taşıyorsa, skor ancak FORMAX'ın bildiği başlama saatinden o
+    /// kadar dakika geçtikten sonra kesin sonuç sayılır; daha erken görülen skor CANLI skor olabilir → yazılmaz.
+    /// Bayrağı taşımayan kaynak (durumu açıkça yayımlayanlar) etkilenmez.
+    /// </summary>
+    public static class OfficialResultSettleGate
+    {
+        public const string ExtraKey = "settleAfterKickoffMinutes";
+        public const string NotSettledReason = "SettleWindowNotElapsed";
+
+        public static CanonicalResultDecision Apply(
+            CanonicalResultDecision decision, OfficialMatchRecord record, DateTime kickoffUtc, DateTime nowUtc)
+        {
+            if (decision.Kind != "Final") return decision;
+            if (record.Extra?.GetValueOrDefault(ExtraKey) is not { } raw
+                || !int.TryParse(raw, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var minutes)
+                || minutes <= 0)
+                return decision;
+            return nowUtc >= kickoffUtc.AddMinutes(minutes)
+                ? decision
+                : new CanonicalResultDecision("NotFinal", null, null, null, null, null, null, null, null, NotSettledReason);
+        }
     }
 
     /// <summary>Bir kaynağın aynı maç için gözlemi (öncelik + kanonik karar).</summary>

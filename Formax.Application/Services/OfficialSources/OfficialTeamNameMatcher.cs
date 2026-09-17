@@ -47,7 +47,9 @@ namespace Formax.Application.Services.OfficialSources
             // LALIGA tüzel/kısa adı (17.09.2026 ölçümü: Barcelona 7-2 "Real Racing Club SAD" / "R. Racing Club") — FORMAX "Racing Santander"
             ["real racing club sad"] = "racing santander",
             ["real racing club"] = "racing santander",
-            ["r racing club"] = "racing santander"
+            ["r racing club"] = "racing santander",
+            // KNVB yazımı (17.09.2026 ölçümü: "N.E.C." → katlanmış "n e c") — FORMAX kayıt adı
+            ["n e c"] = "nec nijmegen"
         };
 
         /// <summary>Aksan katlama + küçük harf + noktalama temizliği.</summary>

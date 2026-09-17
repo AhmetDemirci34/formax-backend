@@ -848,12 +848,16 @@ public class GlobalVideoAndSameDayResultsTests
     }
 
     [Fact]
-    public void KayitDefteri_LaLigaLigue1EflUefaDogrulanmis_EredivisieUnsupported_YouTubeRssKapali()
+    public void KayitDefteri_LaLigaLigue1EflUefaDogrulanmis_EredivisieLigSitesiUnsupported_FederasyonKaynagiDogrulanmis_YouTubeRssKapali()
     {
         Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(140, OfficialPurposes.Result));
         Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(61, OfficialPurposes.Result));
         Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(40, OfficialPurposes.Result));
-        Assert.Empty(OfficialSourceRegistry.VerifiedFor(88, OfficialPurposes.Result));
+        // 17.09.2026: lig sitesi (eredivisie.nl) hâlâ kullanılamaz; Eredivisie sonucu FEDERASYON kaynağından gelir.
+        Assert.Equal(OfficialSourceRegistry.KnvbSite,
+            OfficialSourceRegistry.VerifiedFor(88, OfficialPurposes.Result).Single().Key);
+        Assert.True(OfficialSourceRegistry.IsAllowedHost("www.knvb.nl"));
+        Assert.False(OfficialSourceRegistry.IsAllowedHost("eredivisie.nl"));
         var ered = OfficialSourceRegistry.ByKey("eredivisie-site")!;
         Assert.Equal(OfficialSourceStatuses.Unsupported, ered.Status);
         foreach (var uefa in new[] { 2, 3, 848 }) Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(uefa, OfficialPurposes.Result));

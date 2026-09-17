@@ -358,6 +358,11 @@ public class OfficialResultBotTests
         var ere = db.OfficialDataSources.Single(s => s.SourceId == "eredivisie-site");
         Assert.False(ere.IsEnabled);
         Assert.Equal("Disallowed", ere.RobotsStatus);
+        // 17.09.2026: Eredivisie sonucu federasyon kaynağından (knvb-site) alınır; lig sitesi kapalı kalır.
+        var knvb = db.OfficialDataSources.Single(s => s.SourceId == OfficialSourceRegistry.KnvbSite);
+        Assert.True(knvb.IsEnabled);
+        Assert.Equal("knvb-timetable-v1", knvb.ParserVersion);
+        Assert.Equal(OfficialSourceTier.Federation.ToString(), knvb.SourceType);
         Assert.DoesNotContain(db.OfficialDataSources, s => s.SourceId == "youtube-official-channels" || s.SourceId == "trtspor");
         Assert.True(db.OfficialDataSources.Single(s => s.SourceId == OfficialSourceRegistry.LaLigaSite).IsEnabled);
         Assert.Equal("laliga-nextdata-v2", db.OfficialDataSources.Single(s => s.SourceId == OfficialSourceRegistry.LaLigaSite).ParserVersion);

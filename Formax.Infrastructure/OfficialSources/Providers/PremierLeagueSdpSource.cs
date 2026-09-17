@@ -44,7 +44,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             OfficialRoundContext round, CancellationToken ct = default)
         {
             var season = SeasonYear(round.UtcNow);
-            var windowStart = round.UtcNow.Date.AddDays(-1);
+            // Geriye bakış botun telafi penceresiyle aynı (sezon listesi baştan sayfalanır; ek istek getirmez).
+            var windowStart = round.UtcNow.Date - OfficialResultSchedule.SourceLookBack;
             var windowEnd = round.UtcNow.Date.AddDays(3);
 
             var records = new List<OfficialMatchRecord>();

@@ -22,7 +22,7 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// sonra VE maç sayfasındaki skorla aynıysa kesin sonuç sayılır; daha erken görülen skor
     /// "Unknown" kalır (canlı skor olabilir — yazılmaz).
     /// </summary>
-    public sealed class TffSource : IOfficialCompetitionSource, IOfficialResultConfirmation
+    public sealed class TffSource : IOfficialCompetitionSource, IOfficialResultConfirmation, IOfficialMatchPageSource
     {
         public const string ProviderName = "TffSite";
         public const string FixturePageUrl = "https://www.tff.org/default.aspx?pageID=198";
@@ -73,6 +73,34 @@ namespace Formax.Infrastructure.OfficialSources.Providers
 
             return new(new OfficialLineupDocument(SourceKey, match.OfficialMatchId, f.Url, f.ContentHash!, null,
                 page.Home, page.Away), OfficialReadOutcomes.Ok, null, f);
+        }
+
+        /// <summary>
+        /// TELAFİ OKUMASI — "Haftanın Maçları" bölümü yalnız güncel haftayı yayımlar; hafta döndükten sonra kaçırılmış
+        /// maç listede bulunmaz. Bu okuma, kayıtlı resmî maç kimliğiyle (macId) aynı federasyonun maç sayfasını
+        /// tek GET ile okur ve listedeki satırla AYNI kuralları uygular (skor + başlama saatinden en az
+        /// <see cref="ResultSettleAfter"/> geçmiş olması). Kimlik tahmin EDİLMEZ.
+        /// </summary>
+        public async Task<OfficialRead<OfficialMatchRecord>> ReadMatchAsync(
+            string officialMatchId, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(officialMatchId) || !officialMatchId.All(char.IsDigit))
+                return new(null, OfficialReadOutcomes.NotSupported, "macId biçimi tanınmadı", null);
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, MatchPageUrl(officialMatchId), OfficialPurposes.Result,
+                round.RoundKey, round.MatchId, Accept: "text/html", Encoding: "windows-1254"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+
+            var page = ParseMatchPage(f.Body!);
+            if (page == null)
+                return new(null, OfficialReadOutcomes.ParseFailed, "maç sayfası biçimi tanınmadı", f);
+
+            var status = ResolveStatus(page.KickoffUtc, page.HomeScore, page.AwayScore, round.UtcNow);
+            int? hs = page.HomeScore, aws = page.AwayScore;
+            if (status != OfficialMatchStatuses.Finished) { hs = null; aws = null; }
+            return new(new OfficialMatchRecord(SourceKey, officialMatchId, MatchPageUrl(officialMatchId),
+                page.HomeName, page.AwayName, page.KickoffUtc, status, hs, aws,
+                RawStatus: hs.HasValue ? "MatchPageScore" : "MatchPageNoScore"), OfficialReadOutcomes.Ok, null, f);
         }
 
         /// <summary>Haftanın Maçları skorunu aynı federasyonun maç sayfasındaki skorla teyit eder.</summary>

@@ -66,7 +66,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
 
             // Pencere: dünden 3 gün sonrasına. Haftanın bitiş tarihi SON GÜNÜN başıdır (ölçüldü:
             // 4. hafta end=14.09T00:00Z ama 14.09 18:45'te maç var) → bitiş +1 gün kapsanır.
-            var from = round.UtcNow.Date.AddDays(-1);
+            // Geriye bakış botun telafi penceresiyle aynı (kaçırılmış maç günlük kontrolde kaynakta bulunur).
+            var from = round.UtcNow.Date - OfficialResultSchedule.SourceLookBack;
             var to = round.UtcNow.Date.AddDays(3);
             var inWindow = matchdays.Where(m => m.Start < to && m.End.AddDays(1) > from).ToList();
 

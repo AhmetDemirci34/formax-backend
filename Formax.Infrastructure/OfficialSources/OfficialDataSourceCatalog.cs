@@ -22,7 +22,8 @@ namespace Formax.Infrastructure.OfficialSources
             [OfficialSourceRegistry.LaLigaSite] = "laliga-nextdata-v2",
             [OfficialSourceRegistry.Ligue1Api] = "ligue1-api-v2",
             [OfficialSourceRegistry.EflApi] = "efl-multiclub-v2",
-            [OfficialSourceRegistry.UefaMatchApi] = "uefa-match-v5-v1"
+            [OfficialSourceRegistry.UefaMatchApi] = "uefa-match-v5-v1",
+            [OfficialSourceRegistry.KnvbSite] = "knvb-timetable-v1"
         };
 
         public static string For(string sourceKey) => ByKey.TryGetValue(sourceKey, out var v) ? v : "none";
