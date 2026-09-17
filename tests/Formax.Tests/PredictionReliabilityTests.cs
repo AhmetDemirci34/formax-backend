@@ -479,6 +479,23 @@ public class PredictionReliabilityTests
             Assert.Equal(JsonSerializer.Serialize(detail), JsonSerializer.Serialize(discover));
         }
 
+        // Debounce sürerken periyodik tur doğrulanmış olayı yakalarsa snapshot yine olaya atfedilir (canlı ölçüm: Lyon–Rennes saat değişikliği).
+        using (var db = w.Db())
+        {
+            db.Matches.Single(m => m.Id == World.MatchId).MatchDate = World.Kickoff.AddHours(3);
+            await PredictionRecomputeQueue.EnqueueAsync(db, World.MatchId, "KickoffChanged", "official:test-source", "critical:periodic-attribution", World.Kickoff.AddMinutes(-36));
+            db.SaveChanges();
+        }
+        using (var db = w.Db()) Assert.Equal(1, (await w.Snapshots(db).RunAsync(World.Kickoff.AddMinutes(-35))).Written);
+        using (var db = w.Db())
+        {
+            var latest = db.MatchPredictionSnapshots.Where(s => s.MatchId == World.MatchId && s.IsCurrent).Single();
+            Assert.Equal(("KickoffChanged", "official:test-source"), (latest.TriggerType, latest.TriggerSource));
+        }
+        var queued = await w.Tick(World.Kickoff.AddMinutes(-33));
+        Assert.StartsWith("Unchanged", queued.Outcomes.Single(o => o.MatchId == World.MatchId).Outcome);   // ikinci snapshot yok
+        using (var db = w.Db()) Assert.Equal(3, db.MatchPredictionSnapshots.Count(s => s.MatchId == World.MatchId));
+
         // Kritik olmayan değişiklik yok → periyodik tur yeni snapshot yazmaz.
         using (var db = w.Db()) Assert.Equal(0, (await w.Snapshots(db).RunAsync(World.Kickoff.AddMinutes(-30))).Written);
     }

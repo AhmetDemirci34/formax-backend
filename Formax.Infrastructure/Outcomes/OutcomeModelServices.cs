@@ -239,8 +239,18 @@ namespace Formax.Infrastructure.Outcomes
                                                && m.Status != MatchStatuses.Finished && m.Status != MatchStatuses.Live
                                                && s.PredictionEligibility != PredictionEligibilities.Disabled
                                          select m.Id).ToListAsync(ct).ConfigureAwait(false);
-                var triggers = upcomingIds.Concat(unscheduled).Distinct()
-                    .Select(id => new RecomputeTrigger(id, "Periodic", "outcome-model-job", nowUtc)).ToList();
+                // Doğrulanmış olay kuyrukta bekliyorsa (debounce sürerken periyodik tur girdiyi yakalar) snapshot o olaya atfedilir.
+                // Ölçüm 17.09.2026: Lyon–Rennes resmî saat değişikliği 45 sn sonra periyodik turda "Periodic" etiketiyle yazıldı.
+                var allIds = upcomingIds.Concat(unscheduled).Distinct().ToList();
+                var pending = (await _db.PredictionRecomputeRequests.AsNoTracking()
+                        .Where(r => allIds.Contains(r.MatchId) && (r.Status == "Pending" || r.Status == "Processing"))
+                        .Select(r => new { r.MatchId, r.TriggerType, r.TriggerSource, r.RequestedAtUtc })
+                        .ToListAsync(ct).ConfigureAwait(false))
+                    .GroupBy(r => r.MatchId).ToDictionary(g => g.Key, g => g.OrderBy(r => r.RequestedAtUtc).Last());
+                var triggers = allIds
+                    .Select(id => pending.TryGetValue(id, out var p)
+                        ? new RecomputeTrigger(id, p.TriggerType, p.TriggerSource, p.RequestedAtUtc)
+                        : new RecomputeTrigger(id, "Periodic", "outcome-model-job", nowUtc)).ToList();
                 var outcomes = await WriteAsync(ctx, triggers, nowUtc, ct).ConfigureAwait(false);
                 var report = new SnapshotCycleReport(upcomingIds.Count, outcomes.Count(o => o.Outcome.StartsWith("Published")), outcomes.Count(o => o.Outcome.StartsWith("Unchanged")),
                     outcomes.Count(o => o.Outcome == "Published:Disabled"), ctx.Run?.RunId)
