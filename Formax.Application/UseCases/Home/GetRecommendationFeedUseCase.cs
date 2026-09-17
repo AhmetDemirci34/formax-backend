@@ -59,6 +59,16 @@ public sealed class GetRecommendationFeedUseCase
     private static readonly TimeSpan DecisionCacheTtl = TimeSpan.FromMinutes(10);
 
     /// <summary>
+    /// ÖNBELLEK TIKANMASI ÖNLEMİ (17.09.2026 yük testi): 100 kartın paketi aynı anda kurulup aynı anda süresi dolduğunda eşzamanlı
+    /// Keşfet istekleri aynı paketleri paralel yeniden kuruyordu (20 eşzamanlı yükte 45 sn'lik pencerede 20+ istek 30 sn'yi aştı).
+    /// (1) Süre maç kimliğine göre deterministik 0–5 dk yayılır (hepsi aynı anda dolmaz); (2) aynı paket için tek kurucu (maç başı
+    /// kilit, çift kontrol). Paket içeriği ve sıralama DEĞİŞMEZ.
+    /// </summary>
+    internal static TimeSpan DecisionCacheTtlFor(int matchId) => DecisionCacheTtl + TimeSpan.FromSeconds(((matchId % 300) + 300) % 300);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, object> DecisionBuildLocks = new();
+
+    /// <summary>
     /// DISCOVER AI KALİTE KAPISI — bir maçın ana Discover sunumuna girebilmesi için gereken
     /// en düşük <c>DecisionConfidence.Score</c>.
     ///
@@ -601,6 +611,10 @@ public sealed class GetRecommendationFeedUseCase
             && cached != null)
             return cached;
 
+        lock (DecisionBuildLocks.GetOrAdd(card.MatchId, _ => new object()))
+        {
+        if (_cache.TryGetValue(cacheKey, out Formax.Application.AI.Decision.AiDecisionPackage? built) && built != null)
+            return built;
         try
         {
             var homeName = _teamReadRepo.GetById(match.HomeTeamId)?.Name ?? card.TeamA;
@@ -612,13 +626,14 @@ public sealed class GetRecommendationFeedUseCase
                 match.Id, match.HomeTeamId, match.AwayTeamId, homeName, awayName);
 
             var package = _decisionEngine.BuildDecisionPackage(ctx);
-            _cache.Set(cacheKey, package, DecisionCacheTtl);
+            _cache.Set(cacheKey, package, DecisionCacheTtlFor(card.MatchId));
             return package;
         }
         catch
         {
             // Paket kurulamadı → AI verisi yok. Feed'in tamamı düşmez, yalnız bu kart elenir.
             return null;
+        }
         }
     }
 
