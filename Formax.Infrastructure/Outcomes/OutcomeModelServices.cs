@@ -190,6 +190,7 @@ namespace Formax.Infrastructure.Outcomes
             public OutcomeRatingModel Model = null!;
             public DateTime Cutoff;
             public Dictionary<int, List<DateTime>> TeamMatches = new();
+            public Dictionary<int, List<DateTime>> CompetitionMatches = new();
         }
 
         private async Task<ModelContext> BuildContextAsync(DateTime nowUtc, CancellationToken ct)
@@ -208,6 +209,7 @@ namespace Formax.Infrastructure.Outcomes
                     ctx.Model.Update(m);
                     Add(ctx.TeamMatches, m.HomeTeamId, m.KickoffUtc);
                     Add(ctx.TeamMatches, m.AwayTeamId, m.KickoffUtc);
+                    Add(ctx.CompetitionMatches, m.LeagueId, m.KickoffUtc);
                 }
                 ctx.Model.RefitLeagueStrengths(nowUtc);
             }, ct).ConfigureAwait(false);
@@ -309,7 +311,8 @@ namespace Formax.Infrastructure.Outcomes
                     HomeLeagueStrength = e.HomeLeagueStrength, AwayLeagueStrength = e.AwayLeagueStrength,
                     HomeLeagueLinks = e.HomeLeagueLinks, AwayLeagueLinks = e.AwayLeagueLinks,
                     HomeClubRating = e.HomeClubRating, AwayClubRating = e.AwayClubRating,
-                    LambdaHome = Math.Round(e.LambdaHome, 4), LambdaAway = Math.Round(e.LambdaAway, 4), EloHomeExpectation = Math.Round(e.EloHomeExpectation, 4)
+                    LambdaHome = Math.Round(e.LambdaHome, 4), LambdaAway = Math.Round(e.LambdaAway, 4), EloHomeExpectation = Math.Round(e.EloHomeExpectation, 4),
+                    LeagueHome = Math.Round(e.LeagueHome, 5), LeagueAway = Math.Round(e.LeagueAway, 5)
                 };
                 AnalysisConsistencyValidator.ValidateCardReasons(dto);
 
@@ -335,12 +338,16 @@ namespace Formax.Infrastructure.Outcomes
 
                 var newMatches = prevDto?.InputsCutoffUtc is DateTime pc
                     ? CountSince(ctx.TeamMatches, u.HomeTeamId, pc) + CountSince(ctx.TeamMatches, u.AwayTeamId, pc) : 0;
+                var newCompetition = prevDto?.InputsCutoffUtc is DateTime pcc ? CountSince(ctx.CompetitionMatches, u.LeagueId, pcc) : 0;
                 var inputs = new List<string>(fpInputs);
                 if (newMatches > 0) inputs.Add($"NewFinishedMatches:{newMatches}");
                 if (prevDto?.PredictionEligibility != eligibility) inputs.Add($"Eligibility:{prevDto?.PredictionEligibility ?? "none"}->{eligibility}");
                 OutcomeChangeAudit audit;
                 if (prevDto != null && prevDto.Status == "Available" && dto.Status == "Available")
-                    audit = OutcomeChangeGate.Evaluate(prevDto, dto, e, u.LeagueId, ctx.Parameters, newMatches, trigger, t.TriggerSource, t.TriggeredAtUtc, inputs);
+                {
+                    if (newCompetition > 0) inputs.Add($"NewCompetitionMatches:{newCompetition}");
+                    audit = OutcomeChangeGate.Evaluate(prevDto, dto, e, u.LeagueId, ctx.Parameters, newMatches, trigger, t.TriggerSource, t.TriggeredAtUtc, inputs, newCompetition);
+                }
                 else
                     audit = new OutcomeChangeAudit
                     {

@@ -128,6 +128,9 @@ namespace Formax.Application.Services.Outcomes
         public double LambdaHome { get; set; }
         public double LambdaAway { get; set; }
         public double EloHomeExpectation { get; set; }
+        /// <summary>Organizasyonun (maçın oynandığı lig/turnuva) ev/deplasman gol tabanı — değişim kapısı açıklaması için.</summary>
+        public double LeagueHome { get; set; }
+        public double LeagueAway { get; set; }
     }
 
     /// <summary>

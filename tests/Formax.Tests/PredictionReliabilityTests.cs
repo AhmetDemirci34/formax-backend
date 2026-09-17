@@ -334,6 +334,18 @@ public class PredictionReliabilityTests
         Assert.Equal("MODEL_OR_CALIBRATION_UPDATE", mu.DecisionReason);
         Assert.NotEmpty(mu.Lines);
 
+        // Organizasyon gol tabanı değiştiyse (yeni turnuva sonuçları) gol marketlerindeki kayma açıklanmış sayılır — Juventus–NEC regresyonu.
+        var baseBefore = Snap(E(1.6, 1.2), p);
+        baseBefore.Strength = new OutcomeStrengthDto { LeagueHome = 1.60, LeagueAway = 1.25 };
+        var shiftedE = new OutcomeExpectation(1.45, 1.09, 1.45, 1.13, 20, 20, 1, true, 1.5, 1.1, 1.2, 1.3, 10, 10, null, null);
+        var baseAfter = Snap(shiftedE, p);
+        baseAfter.Strength = new OutcomeStrengthDto { LeagueHome = 1.45, LeagueAway = 1.13 };
+        // Taban bilgisi yok ve organizasyonda yeni maç yoksa aynı kayma açıklanamaz.
+        Assert.Equal("NeedsReview", OutcomeChangeGate.Evaluate(baseBefore, Snap(shiftedE, p), shiftedE, 140, p, 0, "Periodic", null, DateTime.UtcNow, Array.Empty<string>()).Decision);
+        var explained = OutcomeChangeGate.Evaluate(baseBefore, baseAfter, shiftedE, 140, p, 0, "Periodic", null, DateTime.UtcNow, new[] { "NewCompetitionMatches:9" }, 9);
+        Assert.Equal("Published", explained.Decision);
+        Assert.True(explained.CompetitionBaseLogShift > 0.08);
+
         // Sınır tek sabit değil: daha çok yeni maç ve düşük kapsam daha geniş izin verir.
         var wide = OutcomeChangeGate.Evaluate(before, small, E(1.33, 1.19, coverage: 0.5), 140, p, 6, "Periodic", null, DateTime.UtcNow, Array.Empty<string>());
         var narrow = OutcomeChangeGate.Evaluate(before, small, E(1.33, 1.19), 140, p, 0, "Periodic", null, DateTime.UtcNow, Array.Empty<string>());

@@ -26,6 +26,9 @@ namespace Formax.Application.Services.Outcomes
         public string? PreviousCalibrationRunId { get; set; }
         /// <summary>Önceki snapshot'ın girdi kesiminden bu yana iki takımın oynadığı yeni bitmiş maç sayısı.</summary>
         public int NewFinishedMatches { get; set; }
+        /// <summary>Aynı sürede maçın organizasyonunda (lig/turnuva) biten yeni maç sayısı (gol tabanını ve lig güçlerini günceller).</summary>
+        public int NewCompetitionMatches { get; set; }
+        public double CompetitionBaseLogShift { get; set; }
         public double OldEvidenceCoverage { get; set; }
         public double NewEvidenceCoverage { get; set; }
         public string? OldEligibility { get; set; }
@@ -58,14 +61,14 @@ namespace Formax.Application.Services.Outcomes
         public static OutcomeChangeAudit Evaluate(
             OutcomeSnapshotDto previous, OutcomeSnapshotDto next, OutcomeExpectation nextExpectation, int leagueId,
             OutcomeModelParameters p, int newFinishedMatches, string triggerType, string? triggerSource, DateTime triggeredAtUtc,
-            IEnumerable<string> newInputs)
+            IEnumerable<string> newInputs, int newCompetitionMatches = 0)
         {
             var audit = new OutcomeChangeAudit
             {
                 PreviousSnapshotId = previous.SnapshotId, TriggerType = triggerType, TriggerSource = triggerSource, TriggeredAtUtc = triggeredAtUtc,
                 ModelVersion = next.ModelVersion, PreviousModelVersion = previous.ModelVersion,
                 CalibrationRunId = next.CalibrationRunId, PreviousCalibrationRunId = previous.CalibrationRunId,
-                NewFinishedMatches = newFinishedMatches, OldEvidenceCoverage = previous.EvidenceCoverage, NewEvidenceCoverage = next.EvidenceCoverage,
+                NewFinishedMatches = newFinishedMatches, NewCompetitionMatches = newCompetitionMatches, OldEvidenceCoverage = previous.EvidenceCoverage, NewEvidenceCoverage = next.EvidenceCoverage,
                 OldEligibility = previous.PredictionEligibility, NewEligibility = next.PredictionEligibility,
                 NewInputs = newInputs.ToList()
             };
@@ -82,7 +85,16 @@ namespace Formax.Application.Services.Outcomes
             var strengthShift = previous.Strength != null && next.Strength != null && next.Strength.CrossLeague
                 ? Math.Abs((next.Strength.HomeLeagueStrength - next.Strength.AwayLeagueStrength) - (previous.Strength.HomeLeagueStrength - previous.Strength.AwayLeagueStrength)) / 2
                 : 0;
-            var delta = p.LearningRate * p.GoalResidualStd * Math.Sqrt(2.0 * Math.Max(0, newFinishedMatches) + 1) * (1 + (1 - nextExpectation.Coverage)) + strengthShift;
+            // Organizasyon gol tabanı: iki snapshot'ta ölçülen gerçek kayma; eski snapshot tabanı taşımıyorsa organizasyondaki yeni maç
+            // sayısından üst sınır (her maç tabanı en fazla α × artık std kadar oynatır). Ölçüm 17.09.2026: 9 yeni UEFA sonucu
+            // Juventus–NEC gol marketlerini ~%5 kaydırdı, bu terim yokken yanlışlıkla NeedsReview oluyordu.
+            double baseShift;
+            if (previous.Strength is { LeagueHome: > 0, LeagueAway: > 0 } ps && next.Strength is { LeagueHome: > 0, LeagueAway: > 0 } ns)
+                baseShift = Math.Max(Math.Abs(Math.Log(ns.LeagueHome / ps.LeagueHome)), Math.Abs(Math.Log(ns.LeagueAway / ps.LeagueAway)));
+            else
+                baseShift = Math.Min(0.5, Math.Max(0, newCompetitionMatches) * Math.Max(p.LeagueAlpha, 0.02) * p.GoalResidualStd);
+            audit.CompetitionBaseLogShift = Math.Round(baseShift, 4);
+            var delta = p.LearningRate * p.GoalResidualStd * Math.Sqrt(2.0 * Math.Max(0, newFinishedMatches) + 1) * (1 + (1 - nextExpectation.Coverage)) + strengthShift + baseShift;
             audit.RatingDriftLogShift = Math.Round(delta, 4);
             var allowed = AllowedShift(nextExpectation, leagueId, p, delta);
 
