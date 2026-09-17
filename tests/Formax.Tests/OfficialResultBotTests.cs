@@ -70,14 +70,17 @@ public class OfficialResultBotTests
     // ── 1. TAKVİM ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public void SonucTakvimi_Kickoff105_115_125_140_160_180_SonraYarimSaat1_3_6_12_24_SonraGunluk()
+    public void SonucTakvimi_Kickoff105ten150ye5dk_160_170_180_SonraYarimSaat1_3_6_12_24_SonraGunluk()
     {
+        // 17.09.2026: yayın → yazım ≤ 10 dk hedefi için +105…+150 arası 5 dakikada bir kontrol.
         var k = Kickoff;
         Assert.Equal(k.AddMinutes(105), OfficialResultSchedule.FirstCheck(k));
-        var expected = new[] { 115, 125, 140, 160, 180, 210, 240, 360, 540, 900, 1620 };
+        var expected = new[] { 110, 115, 120, 125, 130, 135, 140, 145, 150, 160, 170, 180, 210, 240, 360, 540, 900, 1620 };
         for (var i = 0; i < expected.Length; i++)
             Assert.Equal(k.AddMinutes(expected[i]), OfficialResultSchedule.NextCheck(k, i + 1, k.AddMinutes(100)));
-        Assert.Equal(k.AddMinutes(1620).AddDays(1), OfficialResultSchedule.NextCheck(k, 12, k.AddMinutes(1000)));
+        for (var i = 1; i < 13; i++)
+            Assert.True(OfficialResultSchedule.NextCheck(k, i, k.AddMinutes(100)) - OfficialResultSchedule.NextCheck(k, i - 1 == 0 ? 0 : i - 1, k.AddMinutes(100)) <= TimeSpan.FromMinutes(10));
+        Assert.Equal(k.AddMinutes(1620).AddDays(1), OfficialResultSchedule.NextCheck(k, expected.Length + 1, k.AddMinutes(1000)));
         // Restart sonrası geçmişte kalmış adımlar üst üste çalışmaz.
         var late = k.AddHours(30);
         Assert.True(OfficialResultSchedule.NextCheck(k, 1, late) > late);
@@ -200,6 +203,33 @@ public class OfficialResultBotTests
     }
 
     [Fact]
+    public async Task KaynakSonradanDogrulandi_KaynakYokKontrolu24SaatBeklemeden_YenidenAcilir_SonucYazilir()
+    {
+        var name = Guid.NewGuid().ToString();
+        var now = Kickoff.AddHours(20);
+        using (var db = Db(name))
+        {
+            Seed(db, Kickoff, leagueId: 3);
+            db.MatchResultChecks.Add(new MatchResultCheck { MatchId = 104380, LeagueId = 3, KickoffUtc = Kickoff, State = "NoOfficialSource", AttemptCount = 1,
+                NextCheckUtc = now.AddHours(20), LastOutcome = "NoVerifiedOfficialSource", CreatedAtUtc = Kickoff, UpdatedAtUtc = Kickoff });
+            db.SaveChanges();
+        }
+        var src = new CountingSource { SourceKey = OfficialSourceRegistry.UefaMatchApi };
+        src.Records.Add(new OfficialMatchRecord(OfficialSourceRegistry.UefaMatchApi, "2050063", null, "Rayo Vallecano", "Espanyol", Kickoff,
+            OfficialMatchStatuses.Finished, 1, 0, "FINISHED", null, null, null, new Dictionary<string, string> { ["sourcePublishedAtUtc"] = "2026-09-15T18:52:00Z" }));
+        using (var db = Db(name)) await Bot(db, src).RunCycleAsync(now);
+        using (var db = Db(name))
+        {
+            var m = db.Matches.Single();
+            Assert.Equal((MatchStatuses.Finished, 1, 0), (m.Status, m.HomeScore, m.AwayScore));
+            Assert.Equal("official:" + OfficialSourceRegistry.UefaMatchApi, m.ResultSource);
+            var c = db.MatchResultChecks.Single();
+            Assert.Equal("Resolved", c.State);
+            Assert.Equal(new DateTime(2026, 9, 15, 18, 52, 0, DateTimeKind.Utc), c.SourcePublishedFinalAtUtc);
+        }
+    }
+
+    [Fact]
     public async Task Bot_HenuzBitmediyse_TakvimeGoreYenidenPlanlar_RestartSonrasiDevamEder()
     {
         var name = Guid.NewGuid().ToString();
@@ -210,7 +240,8 @@ public class OfficialResultBotTests
         using (var db = Db(name))
         {
             var c = db.MatchResultChecks.AsNoTracking().Single();
-            Assert.Equal(("Pending", 1, Kickoff.AddMinutes(115)), (c.State, c.AttemptCount, c.NextCheckUtc));
+            Assert.Equal(("Pending", 1, Kickoff.AddMinutes(110)), (c.State, c.AttemptCount, c.NextCheckUtc));
+            Assert.Equal(Kickoff.AddMinutes(106), c.LastNotFinalCheckUtc);   // gecikme ölçümünün alt sınırı
             Assert.Null(c.LockOwner);
             Assert.Equal(MatchStatuses.NotStarted, db.Matches.Single().Status);
         }

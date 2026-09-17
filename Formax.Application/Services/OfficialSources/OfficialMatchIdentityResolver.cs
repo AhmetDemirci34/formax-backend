@@ -56,11 +56,13 @@ namespace Formax.Application.Services.OfficialSources
         /// </summary>
         public static bool HomeMatches(OfficialMatchRecord r, string formaxName)
             => OfficialTeamNameMatcher.SameTeam(r.HomeName, formaxName)
-               || (r.Extra?.GetValueOrDefault("homeAltName") is { } alt && OfficialTeamNameMatcher.SameTeam(alt, formaxName));
+               || (r.Extra?.GetValueOrDefault("homeAltName") is { } alt && OfficialTeamNameMatcher.SameTeam(alt, formaxName))
+               || (r.Extra?.GetValueOrDefault("homeAltName2") is { } alt2 && OfficialTeamNameMatcher.SameTeam(alt2, formaxName));
 
         public static bool AwayMatches(OfficialMatchRecord r, string formaxName)
             => OfficialTeamNameMatcher.SameTeam(r.AwayName, formaxName)
-               || (r.Extra?.GetValueOrDefault("awayAltName") is { } alt && OfficialTeamNameMatcher.SameTeam(alt, formaxName));
+               || (r.Extra?.GetValueOrDefault("awayAltName") is { } alt && OfficialTeamNameMatcher.SameTeam(alt, formaxName))
+               || (r.Extra?.GetValueOrDefault("awayAltName2") is { } alt2 && OfficialTeamNameMatcher.SameTeam(alt2, formaxName));
 
         public static OfficialIdentityDecision Resolve(
             FormaxMatchIdentity match,

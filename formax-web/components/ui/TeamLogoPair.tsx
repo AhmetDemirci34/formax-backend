@@ -14,7 +14,7 @@ interface Props {
   showVs?: boolean;
   /** Armaların altında takım isimleri (referans Hero: arma + altında isim). */
   showNames?: boolean;
-  /** İki armanın arasına yerleşen slot (referans Hero: VS yerine AI Güven halkası). */
+  /** İki armanın arasına yerleşen slot (referans Hero: VS yerine AI Beklentisi halkası). */
   center?: ReactNode;
 }
 

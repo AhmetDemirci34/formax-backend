@@ -21,7 +21,8 @@ namespace Formax.Infrastructure.OfficialSources
             [OfficialSourceRegistry.BundesligaSite] = "bundesliga-ngstate-v2",
             [OfficialSourceRegistry.LaLigaSite] = "laliga-nextdata-v2",
             [OfficialSourceRegistry.Ligue1Api] = "ligue1-api-v2",
-            [OfficialSourceRegistry.EflApi] = "efl-multiclub-v2"
+            [OfficialSourceRegistry.EflApi] = "efl-multiclub-v2",
+            [OfficialSourceRegistry.UefaMatchApi] = "uefa-match-v5-v1"
         };
 
         public static string For(string sourceKey) => ByKey.TryGetValue(sourceKey, out var v) ? v : "none";
@@ -70,7 +71,7 @@ namespace Formax.Infrastructure.OfficialSources
                     row.SourceName = name; row.OfficialDomain = domain; row.OrganizationIds = orgs; row.Capabilities = caps;
                     row.VerificationEvidence = evidence; row.RegistryStatus = d.Status; row.IsEnabled = enabled;
                     row.ParserVersion = parser; row.SourceType = d.Tier.ToString(); row.ContentKind = d.Kind;
-                    if (d.Status == OfficialSourceStatuses.Blocked && d.EvidenceNote.Contains("robots", StringComparison.OrdinalIgnoreCase))
+                    if ((d.Status == OfficialSourceStatuses.Blocked || d.Status == OfficialSourceStatuses.Unsupported) && d.EvidenceNote.Contains("robots", StringComparison.OrdinalIgnoreCase))
                         row.RobotsStatus = "Disallowed";
                     row.UpdatedAtUtc = nowUtc;
                     changed = true;

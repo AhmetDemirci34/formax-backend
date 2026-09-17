@@ -230,7 +230,8 @@ public class MatchAnalysisTests
         Assert.Contains(typeof(IMatchAnalysisReader), ctor);
 
         var readerCtor = typeof(MatchAnalysisReader).GetConstructors().Single().GetParameters().Select(p => p.ParameterType);
-        Assert.Equal(new[] { typeof(FormaxDbContext) }, readerCtor);
+        // 17.09.2026: okuyucu yalnız DB ve snapshot OKUYUCUSUNA bağlı (çelişki kapısı); üretici/LLM yok.
+        Assert.Equal(new[] { typeof(FormaxDbContext), typeof(Formax.Application.Interfaces.IMatchOutcomeSnapshotReader) }, readerCtor);
 
         var dir = AppContext.BaseDirectory;
         while (dir != null && !File.Exists(Path.Combine(dir, "Formax.slnx"))) dir = Path.GetDirectoryName(dir);

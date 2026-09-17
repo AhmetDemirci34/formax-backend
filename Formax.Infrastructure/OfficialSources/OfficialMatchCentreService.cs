@@ -182,6 +182,9 @@ namespace Formax.Infrastructure.OfficialSources
                 };
                 _db.MatchCriticalDevelopments.Add(row);
                 fresh.Add(row);
+                // Doğrulanmış kritik gelişme (erteleme/iptal/askı/saat/stat) → tahmin yenileme isteği aynı işlemde.
+                await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, match.Id, o.Type, "official:" + sourceKey,
+                    $"critical:{match.Id}:{o.EvidenceHash}", utcNow, ct);
             }
 
             if (link == null)
@@ -358,6 +361,9 @@ namespace Formax.Infrastructure.OfficialSources
             };
             if (newStatus == null || string.Equals(tracked.Status, newStatus, StringComparison.OrdinalIgnoreCase)) return null;
             tracked.Status = newStatus;
+            if (newStatus is "Postponed" or "Cancelled")
+                await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, matchId, "StatusChange", official,
+                    $"status:{matchId}:{newStatus}:{tracked.MatchDate:yyyyMMddHHmm}", utcNow, ct);
             await _db.SaveChangesAsync(ct);
             return new(matchId, source.SourceKey, ResultOutcomes.StatusApplied, newStatus);
         }

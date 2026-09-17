@@ -966,6 +966,8 @@ internal class Program
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialStatisticsBotJob>();
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>());
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PredictionRecomputeJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PredictionRecomputeJob>());
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>());
         // AI MAÇ ANALİZİ — yaklaşan maçlar için arka planda kanıttan üretim (admin tetiği aynı örnek).

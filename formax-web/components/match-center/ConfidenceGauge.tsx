@@ -1,14 +1,18 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import type { AiConfidence } from "./aiContext";
+/** score: snapshot Maç Sonucu kartı yüzdesi (0–100); level: kartın öne çıkardığı sonuç (Ev Sahibi / Beraberlik / Deplasman). */
+interface ExpectationGaugeProps {
+  score: number;
+  level: string;
+}
 
 /**
- * ConfidenceGauge — Hero merkezindeki "AI GÜVENİ" göstergesi.
+ * ConfidenceGauge — Hero merkezindeki "AI BEKLENTİSİ" göstergesi (snapshot'ın Maç Sonucu kartı yüzdesi).
  * Kompakt dairesel gösterge: ~270° yay, altta boşluk (referans hissi), ince stroke,
  * lime→turuncu premium gradient. Sayfa yüklenince 0'dan hedefe dolar.
  */
-export function ConfidenceGauge({ score, level }: AiConfidence) {
+export function ConfidenceGauge({ score, level }: ExpectationGaugeProps) {
   const reduce = useReducedMotion();
   const pct = Math.min(100, Math.max(0, score)) / 100;
 

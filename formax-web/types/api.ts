@@ -188,6 +188,10 @@ export interface RecommendationCardDto {
   homeScore?: number | null;
   awayScore?: number | null;
   aiTrustScore?: number;
+  /** AI BEKLENTİSİ — aynı snapshot'ın Maç Sonucu kartı yüzdesi; Enabled değilse null. */
+  aiExpectation?: number | null;
+  /** "Enabled" | "Limited" | "Disabled" | null. */
+  predictionEligibility?: string | null;
   userInterestScore?: number;
   topPrediction?: TopPredictionDto | null;
   predictions?: AiPredictionDto[];

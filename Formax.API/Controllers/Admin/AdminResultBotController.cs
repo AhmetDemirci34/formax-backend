@@ -53,6 +53,8 @@ namespace Formax.API.Controllers.Admin
                     sourceType = result?.Tier.ToString(),
                     contentKind = result?.Kind,
                     registryStatus = result?.Status ?? "NotConfigured",
+                    // Teşhis: doğrulanmış resmî sonuç kaynağı yoksa bu organizasyonun maçları "ResultSourceUnavailable".
+                    resultSourceStatus = result?.Status == OfficialSourceStatuses.Verified ? "Available" : "ResultSourceUnavailable",
                     capabilities = result?.Capabilities,
                     robotsStatus = row?.RobotsStatus ?? "Unknown",
                     parser = row?.ParserVersion,
@@ -89,7 +91,7 @@ namespace Formax.API.Controllers.Admin
                               {
                                   m.Id, m.LeagueId, Home = m.HomeTeam!.Name, Away = m.AwayTeam!.Name, m.MatchDate, m.Status, m.HomeScore, m.AwayScore,
                                   m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.ResultDetail, m.ResultSource, m.ResultUpdatedAtUtc, m.ResultVerificationStatus,
-                                  Check = c == null ? null : new { c.State, c.AttemptCount, c.NextCheckUtc, c.LastCheckUtc, c.LastOutcome, c.FirstFinalSeenUtc, c.ResolvedAtUtc, c.ResolvedStatus },
+                                  Check = c == null ? null : new { c.State, c.AttemptCount, c.NextCheckUtc, c.LastCheckUtc, c.LastOutcome, c.FirstFinalSeenUtc, c.ResolvedAtUtc, c.ResolvedStatus, c.LastNotFinalCheckUtc, c.SourcePublishedFinalAtUtc },
                                   Statistics = s == null ? null : new { s.State, s.Completeness, s.AttemptCount, s.NextCheckUtc, s.LastOutcome, s.LastSourceKey }
                               }).ToListAsync(ct);
             return Ok(new
@@ -103,7 +105,14 @@ namespace Formax.API.Controllers.Admin
                     // Gecikme: kaynağın maçı ilk kez "bitti" gösterdiği gözlem ile kanonik yazım arası (dk).
                     writeDelayMinutes = r.Check?.FirstFinalSeenUtc != null && r.Check.ResolvedAtUtc != null
                         ? Math.Round((r.Check.ResolvedAtUtc.Value - r.Check.FirstFinalSeenUtc.Value).TotalMinutes, 1) : (double?)null,
-                    minutesFromKickoffToWrite = r.ResultUpdatedAtUtc != null ? Math.Round((r.ResultUpdatedAtUtc.Value - r.MatchDate).TotalMinutes, 1) : (double?)null
+                    minutesFromKickoffToWrite = r.ResultUpdatedAtUtc != null ? Math.Round((r.ResultUpdatedAtUtc.Value - r.MatchDate).TotalMinutes, 1) : (double?)null,
+                    // YAYIN → YAZIM GECİKMESİ: kaynak yayın anını veriyorsa (UEFA fullTimeAt) kesin değer; vermiyorsa üst sınır =
+                    // yazım − kaynağın en son "henüz final değil" dediği kontrol (yayın bu andan SONRA oldu).
+                    publishToWriteMinutes = r.Check?.SourcePublishedFinalAtUtc != null && r.ResultUpdatedAtUtc != null
+                        ? Math.Round((r.ResultUpdatedAtUtc.Value - r.Check.SourcePublishedFinalAtUtc.Value).TotalMinutes, 1) : (double?)null,
+                    publishToWriteUpperBoundMinutes = r.Check?.LastNotFinalCheckUtc != null && r.ResultUpdatedAtUtc != null && r.ResultUpdatedAtUtc > r.Check.LastNotFinalCheckUtc
+                        ? Math.Round((r.ResultUpdatedAtUtc.Value - r.Check.LastNotFinalCheckUtc.Value).TotalMinutes, 1) : (double?)null,
+                    resultSourceStatus = OfficialSourceRegistry.VerifiedFor(r.LeagueId, OfficialPurposes.Result).Count > 0 ? "Available" : "ResultSourceUnavailable"
                 })
             });
         }

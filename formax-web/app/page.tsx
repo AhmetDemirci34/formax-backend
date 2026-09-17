@@ -13,7 +13,7 @@ import { FeaturedMatchesSection } from "@/components/discover/featured/FeaturedM
  *
  * Tüm bölümler /api/home/recommendations'tan beslenir (mock yok):
  *  • MatchDiscoveryFeed  → swipe'lı gerçek Hero + aktif maçın AI Olası Sonuçları
- *  • AIComboSection      → en yüksek AI güvenli maçlardan türetilen Günün Kombini
+ *  • AIComboSection      → en yüksek karar paketi skorlu maçlardan türetilen Günün Kombini
  *  • FeaturedMatchesSection → kişisel öneriler (Sana Özel) + Tüm önerileri gör → Maçlar
  */
 export default function DiscoverScreen() {

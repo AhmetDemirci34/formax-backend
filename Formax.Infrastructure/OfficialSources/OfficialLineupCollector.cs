@@ -377,6 +377,9 @@ namespace Formax.Infrastructure.OfficialSources
             header.VerificationStatus = isComplete ? "Verified" : "PartiallyVerified";
 
             if (isNew) _db.MatchLineups.Add(header);
+            // Doğrulanmış resmî kadro → tahmin yenileme isteği AYNI işlemde (aynı içerik ikinci kez istek üretmez).
+            await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, matchId, "OfficialLineup", ProviderPrefix + doc.SourceKey,
+                $"lineup:{matchId}:{doc.SourceKey}:{header.HomeLineupsReleased}:{header.AwayLineupsReleased}:{doc.ContentHash}", utcNow, ct);
             await _db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
 

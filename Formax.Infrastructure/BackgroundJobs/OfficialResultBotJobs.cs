@@ -66,7 +66,8 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            if (!_config.GetValue("OfficialSources:StatisticsBot:Enabled", true)) return;
+            // 17.09.2026 ürün kararı: biten maçlarda yeni istatistik TOPLANMAZ (varsayılan kapalı; eski satırlar silinmez).
+            if (!_config.GetValue("OfficialSources:StatisticsBot:Enabled", false)) return;
             try { await Task.Delay(TimeSpan.FromSeconds(75), stoppingToken); } catch (OperationCanceledException) { return; }
             while (!stoppingToken.IsCancellationRequested)
             {

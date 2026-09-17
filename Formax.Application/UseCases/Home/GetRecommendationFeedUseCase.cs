@@ -649,6 +649,14 @@ public sealed class GetRecommendationFeedUseCase
 
         foreach (var card in cards)
         {
+            // AI BEKLENTİSİ + snapshot kimliği karar paketinden BAĞIMSIZ taşınır (Keşfet ve Detay aynı snapshot).
+            outcomes.TryGetValue(card.MatchId, out var current);
+            card.OutcomeSnapshotId = current?.SnapshotId;
+            card.PredictionEligibility = current?.SnapshotId == null ? null : current.PredictionEligibility;
+            card.AiExpectation = current is { Status: "Available" } && current.MainCards.Count > 0
+                ? current.MainCards.FirstOrDefault(c => c.Family == Formax.Application.Services.Outcomes.OutcomeFamilies.Result)?.Probability
+                : null;
+
             if (!packagesByMatch.TryGetValue(card.MatchId, out var package)) continue;
 
             // GERÇEK AI güveni — kombindeki/maç detayındaki ile aynı motor, aynı sayı.

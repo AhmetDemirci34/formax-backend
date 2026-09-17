@@ -47,6 +47,10 @@ namespace Formax.Application.Services.Outcomes
         public List<string> ReasonCodes { get; set; } = new();
         public string? Reason { get; set; }
         public string? Limitation { get; set; }
+        /// <summary>Adayın ait olduğu snapshot ve model sürümü (seçim skoru denetimi için aday düzeyinde taşınır).</summary>
+        public string? SnapshotId { get; set; }
+        public string ModelVersion { get; set; } = OutcomeModelVersion.Current;
+        public string SelectionVersion { get; set; } = OutcomeSnapshotBuilder.SelectionVersion;
     }
 
     public sealed class OutcomeFamilyDto
@@ -100,6 +104,30 @@ namespace Formax.Application.Services.Outcomes
         public List<string> ReasonCodes { get; set; } = new();
         public OutcomeChecksDto? Checks { get; set; }
         public string? Notice { get; set; }
+
+        /// <summary>Enabled | Limited | Disabled. Yüzdeler kullanıcıya YALNIZ Enabled'da gider.</summary>
+        public string PredictionEligibility { get; set; } = PredictionEligibilities.Disabled;
+        public List<string> EligibilityReasons { get; set; } = new();
+        public string? TriggerType { get; set; }
+        public string? PreviousSnapshotId { get; set; }
+        /// <summary>Ligler arası maç bilgisi (ortak güç ölçeği) — teşhis için.</summary>
+        public OutcomeStrengthDto? Strength { get; set; }
+    }
+
+    public sealed class OutcomeStrengthDto
+    {
+        public bool CrossLeague { get; set; }
+        public int? HomeLeagueId { get; set; }
+        public int? AwayLeagueId { get; set; }
+        public double HomeLeagueStrength { get; set; }
+        public double AwayLeagueStrength { get; set; }
+        public int HomeLeagueLinks { get; set; }
+        public int AwayLeagueLinks { get; set; }
+        public double HomeClubRating { get; set; }
+        public double AwayClubRating { get; set; }
+        public double LambdaHome { get; set; }
+        public double LambdaAway { get; set; }
+        public double EloHomeExpectation { get; set; }
     }
 
     /// <summary>
@@ -116,6 +144,54 @@ namespace Formax.Application.Services.Outcomes
         public const string SelectionVersion = "selection-2";
 
         public const string InsufficientNotice = "Bu maç için olası sonuç üretecek yeterli doğrulanmış veri bulunamadı.";
+        /// <summary>Limited / Disabled maçlarda kullanıcıya gösterilen TEK metin (yüzde yok).</summary>
+        public const string NotEligibleNotice = "Bu maç için güvenilir AI beklentisi oluşturacak yeterli doğrulanmış veri bulunmuyor.";
+
+        /// <summary>Ev sahibi/deplasman/lig bilgisi olmadan kapanan (yayımlanmayan) kapı kodları — Disabled.</summary>
+        public static readonly IReadOnlySet<string> HardGates = new HashSet<string>
+        {
+            "INSUFFICIENT_SAMPLE", "TEAM_LEAGUE_UNKNOWN", "CROSS_LEAGUE_UNLINKED", "LEAGUE_NOT_EVALUATED", "MATCH_NOT_SCHEDULED"
+        };
+
+        /// <summary>
+        /// UYGUNLUK BİRLEŞTİRME — maç kapıları + lig sınavı. Sert kapı (veri/kimlik/bağlantı yok, maç ertelendi) → Disabled;
+        /// çıktı kapısı (kanıtsız aşırı olasılık, bağımsız reyting çelişkisi) → en fazla Limited; aksi hâlde lig kararı.
+        /// </summary>
+        public static (string Eligibility, List<string> Reasons) Combine(string? leagueStatus, IEnumerable<string> leagueReasons, IEnumerable<string> matchGates, IEnumerable<string> outputGates)
+        {
+            var reasons = new List<string>();
+            var gates = matchGates.ToList();
+            reasons.AddRange(gates);
+            if (leagueStatus == null) reasons.Add("LEAGUE_NOT_EVALUATED");
+            if (reasons.Any(HardGates.Contains)) return (PredictionEligibilities.Disabled, reasons);
+            var outs = outputGates.ToList();
+            reasons.AddRange(outs);
+            reasons.AddRange(leagueReasons.Select(r => "LEAGUE:" + r));
+            if (leagueStatus == PredictionEligibilities.Disabled) return (PredictionEligibilities.Disabled, reasons);
+            if (outs.Count > 0 || leagueStatus == PredictionEligibilities.Limited) return (PredictionEligibilities.Limited, reasons);
+            return (PredictionEligibilities.Enabled, reasons);
+        }
+
+        /// <summary>
+        /// KULLANICI GÖRÜNÜMÜ — Enabled değilse yüzde, aile, skor ve beklenen gol TAŞINMAZ (frontend gösteremez); yalnız durum, gerekçe
+        /// kodları, SnapshotId/ModelVersion/hesaplama zamanı ve dürüst metin kalır. Keşfet ve Detay aynı temizlenmiş nesneyi okur.
+        /// </summary>
+        public static OutcomeSnapshotDto ForUser(OutcomeSnapshotDto s)
+        {
+            if (s.Status == "Pending" || s.PredictionEligibility == PredictionEligibilities.Enabled) return s;
+            return new OutcomeSnapshotDto
+            {
+                SnapshotId = s.SnapshotId, MatchId = s.MatchId, ModelVersion = s.ModelVersion, CalibrationRunId = s.CalibrationRunId,
+                ComputedAtUtc = s.ComputedAtUtc, InputsCutoffUtc = s.InputsCutoffUtc,
+                Status = "NotEligible",
+                PredictionEligibility = s.PredictionEligibility,
+                EligibilityReasons = s.EligibilityReasons,
+                EvidenceCoverage = s.EvidenceCoverage, SampleQuality = s.SampleQuality,
+                HomeSampleSize = s.HomeSampleSize, AwaySampleSize = s.AwaySampleSize,
+                ReasonCodes = s.ReasonCodes, TriggerType = s.TriggerType, PreviousSnapshotId = s.PreviousSnapshotId,
+                Notice = NotEligibleNotice
+            };
+        }
 
         private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
@@ -128,8 +204,10 @@ namespace Formax.Application.Services.Outcomes
             HomeSampleSize = e.HomeSample,
             AwaySampleSize = e.AwaySample,
             Limitation = $"Doğrulanmış geçmiş maç sayısı yetersiz: {homeName} {e.HomeSample}, {awayName} {e.AwaySample}.",
-            Notice = InsufficientNotice,
-            ReasonCodes = new List<string> { "INSUFFICIENT_SAMPLE" }
+            Notice = NotEligibleNotice,
+            ReasonCodes = new List<string> { "INSUFFICIENT_SAMPLE" },
+            PredictionEligibility = PredictionEligibilities.Disabled,
+            EligibilityReasons = e.GateReasons.Count > 0 ? e.GateReasons.ToList() : new List<string> { "INSUFFICIENT_SAMPLE" }
         };
 
         public static string SampleQuality(OutcomeExpectation e)
@@ -329,12 +407,20 @@ namespace Formax.Application.Services.Outcomes
         private static string ResultReason(OutcomeCandidateDto c, OutcomeExpectation e, ScoreDistribution cal, string home, string away)
         {
             var s = $"Model beklenen golü {home} {F(cal.ExpectedHome)}, {away} {F(cal.ExpectedAway)} olarak hesaplıyor";
+            // Metin gerekçe KODUNDAN türetilir (kart ↔ kod çelişkisi olmasın): yakın beklentide "üstünlük" denmez.
+            var codes = ReasonCodes(e, cal);
             s += c.MarketKey switch
             {
-                OddsMarketKeys.Ms1 => "; ev sahibinin reyting üstünlüğü bu sonuca en yüksek payı veriyor.",
-                OddsMarketKeys.Ms2 => "; deplasman takımının reyting üstünlüğü bu sonuca en yüksek payı veriyor.",
+                OddsMarketKeys.Ms1 when codes.Any(x => x is "RESULT_HOME_STRONGER" or "RESULT_HOME_CLEAR_FAVOURITE")
+                    => "; ev sahibinin reyting üstünlüğü bu sonuca en yüksek payı veriyor.",
+                OddsMarketKeys.Ms2 when codes.Any(x => x is "RESULT_AWAY_STRONGER" or "RESULT_AWAY_CLEAR_FAVOURITE")
+                    => "; deplasman takımının reyting üstünlüğü bu sonuca en yüksek payı veriyor.",
+                OddsMarketKeys.Ms1 => "; iki takımın gol beklentisi birbirine yakın, ev sahibi sonucu küçük farkla öne çıkıyor.",
+                OddsMarketKeys.Ms2 => "; iki takımın gol beklentisi birbirine yakın, deplasman sonucu küçük farkla öne çıkıyor.",
                 _ => "; iki takımın gol beklentisi birbirine yakın, beraberlik payı yüksek."
             };
+            if (e.CrossLeague)
+                s += " Takımlar farklı liglerden geliyor; güçler ligler arası maçlardan öğrenilen ortak ölçekte karşılaştırıldı.";
             if (e.HomeRecentCount >= 5 && e.AwayRecentCount >= 5)
                 s += $" Son {e.HomeRecentCount} maçta {home} maç başına {F(e.HomeRecentFor)} gol attı, {away} son {e.AwayRecentCount} maçta {F(e.AwayRecentFor)}.";
             return s;

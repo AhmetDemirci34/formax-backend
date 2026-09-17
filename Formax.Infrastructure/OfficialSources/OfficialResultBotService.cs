@@ -88,12 +88,13 @@ namespace Formax.Infrastructure.OfficialSources
                 var usable = descriptors.Select(d => (d, src: _sources.FirstOrDefault(s => s.SourceKey == d.Key))).Where(x => x.src != null).ToList();
                 if (usable.Count == 0)
                 {
+                    // Kaynak yok: eski NotStarted durumu "doğru" sayılmaz — teşhiste ResultSourceUnavailable görünür.
                     check.State = "NoOfficialSource";
-                    check.LastOutcome = "NoVerifiedOfficialSource";
+                    check.LastOutcome = "ResultSourceUnavailable";
                     check.AttemptCount++;
                     check.NextCheckUtc = nowUtc.AddHours(24);
                     Release(check, nowUtc);
-                    outcomes.Add(new(match.Id, "NoOfficialSource", null, null));
+                    outcomes.Add(new(match.Id, "ResultSourceUnavailable", null, null));
                     continue;
                 }
 
@@ -137,6 +138,12 @@ namespace Formax.Infrastructure.OfficialSources
                     }
                     var decision = OfficialResultStatusPolicy.Decide(record);
                     if (decision.Kind == "Final" && check.FirstFinalSeenUtc == null) check.FirstFinalSeenUtc = nowUtc;
+                    if (decision.Kind == "Final" && check.SourcePublishedFinalAtUtc == null
+                        && record.Extra?.GetValueOrDefault("sourcePublishedAtUtc") is { } published
+                        && DateTime.TryParse(published, System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var publishedUtc))
+                        check.SourcePublishedFinalAtUtc = DateTime.SpecifyKind(publishedUtc, DateTimeKind.Utc);
+                    if (decision.Kind == "NotFinal") check.LastNotFinalCheckUtc = nowUtc;
                     observations.Add((new SourceResultObservation(d.Key, d.Tier, decision), src!, record));
                 }
 
@@ -257,8 +264,19 @@ namespace Formax.Infrastructure.OfficialSources
                 x.Check.NextCheckUtc = OfficialResultSchedule.FirstCheck(x.MatchDate);
                 x.Check.UpdatedAtUtc = nowUtc;
             }
-            if (candidates.Count > 0 || moved.Count > 0) await _db.SaveChangesAsync(ct).ConfigureAwait(false);
-            return (candidates.Count, moved.Count);
+            // Kaynak sonradan doğrulandıysa (ör. 17.09.2026 UEFA) "kaynak yok" diye 24 saate ertelenmiş kontroller HEMEN yeniden açılır.
+            var verifiedLeagues = locked.Where(l => OfficialSourceRegistry.VerifiedFor(l, OfficialPurposes.Result).Count > 0).ToList();
+            var reopened = await _db.MatchResultChecks
+                .Where(c => c.State == "NoOfficialSource" && verifiedLeagues.Contains(c.LeagueId) && c.NextCheckUtc > nowUtc)
+                .Take(500).ToListAsync(ct).ConfigureAwait(false);
+            foreach (var c in reopened)
+            {
+                c.State = "Pending";
+                c.NextCheckUtc = nowUtc;
+                c.UpdatedAtUtc = nowUtc;
+            }
+            if (candidates.Count > 0 || moved.Count > 0 || reopened.Count > 0) await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            return (candidates.Count, moved.Count + reopened.Count);
         }
 
         /// <summary>Zamanı gelen satırları DB kilidiyle alır; başka işçinin geçerli kilidindeki satır alınmaz.</summary>

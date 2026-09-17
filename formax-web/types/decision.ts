@@ -76,7 +76,7 @@ export interface MatchReadingDto {
   formaxOpinion: string[];
 }
 
-/** AI güven endeksi — backend üretir, frontend hesaplamaz. */
+/** Karar paketi endeksi (kullanıcıya gösterilmez; kullanıcı göstergesi snapshot kaynaklı AI Beklentisi) — backend üretir, frontend hesaplamaz. */
 export interface DecisionConfidenceDto {
   score: number;
   level: string;

@@ -291,21 +291,42 @@ namespace Formax.Infrastructure.OfficialSources
         {
             try
             {
-                using var msg = new HttpRequestMessage(HttpMethod.Get, robotsUri);
-                msg.Headers.UserAgent.ParseAdd(UserAgent);
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeout.CancelAfter(TimeSpan.FromSeconds(10));
-                NetworkRequestCount++;
-                using var res = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-                var code = (int)res.StatusCode;
-                // Yönlendirilen robots.txt izlenmez (izinli host dışına çıkabilir): kural okunamadı = ulaşılamaz = tam yasak (güvenli taraf).
-                if (code is >= 300 and < 400) return (null, string.Empty);
-                if (code < 200 || code > 299) return (code, string.Empty);
-                var bytes = await ReadLimitedAsync(res.Content, 512 * 1024, timeout.Token).ConfigureAwait(false);
-                return (code, Encoding.UTF8.GetString(bytes));
+                var current = robotsUri;
+                // RFC 9309 §2.3.1.2: yönlendirme en fazla 5 kez izlenir. Yalnız HTTPS ve AYNI kayıtlı alan adı (ör. match.uefa.com →
+                // www.uefa.com) içinde; başka alana giden yönlendirme = kural okunamadı = tam yasak (güvenli taraf).
+                for (var hop = 0; hop <= 5; hop++)
+                {
+                    using var msg = new HttpRequestMessage(HttpMethod.Get, current);
+                    msg.Headers.UserAgent.ParseAdd(UserAgent);
+                    NetworkRequestCount++;
+                    using var res = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                    var code = (int)res.StatusCode;
+                    if (code is >= 300 and < 400)
+                    {
+                        var location = res.Headers.Location;
+                        if (location == null || hop == 5) return (null, string.Empty);
+                        var next = location.IsAbsoluteUri ? location : new Uri(current, location);
+                        if (next.Scheme != Uri.UriSchemeHttps || RegistrableDomain(next.Host) != RegistrableDomain(robotsUri.Host)) return (null, string.Empty);
+                        current = next;
+                        continue;
+                    }
+                    if (code < 200 || code > 299) return (code, string.Empty);
+                    var bytes = await ReadLimitedAsync(res.Content, 512 * 1024, timeout.Token).ConfigureAwait(false);
+                    return (code, Encoding.UTF8.GetString(bytes));
+                }
+                return (null, string.Empty);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return (null, string.Empty); }
             catch (HttpRequestException) { return (null, string.Empty); }
+        }
+
+        /// <summary>Son iki etiket (uefa.com). Kilitli kaynakların hiçbiri iki parçalı genel sonek (co.uk vb.) kullanmıyor.</summary>
+        public static string RegistrableDomain(string host)
+        {
+            var parts = host.ToLowerInvariant().Split('.', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length <= 2 ? string.Join('.', parts) : parts[^2] + "." + parts[^1];
         }
 
         private static async Task<byte[]> ReadLimitedAsync(HttpContent content, int max, CancellationToken ct)

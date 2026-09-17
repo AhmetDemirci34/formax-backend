@@ -136,8 +136,8 @@ export function quickSignals(card: RecommendationCardDto): QuickSignalVM[] {
   // Küresel İlgi — gerçek globalTrendScore (0–1).
   out.push({ key: "global", iconKey: "users", label: "Küresel İlgi", value: pct((card.globalTrendScore ?? 0) * 100), source: "Global Trend" });
 
-  // AI Güven — gerçek confidenceScore (0–1).
-  out.push({ key: "confidence", iconKey: "shield", label: "AI Güven", value: pct((card.confidenceScore ?? 0) * 100), source: "AI Intelligence" });
+  // Öneri güven skoru — gerçek confidenceScore (0–1). Kullanıcı etiketi: AI Beklentisi.
+  out.push({ key: "confidence", iconKey: "shield", label: "AI Beklentisi", value: pct((card.confidenceScore ?? 0) * 100), source: "AI Intelligence" });
 
   // İlgi İvmesi — gerçek momentumScore (0–1). Yalnız boş slot varsa (cap 3).
   if (out.length < 3) {

@@ -64,6 +64,10 @@ namespace Formax.Infrastructure.Data
         public DbSet<MatchStatisticObservation> MatchStatisticObservations { get; set; } = null!;
         public DbSet<MatchPredictionSnapshot> MatchPredictionSnapshots { get; set; } = null!;
         public DbSet<PredictionModelRun> PredictionModelRuns { get; set; } = null!;
+        public DbSet<LeaguePredictionEligibility> LeaguePredictionEligibilities { get; set; } = null!;
+        public DbSet<PredictionRecomputeRequest> PredictionRecomputeRequests { get; set; } = null!;
+        public DbSet<PredictionScorecard> PredictionScorecards { get; set; } = null!;
+        public DbSet<PredictionDiagnostic> PredictionDiagnostics { get; set; } = null!;
         public DbSet<MatchEventEntity> MatchEvents { get; set; }
 
         public DbSet<AIDecisionTrace> AIDecisionTraces { get; set; }
@@ -1290,6 +1294,59 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.InputHash).HasMaxLength(64).IsRequired();
                 entity.HasIndex(x => x.SnapshotId).IsUnique().HasDatabaseName("UX_MatchPredictionSnapshots_SnapshotId");
                 entity.HasIndex(x => new { x.MatchId, x.IsCurrent }).HasDatabaseName("IX_MatchPredictionSnapshots_Current");
+                entity.Property(x => x.PredictionEligibility).HasMaxLength(16);
+                entity.Property(x => x.PublicationStatus).HasMaxLength(16);
+                entity.Property(x => x.PreviousSnapshotId).HasMaxLength(40);
+                entity.Property(x => x.TriggerType).HasMaxLength(32);
+                entity.Property(x => x.TriggerSource).HasMaxLength(80);
+                entity.Property(x => x.IntelligenceFingerprint).HasMaxLength(64);
+                entity.Property(x => x.SelectionVersion).HasMaxLength(24);
+            });
+            modelBuilder.Entity<LeaguePredictionEligibility>(entity =>
+            {
+                entity.ToTable("LeaguePredictionEligibilities");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.RunId).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.PolicyVersion).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.ReasonsJson).IsRequired();
+                entity.Property(x => x.MetricsJson).IsRequired();
+                entity.HasIndex(x => new { x.RunId, x.LeagueId }).IsUnique().HasDatabaseName("UX_LeaguePredictionEligibilities_Run_League");
+            });
+            modelBuilder.Entity<PredictionRecomputeRequest>(entity =>
+            {
+                entity.ToTable("PredictionRecomputeRequests");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.TriggerType).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.TriggerSource).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.DedupeKey).HasMaxLength(160).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.ResultSnapshotId).HasMaxLength(40);
+                entity.Property(x => x.Outcome).HasMaxLength(200);
+                entity.HasIndex(x => x.DedupeKey).IsUnique().HasDatabaseName("UX_PredictionRecomputeRequests_DedupeKey");
+                entity.HasIndex(x => new { x.Status, x.DueAtUtc }).HasDatabaseName("IX_PredictionRecomputeRequests_Due");
+            });
+            modelBuilder.Entity<PredictionScorecard>(entity =>
+            {
+                entity.ToTable("PredictionScorecards");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SnapshotId).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Eligibility).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.FinalStatus).HasMaxLength(24);
+                entity.HasIndex(x => x.MatchId).IsUnique().HasDatabaseName("UX_PredictionScorecards_MatchId");
+            });
+            modelBuilder.Entity<PredictionDiagnostic>(entity =>
+            {
+                entity.ToTable("PredictionDiagnostics");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SnapshotId).HasMaxLength(40);
+                entity.Property(x => x.Kind).HasMaxLength(48).IsRequired();
+                entity.Property(x => x.Detail).HasMaxLength(2000).IsRequired();
+                entity.Property(x => x.DedupeKey).HasMaxLength(160).IsRequired();
+                entity.HasIndex(x => x.DedupeKey).IsUnique().HasDatabaseName("UX_PredictionDiagnostics_DedupeKey");
+                entity.HasIndex(x => new { x.Kind, x.CreatedAtUtc }).HasDatabaseName("IX_PredictionDiagnostics_Kind");
             });
             modelBuilder.Entity<PredictionModelRun>(entity =>
             {

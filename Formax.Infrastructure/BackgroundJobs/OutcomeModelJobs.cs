@@ -65,3 +65,43 @@ namespace Formax.Infrastructure.BackgroundJobs
         }
     }
 }
+
+namespace Formax.Infrastructure.BackgroundJobs
+{
+    /// <summary>
+    /// TAHMİN YENİLEME KUYRUĞU + CANLI KARNE İŞİ — dakikada bir: zamanı gelmiş (debounce geçmiş) doğrulanmış olay isteklerini işler,
+    /// başlama anında snapshot'ı karneye kilitler, bitmiş maçı değerlendirir. Kuyruk DB'dedir: restart'ta kaybolmaz. Dış istek yok.
+    /// </summary>
+    public sealed class PredictionRecomputeJob : BackgroundService
+    {
+        private readonly IServiceScopeFactory _scopes;
+        private readonly IConfiguration _config;
+        private readonly ILogger<PredictionRecomputeJob> _log;
+
+        public PredictionRecomputeJob(IServiceScopeFactory scopes, IConfiguration config, ILogger<PredictionRecomputeJob> log)
+        {
+            _scopes = scopes; _config = config; _log = log;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            if (!_config.GetValue("Outcomes:Enabled", true)) return;
+            try { await Task.Delay(TimeSpan.FromSeconds(_config.GetValue("Outcomes:QueueStartupDelaySeconds", 60)), stoppingToken); }
+            catch (OperationCanceledException) { return; }
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try { await RunOnceAsync(stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception ex) { _log.LogError(ex, "[PREDICTION QUEUE JOB] tur başarısız"); }
+                try { await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(_config.GetValue("Outcomes:QueueIntervalSeconds", 60), 15, 600)), stoppingToken); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
+
+        public async Task<RecomputeCycleReport> RunOnceAsync(CancellationToken ct)
+        {
+            using var scope = _scopes.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<PredictionRecomputeWorker>().RunOnceAsync(DateTime.UtcNow, ct);
+        }
+    }
+}

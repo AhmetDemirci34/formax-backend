@@ -133,6 +133,15 @@ public class RecommendationCardDto
     /// <summary>AI Olası Sonuçlar snapshot kimliği — Maç Detayı aynı kimliği gösterir.</summary>
     public string? OutcomeSnapshotId { get; set; }
 
+    /// <summary>
+    /// AI BEKLENTİSİ (0-100) — AYNI snapshot'ın "Maç Sonucu" ana kartının kalibre yüzdesi. Yalnız snapshot Enabled ise dolu;
+    /// Limited/Disabled/bekleyen maçta null (ekran sayı göstermez). Sıralamaya GİRMEZ (AiTrustScore/DiscoveryScore ayrı).
+    /// </summary>
+    public int? AiExpectation { get; set; }
+
+    /// <summary>Snapshot uygunluğu: Enabled | Limited | Disabled | null (snapshot yok).</summary>
+    public string? PredictionEligibility { get; set; }
+
     /// <summary>Maçın ilk 3 AI tahmini (oran + hareket). Backend hesaplar; gelmezse boş.</summary>
     public List<AiPredictionDto> Predictions { get; set; } = new();
 

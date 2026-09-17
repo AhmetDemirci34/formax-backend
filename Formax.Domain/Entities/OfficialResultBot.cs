@@ -55,6 +55,10 @@ namespace Formax.Domain.Entities
         public string? LastSourceKey { get; set; }
         /// <summary>Kaynağın maçı ilk kez "bitti" olarak gösterdiği gözlem zamanı.</summary>
         public DateTime? FirstFinalSeenUtc { get; set; }
+        /// <summary>Kaynağın en son "henüz final değil" dediği kontrol (yayın anının alt sınırı; gecikme ölçümü).</summary>
+        public DateTime? LastNotFinalCheckUtc { get; set; }
+        /// <summary>Kaynağın kendi yayımladığı final anı (ör. UEFA fullTimeAt); yayımlamıyorsa null.</summary>
+        public DateTime? SourcePublishedFinalAtUtc { get; set; }
         /// <summary>Kanonik sonucun DB'ye yazıldığı zaman.</summary>
         public DateTime? ResolvedAtUtc { get; set; }
         /// <summary>FT | AET | PEN | Postponed | Cancelled | Abandoned.</summary>

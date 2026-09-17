@@ -31,6 +31,11 @@ namespace Formax.Application.Services.OfficialSources
         public const string Blocked = "Blocked";
         /// <summary>Kaynak var ama veri yalnız tarayıcıda kurulan ya da kısıtlı bir uçta; elle inceleme gerekir.</summary>
         public const string NeedsManualReview = "NeedsManualReview";
+        /// <summary>
+        /// Kullanılabilir yasal/resmî sonuç kaynağı YOK (robots yasağı, yalnız istemci tarafı veri, kulüp sitelerinde yapılandırılmış
+        /// sonuç yok). Bu organizasyonun sonucu yazılamaz; teşhiste ResultSourceUnavailable olarak görünür.
+        /// </summary>
+        public const string Unsupported = "Unsupported";
     }
 
     /// <summary>Kaynak önceliği — küçük değer önce denenir.</summary>

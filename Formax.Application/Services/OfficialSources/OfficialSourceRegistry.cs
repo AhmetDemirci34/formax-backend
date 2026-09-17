@@ -28,6 +28,7 @@ namespace Formax.Application.Services.OfficialSources
         public const string LaLigaSite = "laliga-site";
         public const string Ligue1Api = "ligue1-api";
         public const string EflApi = "efl-api";
+        public const string UefaMatchApi = "uefa-match-api";
 
         private static readonly string[] None = Array.Empty<string>();
 
@@ -107,13 +108,23 @@ namespace Formax.Application.Services.OfficialSources
             // ── 88 · Eredivisie ──────────────────────────────────────────────────
             new("eredivisie-site", "Eredivisie", new[] { 88 }, OfficialSourceTier.LeagueMatchCentre,
                 OfficialContentKinds.Html, new[] { "eredivisie.nl" }, None,
-                OfficialSourceStatuses.Blocked,
+                OfficialSourceStatuses.Unsupported,
+                "17.09.2026 yeniden ölçüldü — UNSUPPORTED: /competitie/wedstrijden/ 200 ama sunucu çıktısında skor yok (yalnız kulüp " +
+                "kimlik sözlüğü; maçlar istemci tarafında yükleniyor), /competitie/uitslagen/ 404. " +
                 "15.09.2026 BLOCKED (robots.txt): maç listesi yalnız /cache/site/EredivisieNL/json/fixtures.json içinde; " +
                 "eredivisie.nl/robots.txt 'Disallow: /cache/'. /competitie/wedstrijd/{ev-deplasman}/ sunucu çıktısında skor yok " +
                 "(yalnız data-opta-match-id). Ligin bağlantı verdiği yayıncı nos.nl sonuçları /api altından yüklüyor, " +
                 "nos.nl/robots.txt 'Disallow: /api'. Engel AŞILMAZ; sonuç yazılmaz."),
 
             // ── 2 / 3 / 848 · UEFA ───────────────────────────────────────────────
+            new(UefaMatchApi, "UEFA", new[] { 2, 3, 848 }, OfficialSourceTier.Federation,
+                OfficialContentKinds.OpenJson, new[] { "match.uefa.com" },
+                new[] { OfficialPurposes.Schedule, OfficialPurposes.Result },
+                OfficialSourceStatuses.Verified,
+                "17.09.2026: uefa.com maç merkezinin kullandığı match.uefa.com/v5/matches?competitionId=1|14|2019&fromDate&toDate " +
+                "anahtarsız 200 (status FINISHED, score.regular/total, winner.reason, kickOffTime, fullTimeAt). 16.09 Avrupa Ligi 9 maç " +
+                "okundu (Omonia–Celta 1-0). robots: match.uefa.com/robots.txt → aynı alan www.uefa.com/errors/404 (kural yok, RFC 9309 kısıt yok); " +
+                "www.uefa.com/robots.txt maç verisini yasaklamıyor. CORS yalnız tarayıcı kısıtıdır. Kadro/olay/istatistik ALINMAZ."),
             new("uefa-site", "UEFA", new[] { 2, 3, 848 }, OfficialSourceTier.Federation,
                 OfficialContentKinds.Html, new[] { "www.uefa.com" }, None,
                 OfficialSourceStatuses.NeedsManualReview,

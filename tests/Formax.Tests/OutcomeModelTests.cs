@@ -97,7 +97,8 @@ public class OutcomeModelTests
         var insufficient = OutcomeSnapshotBuilder.Insufficient(1, E(1, 1, 0.1, n: 2), "Ev", "Dep");
         Assert.Equal("InsufficientData", insufficient.Status);
         Assert.Empty(insufficient.MainCards);
-        Assert.Equal(OutcomeSnapshotBuilder.InsufficientNotice, insufficient.Notice);
+        Assert.Equal(OutcomeSnapshotBuilder.NotEligibleNotice, insufficient.Notice);
+        Assert.Equal(PredictionEligibilities.Disabled, insufficient.PredictionEligibility);
     }
 
     [Fact]

@@ -15,7 +15,13 @@ namespace Formax.Infrastructure.MatchAnalysis
     public sealed class MatchAnalysisReader : IMatchAnalysisReader
     {
         private readonly FormaxDbContext _db;
-        public MatchAnalysisReader(FormaxDbContext db) => _db = db;
+        private readonly Formax.Application.Interfaces.IMatchOutcomeSnapshotReader? _outcomes;
+
+        public MatchAnalysisReader(FormaxDbContext db, Formax.Application.Interfaces.IMatchOutcomeSnapshotReader? outcomes = null)
+        {
+            _db = db;
+            _outcomes = outcomes;
+        }
 
         public async Task<MatchAnalysisDto> GetAsync(int matchId, CancellationToken ct = default)
         {
@@ -32,7 +38,7 @@ namespace Formax.Infrastructure.MatchAnalysis
             catch (JsonException) { doc = null; }
             if (doc == null) return new MatchAnalysisDto { Status = "Unavailable", GeneratedAtUtc = row.GeneratedAtUtc };
 
-            return new MatchAnalysisDto
+            var dto = new MatchAnalysisDto
             {
                 Status = "Ready",
                 GeneratedAtUtc = row.GeneratedAtUtc,
@@ -45,6 +51,17 @@ namespace Formax.Infrastructure.MatchAnalysis
                     Market = r.Market, Support = r.Support?.Text, Risk = r.Risk?.Text
                 }).ToList()
             };
+            if (_outcomes == null) return dto;
+
+            // ÇELİŞKİ KAPISI — analiz, kartlarla AYNI güncel snapshot üzerinden süzülür (saf fonksiyon, dış istek yok).
+            var snapshot = await _outcomes.GetCurrentAsync(matchId, ct);
+            var names = await _db.Matches.AsNoTracking().Where(m => m.Id == matchId)
+                .Select(m => new { Home = m.HomeTeam!.Name, Away = m.AwayTeam!.Name }).FirstOrDefaultAsync(ct);
+            var checkedResult = Formax.Application.Services.Outcomes.AnalysisConsistencyValidator.Validate(dto, snapshot, names?.Home ?? string.Empty, names?.Away ?? string.Empty);
+            var result = checkedResult.Analysis;
+            result.SnapshotId = snapshot.SnapshotId;
+            result.RemovedSentences = checkedResult.Violations.Count;
+            return result;
         }
     }
 }

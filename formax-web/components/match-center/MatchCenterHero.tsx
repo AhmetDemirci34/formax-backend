@@ -3,21 +3,22 @@
 import { useEffect, useState } from "react";
 import type { MatchDetailDto, TeamSummaryDto } from "@/types/api";
 import { computeMatchClock, isFinishedStatus, kickoffMsOf } from "@/lib/matchClock";
-import { readAiConfidence } from "./aiContext";
 import { ConfidenceGauge } from "./ConfidenceGauge";
-import { useMatchDecision } from "@/hooks/useMatchDecision";
+import { useMatchOutcomes } from "@/hooks/useMatchOutcomes";
+import { outcomeExpectation } from "@/lib/outcomes/outcomeView";
 
 /**
  * Maç Detay Merkezi · Hero Card (referans yerleşim — Teknik Doküman §14).
- * Kompakt kart: üstte lig rozeti + kickoff saati/geri sayımı, ortada dairesel AI Güven
+ * Kompakt kart: üstte lig rozeti + kickoff saati/geri sayımı, ortada dairesel AI Beklentisi
  * göstergesi (tam merkez), iki yanda simetrik takım blokları. Arka planda mevcut
  * stadyum asset'i (`/images/hero/stadium-bg.webp`) düşük opaklıkta.
  * Yalnızca Hero; diğer componentler değişmedi. Veri: gerçek `/detail`.
  */
 export function MatchCenterHero({ match }: { match: MatchDetailDto }) {
-  // AI Güveni backend'den gelir (aynı Decision cache'i — ikinci istek atılmaz).
-  const { data: decision } = useMatchDecision(match.matchId);
-  const confidence = readAiConfidence(decision?.confidence);
+  // AI BEKLENTİSİ — Keşfet ve Olası Sonuçlar kartlarıyla AYNI snapshot (aynı cache anahtarı, ikinci istek yok).
+  // Tahmin Enabled değilse gösterge hiç çizilmez.
+  const { data: outcomes } = useMatchOutcomes(isFinishedStatus(match.status) ? 0 : match.matchId);
+  const expectation = outcomeExpectation(outcomes);
   const countdown = useKickoffCountdown(match);
   const leagueInitial = (match.league || "•").trim().charAt(0).toLocaleUpperCase("tr-TR");
 
@@ -76,8 +77,8 @@ export function MatchCenterHero({ match }: { match: MatchDetailDto }) {
         {/* orta: takım · gösterge · takım — logo optik merkezi ile gauge merkezi hizalı */}
         <div className="relative mt-1.5 flex items-start justify-between gap-2">
           <TeamBlock team={match.homeTeam} />
-          {/* Backend güven vermezse gösterge hiç çizilmez — uydurma skor yok. */}
-          {confidence && <ConfidenceGauge score={confidence.score} level={confidence.level} />}
+          {/* Güvenilir snapshot yoksa gösterge hiç çizilmez — uydurma skor yok. */}
+          {expectation && <ConfidenceGauge score={expectation.value} level={expectation.side} />}
           <TeamBlock team={match.awayTeam} />
         </div>
       </div>

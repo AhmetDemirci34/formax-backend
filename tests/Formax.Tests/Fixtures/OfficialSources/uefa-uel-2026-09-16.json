@@ -1,0 +1,2480 @@
+[
+ {
+  "awayTeam": {
+   "associationId": "200122",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/ESP.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/53043.png",
+   "confederationType": "UEFA",
+   "countryCode": "ESP",
+   "id": "53043",
+   "idProvider": "FAME",
+   "internationalName": "Celta",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/53043.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/53043.png",
+   "organizationId": "253043",
+   "teamCode": "CLT",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Spain",
+     "FR": "Espagne",
+     "DE": "Spanien",
+     "ES": "España",
+     "PT": "Espanha",
+     "IT": "Spagna",
+     "RU": "Испания",
+     "ZH": "西班牙",
+     "AR": "إسبانيا"
+    },
+    "displayName": {
+     "EN": "Celta",
+     "FR": "Celta",
+     "DE": "Celta",
+     "ES": "Celta",
+     "PT": "Celta",
+     "IT": "Celta",
+     "RU": "Сельта",
+     "ZH": "塞尔塔",
+     "AR": "Celta"
+    },
+    "displayOfficialName": {
+     "EN": "Real Club Celta",
+     "FR": "Real Club Celta",
+     "DE": "Real Club Celta",
+     "ES": "Real Club Celta",
+     "PT": "Real Club Celta",
+     "IT": "Real Club Celta",
+     "RU": "Сельта",
+     "ZH": "维哥塞尔塔",
+     "AR": "Real Club Celta"
+    },
+    "displayTeamCode": {
+     "EN": "CLT",
+     "FR": "CLT",
+     "DE": "CLT",
+     "ES": "CLT",
+     "PT": "CLT",
+     "IT": "CLT",
+     "RU": "CLT",
+     "ZH": "CLT",
+     "AR": "CLT"
+    },
+    "shortName": {
+     "EN": "Celta",
+     "FR": "Celta",
+     "DE": "Celta",
+     "ES": "Celta",
+     "PT": "Celta",
+     "IT": "Celta",
+     "RU": "Celta",
+     "ZH": "Celta",
+     "AR": "Celta"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "competition": {
+   "age": "ADULT",
+   "code": "UEL",
+   "id": "14",
+   "images": {
+    "FULL_LOGO": "https://img.uefa.com/imgml/uefacom/elements/logos/competitions/color/full/14.svg"
+   },
+   "metaData": {
+    "name": "UEFA Europa League"
+   },
+   "region": "CONTINENTAL",
+   "sex": "MALE",
+   "sportsType": "FOOTBALL",
+   "teamCategory": "CLUB",
+   "translations": {
+    "name": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "prequalifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "qualifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "tournamentName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    }
+   },
+   "type": "CUP"
+  },
+  "competitionPhase": "TOURNAMENT",
+  "condition": {
+   "humidity": 56,
+   "pitchCondition": "EXCELLENT",
+   "temperature": 28,
+   "translations": {
+    "pitchConditionName": {
+     "EN": "excellent",
+     "FR": "impeccable",
+     "DE": "exzellent",
+     "ES": "excelente",
+     "PT": "excelente",
+     "IT": "eccellente",
+     "RU": "превосходное",
+     "ZH": "非常好",
+     "AR": "ممتاز"
+    },
+    "weatherConditionName": {
+     "EN": "clear night",
+     "FR": "ciel dégagé",
+     "DE": "klarer Abend",
+     "ES": "noche despejada",
+     "PT": "noite limpa",
+     "IT": "serata limpida",
+     "RU": "Ясный вечер",
+     "ZH": "晴朗夜晚",
+     "AR": "ليلة صافية"
+    }
+   },
+   "weatherCondition": "CLEAR_NIGHT",
+   "windSpeed": 8
+  },
+  "fullTimeAt": "2026-09-16T18:37:18.720Z",
+  "group": {
+   "competitionId": "14",
+   "id": "2013815",
+   "metaData": {
+    "groupName": "League",
+    "groupShortName": "League"
+   },
+   "order": 1,
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "teamsQualifiedNumber": 24,
+   "translations": {
+    "name": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    },
+    "shortName": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    }
+   },
+   "type": "STANDARD"
+  },
+  "homeTeam": {
+   "associationId": "200033",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/CYP.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/50077.png",
+   "confederationType": "UEFA",
+   "countryCode": "CYP",
+   "id": "50077",
+   "idProvider": "FAME",
+   "internationalName": "Omonia",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/50077.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/50077.png",
+   "organizationId": "250077",
+   "teamCode": "OMO",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Cyprus",
+     "FR": "Chypre",
+     "DE": "Zypern",
+     "ES": "Chipre",
+     "PT": "Chipre",
+     "IT": "Cipro",
+     "RU": "Кипр",
+     "ZH": "塞浦路斯",
+     "AR": "قبرص"
+    },
+    "displayName": {
+     "EN": "Omonia",
+     "FR": "Omonia",
+     "DE": "Omonia",
+     "ES": "Omonia",
+     "PT": "Omonia",
+     "IT": "Omonia",
+     "RU": "Омония",
+     "ZH": "奥莫尼亚",
+     "AR": "أومونيا"
+    },
+    "displayOfficialName": {
+     "EN": "Omonia FC",
+     "FR": "Omonia FC",
+     "DE": "Omonia FC",
+     "ES": "Omonia FC",
+     "PT": "Omonia FC",
+     "IT": "Omonia FC",
+     "RU": "Омония",
+     "ZH": "奥莫尼亚",
+     "AR": "أومونيا"
+    },
+    "displayTeamCode": {
+     "EN": "OMO",
+     "FR": "OMO",
+     "DE": "OMO",
+     "ES": "OMO",
+     "PT": "OMO",
+     "IT": "OMO",
+     "RU": "OMO",
+     "ZH": "OMO",
+     "AR": "OMO"
+    },
+    "shortName": {
+     "EN": "Omonia",
+     "FR": "Omonia",
+     "DE": "Omonia",
+     "ES": "Omonia",
+     "PT": "Omonia",
+     "IT": "Omonia",
+     "RU": "Омония",
+     "ZH": "奥莫尼亚",
+     "AR": "أومونيا"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "id": "2050063",
+  "kickOffTime": {
+   "date": "2026-09-16",
+   "dateTime": "2026-09-16T16:45:00Z",
+   "utcOffsetInHours": 3
+  },
+  "lineupStatus": "TACTICAL_AVAILABLE",
+  "matchAttendance": 11271,
+  "matchday": {
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2026-09-17T21:59:59+0000",
+   "format": "REGULAR",
+   "id": "36573",
+   "longName": "Matchday 1",
+   "name": "MD1",
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "sequenceNumber": "1",
+   "translations": {
+    "longName": {
+     "EN": "Matchday 1",
+     "FR": "Journée 1",
+     "DE": "Spieltag 1",
+     "ES": "Jornada 1",
+     "PT": "Jornada 1",
+     "IT": "Giornata 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "الجولة 1"
+    },
+    "name": {
+     "EN": "MD 1",
+     "FR": "J 1",
+     "DE": "ST 1",
+     "ES": "JOR 1",
+     "PT": "J 1",
+     "IT": "G 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "MD 1"
+    }
+   },
+   "type": "MATCHDAY"
+  },
+  "round": {
+   "active": true,
+   "benchGKCount": 12,
+   "benchPlayersCount": 12,
+   "benchStaffCount": 15,
+   "coefficientWinnerBonus": 4,
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2027-01-28T22:59:59+0000",
+   "fieldPlayersCount": 11,
+   "groupCount": 1,
+   "id": "2002229",
+   "metaData": {
+    "name": "League Phase",
+    "type": "GROUP_STANDINGS"
+   },
+   "mode": "GROUP",
+   "modeDetail": "GROUP",
+   "orderInCompetition": 5,
+   "phase": "TOURNAMENT",
+   "seasonYear": "2027",
+   "secondaryType": "GROUP_PHASE",
+   "stadiumNameType": "OFFICIAL_NAME",
+   "standingsRankingFormulaId": "596",
+   "status": "CURRENT",
+   "substitutionCount": 5,
+   "teamCount": 36,
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "translations": {
+    "abbreviation": {
+     "EN": "LP",
+     "FR": "Ph. lig.",
+     "DE": "GP",
+     "ES": "FL",
+     "PT": "FL",
+     "IT": "FC",
+     "RU": "ОЭ",
+     "ZH": "LP",
+     "AR": "LP"
+    },
+    "name": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    },
+    "shortName": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    }
+   }
+  },
+  "score": {
+   "regular": {
+    "away": 0,
+    "home": 1
+   },
+   "total": {
+    "away": 0,
+    "home": 1
+   }
+  },
+  "seasonYear": "2027",
+  "sessionNumber": 1,
+  "stadium": {
+   "address": "Pancyprion Avenue, Strovolos",
+   "capacity": 22709,
+   "city": {
+    "countryCode": "CYP",
+    "id": "2345",
+    "translations": {
+     "name": {
+      "EN": "Nicosia",
+      "FR": "Nicosie",
+      "DE": "Nikosia",
+      "ES": "Nicosia",
+      "PT": "Nicósia",
+      "IT": "Nicosia",
+      "RU": "Никосия",
+      "ZH": "尼科西亚",
+      "AR": "نيقوسيا"
+     }
+    }
+   },
+   "countryCode": "CYP",
+   "geolocation": {
+    "latitude": 35.1145611,
+    "longitude": 33.3628472
+   },
+   "id": "62726",
+   "images": {
+    "MEDIUM_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/w1/62726.jpg",
+    "LARGE_ULTRA_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/uw/62726.jpg"
+   },
+   "openingDate": "1999-01-01",
+   "pitch": {
+    "length": 105,
+    "width": 68
+   },
+   "translations": {
+    "mediaName": {
+     "EN": "GSP",
+     "FR": "GSP",
+     "DE": "GSP",
+     "ES": "GSP",
+     "PT": "GSP",
+     "IT": "GSP",
+     "RU": "ГСП",
+     "ZH": "GSP",
+     "AR": "جي إس بي"
+    },
+    "name": {
+     "EN": "GSP",
+     "FR": "GSP",
+     "DE": "GSP",
+     "ES": "GSP",
+     "PT": "GSP",
+     "IT": "GSP",
+     "RU": "ГСП",
+     "ZH": "GSP",
+     "AR": "جي إس بي"
+    },
+    "officialName": {
+     "EN": "GSP",
+     "FR": "GSP",
+     "DE": "GSP",
+     "ES": "GSP",
+     "PT": "GSP",
+     "IT": "GSP",
+     "RU": "ГСП",
+     "ZH": "GSP",
+     "AR": "جي إس بي"
+    },
+    "specialEventsName": {
+     "EN": "GSP",
+     "FR": "GSP",
+     "DE": "GSP",
+     "ES": "GSP",
+     "PT": "GSP",
+     "IT": "GSP",
+     "RU": "ГСП",
+     "ZH": "GSP",
+     "AR": "جي إس بي"
+    },
+    "sponsorName": {
+     "EN": " GSP",
+     "FR": " GSP",
+     "DE": " GSP",
+     "ES": " GSP",
+     "PT": " GSP",
+     "IT": " GSP",
+     "RU": "N/A",
+     "ZH": "N/A",
+     "AR": " جي إس بي"
+    }
+   }
+  },
+  "status": "FINISHED",
+  "type": "GROUP_STAGE",
+  "winner": {
+   "match": {
+    "reason": "WIN_REGULAR",
+    "team": {
+     "associationId": "200033",
+     "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/CYP.svg",
+     "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/50077.png",
+     "confederationType": "UEFA",
+     "countryCode": "CYP",
+     "id": "50077",
+     "idProvider": "FAME",
+     "internationalName": "Omonia",
+     "isPlaceHolder": false,
+     "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/50077.png",
+     "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/50077.png",
+     "organizationId": "250077",
+     "teamCode": "OMO",
+     "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+     "translations": {
+      "countryName": {
+       "EN": "Cyprus",
+       "FR": "Chypre",
+       "DE": "Zypern",
+       "ES": "Chipre",
+       "PT": "Chipre",
+       "IT": "Cipro",
+       "RU": "Кипр",
+       "ZH": "塞浦路斯",
+       "AR": "قبرص"
+      },
+      "displayName": {
+       "EN": "Omonia",
+       "FR": "Omonia",
+       "DE": "Omonia",
+       "ES": "Omonia",
+       "PT": "Omonia",
+       "IT": "Omonia",
+       "RU": "Омония",
+       "ZH": "奥莫尼亚",
+       "AR": "أومونيا"
+      },
+      "displayOfficialName": {
+       "EN": "Omonia FC",
+       "FR": "Omonia FC",
+       "DE": "Omonia FC",
+       "ES": "Omonia FC",
+       "PT": "Omonia FC",
+       "IT": "Omonia FC",
+       "RU": "Омония",
+       "ZH": "奥莫尼亚",
+       "AR": "أومونيا"
+      },
+      "displayTeamCode": {
+       "EN": "OMO",
+       "FR": "OMO",
+       "DE": "OMO",
+       "ES": "OMO",
+       "PT": "OMO",
+       "IT": "OMO",
+       "RU": "OMO",
+       "ZH": "OMO",
+       "AR": "OMO"
+      },
+      "shortName": {
+       "EN": "Omonia",
+       "FR": "Omonia",
+       "DE": "Omonia",
+       "ES": "Omonia",
+       "PT": "Omonia",
+       "IT": "Omonia",
+       "RU": "Омония",
+       "ZH": "奥莫尼亚",
+       "AR": "أومونيا"
+      }
+     },
+     "typeIsNational": false,
+     "typeTeam": "DOMESTIC"
+    }
+   }
+  }
+ },
+ {
+  "awayTeam": {
+   "associationId": "200109",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/POL.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/2600277.png",
+   "confederationType": "UEFA",
+   "countryCode": "POL",
+   "id": "2600277",
+   "idProvider": "FAME",
+   "internationalName": "Jagiellonia",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/2600277.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/2600277.png",
+   "organizationId": "1500079",
+   "teamCode": "JAG",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Poland",
+     "FR": "Pologne",
+     "DE": "Polen",
+     "ES": "Polonia",
+     "PT": "Polónia",
+     "IT": "Polonia",
+     "RU": "Польша",
+     "ZH": "波兰",
+     "AR": "بولندا"
+    },
+    "displayName": {
+     "EN": "Jagiellonia",
+     "FR": "Jagiellonia",
+     "DE": "Jagiellonia",
+     "ES": "Jagiellonia",
+     "PT": "Jagiellonia",
+     "IT": "Jagiellonia",
+     "RU": "Ягеллония",
+     "ZH": "乔治罗尼亚比亚韦斯托克",
+     "AR": " ياجيلونيا"
+    },
+    "displayOfficialName": {
+     "EN": "Jagiellonia Białystok",
+     "FR": "Jagiellonia Białystok",
+     "DE": "Jagiellonia Białystok",
+     "ES": "Jagiellonia Białystok",
+     "PT": "Jagiellonia Białystok",
+     "IT": "Jagiellonia Białystok",
+     "RU": "Ягеллония",
+     "ZH": "乔治罗尼亚比亚韦斯托克",
+     "AR": " ياجيلونيا بياويستوك "
+    },
+    "displayTeamCode": {
+     "EN": "JAG",
+     "FR": "JAG",
+     "DE": "JAG",
+     "ES": "JAG",
+     "PT": "JAG",
+     "IT": "JAG",
+     "RU": "JAG",
+     "ZH": "JAG",
+     "AR": "JAG"
+    },
+    "shortName": {
+     "EN": "Jagiellonia",
+     "FR": "Jagiellonia",
+     "DE": "Jagiellonia",
+     "ES": "Jagiellonia",
+     "PT": "Jagiellonia",
+     "IT": "Jagiellonia",
+     "RU": "Ягеллония",
+     "ZH": "乔治罗尼亚比亚韦斯托克",
+     "AR": " ياجيلونيا"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "competition": {
+   "age": "ADULT",
+   "code": "UEL",
+   "id": "14",
+   "images": {
+    "FULL_LOGO": "https://img.uefa.com/imgml/uefacom/elements/logos/competitions/color/full/14.svg"
+   },
+   "metaData": {
+    "name": "UEFA Europa League"
+   },
+   "region": "CONTINENTAL",
+   "sex": "MALE",
+   "sportsType": "FOOTBALL",
+   "teamCategory": "CLUB",
+   "translations": {
+    "name": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "prequalifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "qualifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "tournamentName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    }
+   },
+   "type": "CUP"
+  },
+  "competitionPhase": "TOURNAMENT",
+  "condition": {
+   "humidity": 45,
+   "pitchCondition": "EXCELLENT",
+   "temperature": 23,
+   "translations": {
+    "pitchConditionName": {
+     "EN": "excellent",
+     "FR": "impeccable",
+     "DE": "exzellent",
+     "ES": "excelente",
+     "PT": "excelente",
+     "IT": "eccellente",
+     "RU": "превосходное",
+     "ZH": "非常好",
+     "AR": "ممتاز"
+    },
+    "weatherConditionName": {
+     "EN": "clear night",
+     "FR": "ciel dégagé",
+     "DE": "klarer Abend",
+     "ES": "noche despejada",
+     "PT": "noite limpa",
+     "IT": "serata limpida",
+     "RU": "Ясный вечер",
+     "ZH": "晴朗夜晚",
+     "AR": "ليلة صافية"
+    }
+   },
+   "weatherCondition": "CLEAR_NIGHT",
+   "windSpeed": 14
+  },
+  "fullTimeAt": "2026-09-16T20:50:48.595Z",
+  "group": {
+   "competitionId": "14",
+   "id": "2013815",
+   "metaData": {
+    "groupName": "League",
+    "groupShortName": "League"
+   },
+   "order": 1,
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "teamsQualifiedNumber": 24,
+   "translations": {
+    "name": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    },
+    "shortName": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    }
+   },
+   "type": "STANDARD"
+  },
+  "homeTeam": {
+   "associationId": "200049",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/GRE.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/2610.png",
+   "confederationType": "UEFA",
+   "countryCode": "GRE",
+   "id": "2610",
+   "idProvider": "FAME",
+   "internationalName": "Olympiacos",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/2610.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/2610.png",
+   "organizationId": "202610",
+   "teamCode": "OLY",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Greece",
+     "FR": "Grèce",
+     "DE": "Griechenland",
+     "ES": "Grecia",
+     "PT": "Grécia",
+     "IT": "Grecia",
+     "RU": "Греция",
+     "ZH": "希腊",
+     "AR": "اليونان"
+    },
+    "displayName": {
+     "EN": "Olympiacos",
+     "FR": "Olympiacos",
+     "DE": "Olympiacos",
+     "ES": "Olympiacos",
+     "PT": "Olympiacos",
+     "IT": "Olympiacos",
+     "RU": "Олимпиакос",
+     "ZH": "奥林匹亚科斯",
+     "AR": "أولمبياكوس"
+    },
+    "displayOfficialName": {
+     "EN": "Olympiacos FC",
+     "FR": "Olympiacos FC",
+     "DE": "Olympiacos FC",
+     "ES": "Olympiacos FC",
+     "PT": "Olympiacos FC",
+     "IT": "Olympiacos FC",
+     "RU": "Олимпиакос",
+     "ZH": "奥林匹亚科斯",
+     "AR": "أولمبياكوس"
+    },
+    "displayTeamCode": {
+     "EN": "OLY",
+     "FR": "OLY",
+     "DE": "OLY",
+     "ES": "OLY",
+     "PT": "OLY",
+     "IT": "OLY",
+     "RU": "OLY",
+     "ZH": "OLY",
+     "AR": "OLY"
+    },
+    "shortName": {
+     "EN": "Olympiacos",
+     "FR": "Olympiacos",
+     "DE": "Olympiacos",
+     "ES": "Olympiacos",
+     "PT": "Olympiacos",
+     "IT": "Olympiacos",
+     "RU": "Олимпиакос",
+     "ZH": "Olympiacos",
+     "AR": "أولمبياكوس"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "id": "2050059",
+  "kickOffTime": {
+   "date": "2026-09-16",
+   "dateTime": "2026-09-16T19:00:00Z",
+   "utcOffsetInHours": 3
+  },
+  "lineupStatus": "TACTICAL_AVAILABLE",
+  "matchAttendance": 30540,
+  "matchday": {
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2026-09-17T21:59:59+0000",
+   "format": "REGULAR",
+   "id": "36573",
+   "longName": "Matchday 1",
+   "name": "MD1",
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "sequenceNumber": "1",
+   "translations": {
+    "longName": {
+     "EN": "Matchday 1",
+     "FR": "Journée 1",
+     "DE": "Spieltag 1",
+     "ES": "Jornada 1",
+     "PT": "Jornada 1",
+     "IT": "Giornata 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "الجولة 1"
+    },
+    "name": {
+     "EN": "MD 1",
+     "FR": "J 1",
+     "DE": "ST 1",
+     "ES": "JOR 1",
+     "PT": "J 1",
+     "IT": "G 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "MD 1"
+    }
+   },
+   "type": "MATCHDAY"
+  },
+  "round": {
+   "active": true,
+   "benchGKCount": 12,
+   "benchPlayersCount": 12,
+   "benchStaffCount": 15,
+   "coefficientWinnerBonus": 4,
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2027-01-28T22:59:59+0000",
+   "fieldPlayersCount": 11,
+   "groupCount": 1,
+   "id": "2002229",
+   "metaData": {
+    "name": "League Phase",
+    "type": "GROUP_STANDINGS"
+   },
+   "mode": "GROUP",
+   "modeDetail": "GROUP",
+   "orderInCompetition": 5,
+   "phase": "TOURNAMENT",
+   "seasonYear": "2027",
+   "secondaryType": "GROUP_PHASE",
+   "stadiumNameType": "OFFICIAL_NAME",
+   "standingsRankingFormulaId": "596",
+   "status": "CURRENT",
+   "substitutionCount": 5,
+   "teamCount": 36,
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "translations": {
+    "abbreviation": {
+     "EN": "LP",
+     "FR": "Ph. lig.",
+     "DE": "GP",
+     "ES": "FL",
+     "PT": "FL",
+     "IT": "FC",
+     "RU": "ОЭ",
+     "ZH": "LP",
+     "AR": "LP"
+    },
+    "name": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    },
+    "shortName": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    }
+   }
+  },
+  "score": {
+   "regular": {
+    "away": 1,
+    "home": 2
+   },
+   "total": {
+    "away": 1,
+    "home": 2
+   }
+  },
+  "seasonYear": "2027",
+  "sessionNumber": 2,
+  "stadium": {
+   "address": "Karaoli Dimitriou and Sofianopoulou",
+   "capacity": 32115,
+   "city": {
+    "countryCode": "GRE",
+    "id": "900639",
+    "translations": {
+     "name": {
+      "EN": "Piraeus",
+      "FR": "Le Pirée",
+      "DE": "Piräus",
+      "ES": "Atenas",
+      "PT": "Pireu",
+      "IT": "Il Pireo",
+      "RU": "Пирей",
+      "ZH": "比雷埃夫斯",
+      "AR": "Piraeus"
+     }
+    }
+   },
+   "countryCode": "GRE",
+   "geolocation": {
+    "latitude": 37.94645,
+    "longitude": 23.6643167
+   },
+   "id": "81537",
+   "images": {
+    "MEDIUM_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/w1/81537.jpg",
+    "LARGE_ULTRA_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/uw/81537.jpg"
+   },
+   "openingDate": "1920-01-01",
+   "pitch": {
+    "length": 105,
+    "width": 68
+   },
+   "translations": {
+    "mediaName": {
+     "EN": "Stadio Georgios Karaiskakis",
+     "FR": "Stadio Georgios Karaiskakis",
+     "DE": "Stadio Georgios Karaiskakis",
+     "ES": "Stadio Georgios Karaiskakis",
+     "PT": "Stadio Georgios Karaiskakis",
+     "IT": "Stadio Georgios Karaiskakis",
+     "RU": "Георгиос Караискакис",
+     "ZH": "Stadio Georgios Karaiskakis",
+     "AR": "استاد جورجيوس كارايسكاكيس"
+    },
+    "name": {
+     "EN": "Stadio Georgios Karaiskakis",
+     "FR": "Stadio Georgios Karaiskakis",
+     "DE": "Stadio Georgios Karaiskakis",
+     "ES": "Stadio Georgios Karaiskakis",
+     "PT": "Stadio Georgios Karaiskakis",
+     "IT": "Stadio Georgios Karaiskakis",
+     "RU": "Георгиос Караискакис",
+     "ZH": "Stadio Georgios Karaiskakis",
+     "AR": "استاد جورجيوس كارايسكاكيس"
+    },
+    "officialName": {
+     "EN": "Stadio Georgios Karaiskakis",
+     "FR": "Stadio Georgios Karaiskakis",
+     "DE": "Stadio Georgios Karaiskakis",
+     "ES": "Stadio Georgios Karaiskakis",
+     "PT": "Stadio Georgios Karaiskakis",
+     "IT": "Stadio Georgios Karaiskakis",
+     "RU": "Георгиос Караискакис",
+     "ZH": "Stadio Georgios Karaiskakis",
+     "AR": "استاد جورجيوس كارايسكاكيس"
+    },
+    "specialEventsName": {
+     "EN": "Georgios Karaiskakis Stadium\t ",
+     "FR": "Georgios Karaiskakis Stadium\t ",
+     "DE": "Georgios Karaiskakis Stadium\t ",
+     "ES": "Georgios Karaiskakis Stadium\t ",
+     "PT": "Georgios Karaiskakis Stadium\t ",
+     "IT": "Georgios Karaiskakis Stadium\t ",
+     "RU": "Георгиос Караискакис",
+     "ZH": "Stadio Georgios Karaiskakis",
+     "AR": "استاد جورجيوس كارايسكاكيس"
+    },
+    "sponsorName": {
+     "EN": "Stadio Georgios Karaiskakis",
+     "FR": "Stadio Georgios Karaiskakis",
+     "DE": "Stadio Georgios Karaiskakis",
+     "ES": "Stadio Georgios Karaiskakis",
+     "PT": "Stadio Georgios Karaiskakis",
+     "IT": "Stadio Georgios Karaiskakis",
+     "RU": "Георгиос Караискакис",
+     "ZH": "Stadio Georgios Karaiskakis",
+     "AR": "استاد جورجيوس كارايسكاكيس"
+    }
+   }
+  },
+  "status": "FINISHED",
+  "type": "GROUP_STAGE",
+  "winner": {
+   "match": {
+    "reason": "WIN_REGULAR",
+    "team": {
+     "associationId": "200049",
+     "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/GRE.svg",
+     "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/2610.png",
+     "confederationType": "UEFA",
+     "countryCode": "GRE",
+     "id": "2610",
+     "idProvider": "FAME",
+     "internationalName": "Olympiacos",
+     "isPlaceHolder": false,
+     "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/2610.png",
+     "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/2610.png",
+     "organizationId": "202610",
+     "teamCode": "OLY",
+     "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+     "translations": {
+      "countryName": {
+       "EN": "Greece",
+       "FR": "Grèce",
+       "DE": "Griechenland",
+       "ES": "Grecia",
+       "PT": "Grécia",
+       "IT": "Grecia",
+       "RU": "Греция",
+       "ZH": "希腊",
+       "AR": "اليونان"
+      },
+      "displayName": {
+       "EN": "Olympiacos",
+       "FR": "Olympiacos",
+       "DE": "Olympiacos",
+       "ES": "Olympiacos",
+       "PT": "Olympiacos",
+       "IT": "Olympiacos",
+       "RU": "Олимпиакос",
+       "ZH": "奥林匹亚科斯",
+       "AR": "أولمبياكوس"
+      },
+      "displayOfficialName": {
+       "EN": "Olympiacos FC",
+       "FR": "Olympiacos FC",
+       "DE": "Olympiacos FC",
+       "ES": "Olympiacos FC",
+       "PT": "Olympiacos FC",
+       "IT": "Olympiacos FC",
+       "RU": "Олимпиакос",
+       "ZH": "奥林匹亚科斯",
+       "AR": "أولمبياكوس"
+      },
+      "displayTeamCode": {
+       "EN": "OLY",
+       "FR": "OLY",
+       "DE": "OLY",
+       "ES": "OLY",
+       "PT": "OLY",
+       "IT": "OLY",
+       "RU": "OLY",
+       "ZH": "OLY",
+       "AR": "OLY"
+      },
+      "shortName": {
+       "EN": "Olympiacos",
+       "FR": "Olympiacos",
+       "DE": "Olympiacos",
+       "ES": "Olympiacos",
+       "PT": "Olympiacos",
+       "IT": "Olympiacos",
+       "RU": "Олимпиакос",
+       "ZH": "Olympiacos",
+       "AR": "أولمبياكوس"
+      }
+     },
+     "typeIsNational": false,
+     "typeTeam": "DOMESTIC"
+    }
+   }
+  }
+ },
+ {
+  "awayTeam": {
+   "associationId": "200043",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/FRA.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/55031.png",
+   "confederationType": "UEFA",
+   "countryCode": "FRA",
+   "id": "55031",
+   "idProvider": "FAME",
+   "internationalName": "Rennes",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/55031.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/55031.png",
+   "organizationId": "255031",
+   "teamCode": "REN",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "France",
+     "FR": "France",
+     "DE": "Frankreich",
+     "ES": "Francia",
+     "PT": "França",
+     "IT": "Francia",
+     "RU": "Франция",
+     "ZH": "法国",
+     "AR": "فرنسا"
+    },
+    "displayName": {
+     "EN": "Rennes",
+     "FR": "Rennes",
+     "DE": "Rennes",
+     "ES": "Rennes",
+     "PT": "Rennes",
+     "IT": "Rennes",
+     "RU": "Ренн",
+     "ZH": "雷恩",
+     "AR": "رين"
+    },
+    "displayOfficialName": {
+     "EN": "Stade Rennais FC",
+     "FR": "Stade Rennais FC",
+     "DE": "Stade Rennais FC",
+     "ES": "Stade Rennais FC",
+     "PT": "Stade Rennais FC",
+     "IT": "Stade Rennais FC",
+     "RU": "Ренн",
+     "ZH": "雷恩",
+     "AR": "ستاد رين"
+    },
+    "displayTeamCode": {
+     "EN": "REN",
+     "FR": "REN",
+     "DE": "REN",
+     "ES": "REN",
+     "PT": "REN",
+     "IT": "REN",
+     "RU": "REN",
+     "ZH": "REN",
+     "AR": "REN"
+    },
+    "shortName": {
+     "EN": "Rennes",
+     "FR": "Rennes",
+     "DE": "Rennes",
+     "ES": "Rennes",
+     "PT": "Rennes",
+     "IT": "Rennes",
+     "RU": "Ренн",
+     "ZH": "Rennes",
+     "AR": "رين"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "competition": {
+   "age": "ADULT",
+   "code": "UEL",
+   "id": "14",
+   "images": {
+    "FULL_LOGO": "https://img.uefa.com/imgml/uefacom/elements/logos/competitions/color/full/14.svg"
+   },
+   "metaData": {
+    "name": "UEFA Europa League"
+   },
+   "region": "CONTINENTAL",
+   "sex": "MALE",
+   "sportsType": "FOOTBALL",
+   "teamCategory": "CLUB",
+   "translations": {
+    "name": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "prequalifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "qualifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "tournamentName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    }
+   },
+   "type": "CUP"
+  },
+  "competitionPhase": "TOURNAMENT",
+  "condition": {
+   "humidity": 64,
+   "pitchCondition": "EXCELLENT",
+   "temperature": 21,
+   "translations": {
+    "pitchConditionName": {
+     "EN": "excellent",
+     "FR": "impeccable",
+     "DE": "exzellent",
+     "ES": "excelente",
+     "PT": "excelente",
+     "IT": "eccellente",
+     "RU": "превосходное",
+     "ZH": "非常好",
+     "AR": "ممتاز"
+    },
+    "weatherConditionName": {
+     "EN": "clear night",
+     "FR": "ciel dégagé",
+     "DE": "klarer Abend",
+     "ES": "noche despejada",
+     "PT": "noite limpa",
+     "IT": "serata limpida",
+     "RU": "Ясный вечер",
+     "ZH": "晴朗夜晚",
+     "AR": "ليلة صافية"
+    }
+   },
+   "weatherCondition": "CLEAR_NIGHT",
+   "windSpeed": 3
+  },
+  "fullTimeAt": "2026-09-16T20:58:30.231Z",
+  "group": {
+   "competitionId": "14",
+   "id": "2013815",
+   "metaData": {
+    "groupName": "League",
+    "groupShortName": "League"
+   },
+   "order": 1,
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "teamsQualifiedNumber": 24,
+   "translations": {
+    "name": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    },
+    "shortName": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    }
+   },
+   "type": "STANDARD"
+  },
+  "homeTeam": {
+   "associationId": "200008",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/AUT.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/50111.png",
+   "confederationType": "UEFA",
+   "countryCode": "AUT",
+   "id": "50111",
+   "idProvider": "FAME",
+   "internationalName": "Sturm Graz",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/50111.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/50111.png",
+   "organizationId": "250111",
+   "teamCode": "SGR",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Austria",
+     "FR": "Autriche",
+     "DE": "Österreich",
+     "ES": "Austria",
+     "PT": "Áustria",
+     "IT": "Austria",
+     "RU": "Австрия",
+     "ZH": "奥地利",
+     "AR": "النمسا"
+    },
+    "displayName": {
+     "EN": "Sturm Graz",
+     "FR": "Sturm Graz",
+     "DE": "Sturm Graz",
+     "ES": "Sturm Graz",
+     "PT": "Sturm Graz",
+     "IT": "Sturm Graz",
+     "RU": "Штурм",
+     "ZH": "格拉兹风暴",
+     "AR": "شتورم جراتز"
+    },
+    "displayOfficialName": {
+     "EN": "SK Sturm Graz",
+     "FR": "SK Sturm Graz",
+     "DE": "SK Sturm Graz",
+     "ES": "SK Sturm Graz",
+     "PT": "SK Sturm Graz",
+     "IT": "SK Sturm Graz",
+     "RU": "Штурм",
+     "ZH": "格拉兹风暴",
+     "AR": "شتورم جراتز"
+    },
+    "displayTeamCode": {
+     "EN": "SGR",
+     "FR": "SGR",
+     "DE": "SGR",
+     "ES": "SGR",
+     "PT": "SGR",
+     "IT": "SGR",
+     "RU": "STM",
+     "ZH": "STM",
+     "AR": "SGR"
+    },
+    "shortName": {
+     "EN": "Sturm",
+     "FR": "Sturm",
+     "DE": "Sturm",
+     "ES": "Sturm",
+     "PT": "Sturm",
+     "IT": "Sturm",
+     "RU": "Штурм",
+     "ZH": "风暴",
+     "AR": "شتورم"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "id": "2050061",
+  "kickOffTime": {
+   "date": "2026-09-16",
+   "dateTime": "2026-09-16T19:00:00Z",
+   "utcOffsetInHours": 2
+  },
+  "lineupStatus": "TACTICAL_AVAILABLE",
+  "matchAttendance": 13109,
+  "matchday": {
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2026-09-17T21:59:59+0000",
+   "format": "REGULAR",
+   "id": "36573",
+   "longName": "Matchday 1",
+   "name": "MD1",
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "sequenceNumber": "1",
+   "translations": {
+    "longName": {
+     "EN": "Matchday 1",
+     "FR": "Journée 1",
+     "DE": "Spieltag 1",
+     "ES": "Jornada 1",
+     "PT": "Jornada 1",
+     "IT": "Giornata 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "الجولة 1"
+    },
+    "name": {
+     "EN": "MD 1",
+     "FR": "J 1",
+     "DE": "ST 1",
+     "ES": "JOR 1",
+     "PT": "J 1",
+     "IT": "G 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "MD 1"
+    }
+   },
+   "type": "MATCHDAY"
+  },
+  "round": {
+   "active": true,
+   "benchGKCount": 12,
+   "benchPlayersCount": 12,
+   "benchStaffCount": 15,
+   "coefficientWinnerBonus": 4,
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2027-01-28T22:59:59+0000",
+   "fieldPlayersCount": 11,
+   "groupCount": 1,
+   "id": "2002229",
+   "metaData": {
+    "name": "League Phase",
+    "type": "GROUP_STANDINGS"
+   },
+   "mode": "GROUP",
+   "modeDetail": "GROUP",
+   "orderInCompetition": 5,
+   "phase": "TOURNAMENT",
+   "seasonYear": "2027",
+   "secondaryType": "GROUP_PHASE",
+   "stadiumNameType": "OFFICIAL_NAME",
+   "standingsRankingFormulaId": "596",
+   "status": "CURRENT",
+   "substitutionCount": 5,
+   "teamCount": 36,
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "translations": {
+    "abbreviation": {
+     "EN": "LP",
+     "FR": "Ph. lig.",
+     "DE": "GP",
+     "ES": "FL",
+     "PT": "FL",
+     "IT": "FC",
+     "RU": "ОЭ",
+     "ZH": "LP",
+     "AR": "LP"
+    },
+    "name": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    },
+    "shortName": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    }
+   }
+  },
+  "score": {
+   "regular": {
+    "away": 0,
+    "home": 0
+   },
+   "total": {
+    "away": 0,
+    "home": 0
+   }
+  },
+  "seasonYear": "2027",
+  "sessionNumber": 2,
+  "stadium": {
+   "address": "Ivica Osim Platz 1",
+   "capacity": 15323,
+   "city": {
+    "countryCode": "AUT",
+    "id": "1724",
+    "translations": {
+     "name": {
+      "EN": "Graz",
+      "FR": "Graz",
+      "DE": "Graz",
+      "ES": "Graz",
+      "PT": "Graz",
+      "IT": "Graz",
+      "RU": "Грац",
+      "ZH": "格拉兹",
+      "AR": "جراتس"
+     }
+    }
+   },
+   "countryCode": "AUT",
+   "geolocation": {
+    "latitude": 47.0461472,
+    "longitude": 15.4544028
+   },
+   "id": "62721",
+   "images": {
+    "MEDIUM_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/w1/62721.jpg",
+    "LARGE_ULTRA_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/uw/62721.jpg"
+   },
+   "openingDate": "1997-01-01",
+   "pitch": {
+    "length": 105,
+    "width": 68
+   },
+   "translations": {
+    "mediaName": {
+     "EN": "Stadium Graz Liebenau",
+     "FR": "Stadium Graz Liebenau",
+     "DE": "Stadium Graz Liebenau",
+     "ES": "Stadium Graz Liebenau",
+     "PT": "Stadium Graz Liebenau",
+     "IT": "Stadium Graz Liebenau",
+     "RU": "Грац-Либенау",
+     "ZH": "Stadion Graz Liebenau",
+     "AR": "ستاديون جراتس ليبيناو"
+    },
+    "name": {
+     "EN": "Stadium Graz Liebenau",
+     "FR": "Stadium Graz Liebenau",
+     "DE": "Stadium Graz Liebenau",
+     "ES": "Stadium Graz Liebenau",
+     "PT": "Stadium Graz Liebenau",
+     "IT": "Stadium Graz Liebenau",
+     "RU": "Грац-Либенау",
+     "ZH": "Stadion Graz Liebenau",
+     "AR": "ستاديون جراتس ليبيناو"
+    },
+    "officialName": {
+     "EN": "Stadium Graz Liebenau",
+     "FR": "Stadium Graz Liebenau",
+     "DE": "Stadium Graz Liebenau",
+     "ES": "Stadium Graz Liebenau",
+     "PT": "Stadium Graz Liebenau",
+     "IT": "Stadium Graz Liebenau",
+     "RU": "Грац-Либенау",
+     "ZH": "Stadion Graz Liebenau",
+     "AR": "ستاديون جراتس ليبيناو"
+    },
+    "specialEventsName": {
+     "EN": "Stadium Graz Liebenau",
+     "FR": "Stadium Graz Liebenau",
+     "DE": "Stadium Graz Liebenau",
+     "ES": "Stadium Graz Liebenau",
+     "PT": "Stadium Graz Liebenau",
+     "IT": "Stadium Graz Liebenau",
+     "RU": "Грац-Либенау",
+     "ZH": "Stadion Graz Liebenau",
+     "AR": "ستاديون جراتس ليبيناو"
+    },
+    "sponsorName": {
+     "EN": "Stadium Graz Liebenau",
+     "FR": "Stadium Graz Liebenau",
+     "DE": "Stadium Graz Liebenau",
+     "ES": "Stadium Graz Liebenau",
+     "PT": "Stadium Graz Liebenau",
+     "IT": "Stadium Graz Liebenau",
+     "RU": "Грац-Либенау",
+     "ZH": "Merkur Arena",
+     "AR": "ستاديون جراتس ليبيناو"
+    }
+   }
+  },
+  "status": "FINISHED",
+  "type": "GROUP_STAGE",
+  "winner": {
+   "match": {
+    "reason": "DRAW"
+   }
+  }
+ },
+ {
+  "awayTeam": {
+   "associationId": "256370",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/CRO.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/50164.png",
+   "confederationType": "UEFA",
+   "countryCode": "CRO",
+   "id": "50164",
+   "idProvider": "FAME",
+   "internationalName": "GNK Dinamo",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/50164.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/50164.png",
+   "organizationId": "250164",
+   "teamCode": "DIN",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Croatia",
+     "FR": "Croatie",
+     "DE": "Kroatien",
+     "ES": "Croacia",
+     "PT": "Croácia",
+     "IT": "Croazia",
+     "RU": "Хорватия",
+     "ZH": "克罗地亚",
+     "AR": "كرواتيا"
+    },
+    "displayName": {
+     "EN": "GNK Dinamo",
+     "FR": "GNK Dinamo",
+     "DE": "GNK Dinamo",
+     "ES": "GNK Dinamo",
+     "PT": "GNK Dinamo",
+     "IT": "GNK Dinamo",
+     "RU": "Динамо Загреб",
+     "ZH": "萨格勒布迪纳摩",
+     "AR": "دينامو زغرب"
+    },
+    "displayOfficialName": {
+     "EN": "GNK Dinamo",
+     "FR": "GNK Dinamo",
+     "DE": "GNK Dinamo",
+     "ES": "GNK Dinamo",
+     "PT": "GNK Dinamo",
+     "IT": "GNK Dinamo",
+     "RU": "Динамо Загреб",
+     "ZH": "萨格勒布迪纳摩",
+     "AR": "دينامو زغرب"
+    },
+    "displayTeamCode": {
+     "EN": "DIN",
+     "FR": "DIN",
+     "DE": "DIN",
+     "ES": "DIN",
+     "PT": "DIN",
+     "IT": "DIN",
+     "RU": "DIN",
+     "ZH": "DIN",
+     "AR": "DIN"
+    },
+    "shortName": {
+     "EN": "Dinamo Zagreb",
+     "FR": "Dinamo Zagreb",
+     "DE": "Dinamo Zagreb",
+     "ES": "Dinamo Zagreb",
+     "PT": "Dinamo Zagreb",
+     "IT": "Dinamo Zagreb",
+     "RU": "Динамо",
+     "ZH": "萨格勒布迪纳摩",
+     "AR": "دينامو زغرب"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "competition": {
+   "age": "ADULT",
+   "code": "UEL",
+   "id": "14",
+   "images": {
+    "FULL_LOGO": "https://img.uefa.com/imgml/uefacom/elements/logos/competitions/color/full/14.svg"
+   },
+   "metaData": {
+    "name": "UEFA Europa League"
+   },
+   "region": "CONTINENTAL",
+   "sex": "MALE",
+   "sportsType": "FOOTBALL",
+   "teamCategory": "CLUB",
+   "translations": {
+    "name": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "prequalifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "qualifyingName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    },
+    "tournamentName": {
+     "EN": "UEFA Europa League",
+     "FR": "UEFA Europa League",
+     "DE": "UEFA Europa League",
+     "ES": "UEFA Europa League",
+     "PT": "UEFA Europa League",
+     "IT": "UEFA Europa League",
+     "RU": "Лига Европы УЕФА",
+     "ZH": "欧联杯",
+     "AR": "الدوري الأوروبي UEFA"
+    }
+   },
+   "type": "CUP"
+  },
+  "competitionPhase": "TOURNAMENT",
+  "condition": {
+   "humidity": 50,
+   "pitchCondition": "EXCELLENT",
+   "temperature": 22,
+   "translations": {
+    "pitchConditionName": {
+     "EN": "excellent",
+     "FR": "impeccable",
+     "DE": "exzellent",
+     "ES": "excelente",
+     "PT": "excelente",
+     "IT": "eccellente",
+     "RU": "превосходное",
+     "ZH": "非常好",
+     "AR": "ممتاز"
+    },
+    "weatherConditionName": {
+     "EN": "clear night",
+     "FR": "ciel dégagé",
+     "DE": "klarer Abend",
+     "ES": "noche despejada",
+     "PT": "noite limpa",
+     "IT": "serata limpida",
+     "RU": "Ясный вечер",
+     "ZH": "晴朗夜晚",
+     "AR": "ليلة صافية"
+    }
+   },
+   "weatherCondition": "CLEAR_NIGHT",
+   "windSpeed": 6
+  },
+  "fullTimeAt": "2026-09-16T20:54:45.830Z",
+  "group": {
+   "competitionId": "14",
+   "id": "2013815",
+   "metaData": {
+    "groupName": "League",
+    "groupShortName": "League"
+   },
+   "order": 1,
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "teamsQualifiedNumber": 24,
+   "translations": {
+    "name": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    },
+    "shortName": {
+     "EN": "League",
+     "FR": "League",
+     "DE": "League",
+     "ES": "League",
+     "PT": "League",
+     "IT": "League",
+     "RU": "League",
+     "ZH": "League",
+     "AR": "League"
+    }
+   },
+   "type": "STANDARD"
+  },
+  "homeTeam": {
+   "associationId": "200065",
+   "associationLogoUrl": "https://img.uefa.com/imgml/uefacom/elements/logos/ma/ISR.svg",
+   "bigLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/700x700/59340.png",
+   "confederationType": "UEFA",
+   "countryCode": "ISR",
+   "id": "59340",
+   "idProvider": "FAME",
+   "internationalName": "H. Beer-Sheva",
+   "isPlaceHolder": false,
+   "logoUrl": "https://img.uefa.com/imgml/TP/teams/logos/70x70/59340.png",
+   "mediumLogoUrl": "https://img.uefa.com/imgml/TP/teams/logos/240x240/59340.png",
+   "organizationId": "259340",
+   "teamCode": "HBS",
+   "teamTypeDetail": "DOMESTIC_MEN_TEAM_A",
+   "translations": {
+    "countryName": {
+     "EN": "Israel",
+     "FR": "Israël",
+     "DE": "Israel",
+     "ES": "Israel",
+     "PT": "Israel",
+     "IT": "Israele",
+     "RU": "Израиль",
+     "ZH": "以色列",
+     "AR": "إسرائيل"
+    },
+    "displayName": {
+     "EN": "H. Beer-Sheva",
+     "FR": "H. Beer-Sheva",
+     "DE": "H. Beer-Sheva",
+     "ES": "H. Beer-Sheva",
+     "PT": "H. Beer-Sheva",
+     "IT": "H. Beer-Sheva",
+     "RU": "Хапоэль Беэр-Шева",
+     "ZH": "比尔什瓦哈普尔",
+     "AR": "هبوعيل بئر السبع"
+    },
+    "displayOfficialName": {
+     "EN": "Hapoel Beer-Sheva FC",
+     "FR": "Hapoel Beer-Sheva FC",
+     "DE": "Hapoel Beer-Sheva FC",
+     "ES": "Hapoel Beer-Sheva FC",
+     "PT": "Hapoel Beer-Sheva FC",
+     "IT": "Hapoel Beer-Sheva FC",
+     "RU": "Хапоэль Беэр-Шева",
+     "ZH": "比尔什瓦哈普尔",
+     "AR": "هبوعيل بئر السبع"
+    },
+    "displayTeamCode": {
+     "EN": "HBS",
+     "FR": "HBS",
+     "DE": "HBS",
+     "ES": "HBS",
+     "PT": "HBS",
+     "IT": "HBS",
+     "RU": "HBS",
+     "ZH": "HBS",
+     "AR": "HBS"
+    },
+    "shortName": {
+     "EN": "H. Beer-Sheva",
+     "FR": "H. Beer-Sheva",
+     "DE": "H. Beer-Sheva",
+     "ES": "H. Beer-Sheva",
+     "PT": "H. Beer-Sheva",
+     "IT": "H. Beer-Sheva",
+     "RU": "Хапоэль",
+     "ZH": "Hapoel Beer",
+     "AR": "هبوعيل بئر السبع"
+    }
+   },
+   "typeIsNational": false,
+   "typeTeam": "DOMESTIC"
+  },
+  "id": "2050064",
+  "kickOffTime": {
+   "date": "2026-09-16",
+   "dateTime": "2026-09-16T19:00:00Z",
+   "utcOffsetInHours": 3
+  },
+  "lineupStatus": "TACTICAL_AVAILABLE",
+  "matchAttendance": 1102,
+  "matchday": {
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2026-09-17T21:59:59+0000",
+   "format": "REGULAR",
+   "id": "36573",
+   "longName": "Matchday 1",
+   "name": "MD1",
+   "phase": "TOURNAMENT",
+   "roundId": "2002229",
+   "seasonYear": "2027",
+   "sequenceNumber": "1",
+   "translations": {
+    "longName": {
+     "EN": "Matchday 1",
+     "FR": "Journée 1",
+     "DE": "Spieltag 1",
+     "ES": "Jornada 1",
+     "PT": "Jornada 1",
+     "IT": "Giornata 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "الجولة 1"
+    },
+    "name": {
+     "EN": "MD 1",
+     "FR": "J 1",
+     "DE": "ST 1",
+     "ES": "JOR 1",
+     "PT": "J 1",
+     "IT": "G 1",
+     "RU": "Тур 1",
+     "ZH": "比赛日 1",
+     "AR": "MD 1"
+    }
+   },
+   "type": "MATCHDAY"
+  },
+  "round": {
+   "active": true,
+   "benchGKCount": 12,
+   "benchPlayersCount": 12,
+   "benchStaffCount": 15,
+   "coefficientWinnerBonus": 4,
+   "competitionId": "14",
+   "dateFrom": "2026-09-16T06:00:00+0000",
+   "dateTo": "2027-01-28T22:59:59+0000",
+   "fieldPlayersCount": 11,
+   "groupCount": 1,
+   "id": "2002229",
+   "metaData": {
+    "name": "League Phase",
+    "type": "GROUP_STANDINGS"
+   },
+   "mode": "GROUP",
+   "modeDetail": "GROUP",
+   "orderInCompetition": 5,
+   "phase": "TOURNAMENT",
+   "seasonYear": "2027",
+   "secondaryType": "GROUP_PHASE",
+   "stadiumNameType": "OFFICIAL_NAME",
+   "standingsRankingFormulaId": "596",
+   "status": "CURRENT",
+   "substitutionCount": 5,
+   "teamCount": 36,
+   "teams": [
+    "2603107",
+    "53360",
+    "59340",
+    "50050",
+    "52330",
+    "2610304",
+    "50030",
+    "50074",
+    "53043",
+    "50033",
+    "50077",
+    "52298",
+    "2600277",
+    "2600431",
+    "2601124",
+    "50111",
+    "52953",
+    "50058",
+    "50157",
+    "52314",
+    "50139",
+    "52916",
+    "64388",
+    "5312",
+    "64125",
+    "64227",
+    "59030",
+    "55031",
+    "2610",
+    "50044",
+    "50164",
+    "50123",
+    "50147",
+    "52327",
+    "52748",
+    "50109"
+   ],
+   "translations": {
+    "abbreviation": {
+     "EN": "LP",
+     "FR": "Ph. lig.",
+     "DE": "GP",
+     "ES": "FL",
+     "PT": "FL",
+     "IT": "FC",
+     "RU": "ОЭ",
+     "ZH": "LP",
+     "AR": "LP"
+    },
+    "name": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    },
+    "shortName": {
+     "EN": "League phase",
+     "FR": "Phase de ligue",
+     "DE": "Ligaphase",
+     "ES": "Fase liga",
+     "PT": "Fase da Liga",
+     "IT": "Fase campionato",
+     "RU": "Общий этап",
+     "ZH": "League phase",
+     "AR": "مرحلة الدوري"
+    }
+   }
+  },
+  "score": {
+   "regular": {
+    "away": 0,
+    "home": 0
+   },
+   "total": {
+    "away": 0,
+    "home": 0
+   }
+  },
+  "seasonYear": "2027",
+  "sessionNumber": 2,
+  "stadium": {
+   "address": "Calea Giulești 18",
+   "capacity": 14054,
+   "city": {
+    "countryCode": "ROU",
+    "id": "1326",
+    "translations": {
+     "name": {
+      "EN": "Bucharest",
+      "FR": "Bucarest",
+      "DE": "Bukarest",
+      "ES": "Bucarest",
+      "PT": "Bucareste",
+      "IT": "Bucarest",
+      "RU": "Бухарест",
+      "ZH": "布加勒斯特",
+      "AR": "بوخارست"
+     }
+    }
+   },
+   "countryCode": "ROU",
+   "geolocation": {
+    "latitude": 44.455138,
+    "longitude": 26.056977
+   },
+   "id": "250004760",
+   "images": {
+    "MEDIUM_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/w1/250004760.jpg",
+    "LARGE_ULTRA_WIDE": "https://img.uefa.com/imgml/stadium/matchinfo/uw/250004760.jpg"
+   },
+   "openingDate": "2022-01-01",
+   "pitch": {
+    "length": 105,
+    "width": 68
+   },
+   "translations": {
+    "mediaName": {
+     "EN": "Giulesti Stadium",
+     "FR": "Giulesti Stadium",
+     "DE": "Giulesti Stadium",
+     "ES": "Giulesti Stadium",
+     "PT": "Giulesti Stadium",
+     "IT": "Giulesti Stadium",
+     "RU": "Жулешти",
+     "ZH": "Stadionul Giulești ",
+     "AR": "استاد جوليشتي"
+    },
+    "name": {
+     "EN": "Giulesti Stadium",
+     "FR": "Giulesti Stadium",
+     "DE": "Giulesti Stadium",
+     "ES": "Giulesti Stadium",
+     "PT": "Giulesti Stadium",
+     "IT": "Giulesti Stadium",
+     "RU": "Жулешти",
+     "ZH": "Stadionul Giulești ",
+     "AR": "استاد جوليشتي"
+    },
+    "officialName": {
+     "EN": "Giulesti Stadium",
+     "FR": "Giulesti Stadium",
+     "DE": "Giulesti Stadium",
+     "ES": "Giulesti Stadium",
+     "PT": "Giulesti Stadium",
+     "IT": "Giulesti Stadium",
+     "RU": "Жулешти",
+     "ZH": "Stadionul Giulești ",
+     "AR": "استاد جوليشتي"
+    },
+    "specialEventsName": {
+     "EN": "Giulesti Stadium",
+     "FR": "Giulesti Stadium",
+     "DE": "Giulesti Stadium",
+     "ES": "Giulesti Stadium",
+     "PT": "Giulesti Stadium",
+     "IT": "Giulesti Stadium",
+     "RU": "Жулешти",
+     "ZH": "Giulesti Stadium",
+     "AR": "استاد جوليشتي"
+    },
+    "sponsorName": {
+     "EN": "Giulesti Stadium",
+     "FR": "Giulesti Stadium",
+     "DE": "Giulesti Stadium",
+     "ES": "Giulesti Stadium",
+     "PT": "Giulesti Stadium",
+     "IT": "Giulesti Stadium",
+     "RU": "Жулешти",
+     "ZH": "Giulesti Stadium",
+     "AR": "استاد جوليشتي"
+    }
+   }
+  },
+  "status": "FINISHED",
+  "type": "GROUP_STAGE",
+  "winner": {
+   "match": {
+    "reason": "DRAW"
+   }
+  }
+ }
+]

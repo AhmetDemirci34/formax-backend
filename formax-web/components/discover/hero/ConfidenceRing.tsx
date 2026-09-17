@@ -22,7 +22,7 @@ function toneVar(value: number): string {
 
 /**
  * FORMAX · ConfidenceRing (05)
- * PNG'deki "AI GÜVENİ / 92 / ÇOK YÜKSEK" dairesel göstergesi — SVG, glow'lu, dolum animasyonlu.
+ * PNG'deki "AI BEKLENTİSİ / 92 / ÇOK YÜKSEK" dairesel göstergesi — SVG, glow'lu, dolum animasyonlu.
  * Premium motion: halka çok hafif "nefes alır" (scale 1.00↔1.02, ~2.6s) ve maç değişince
  * sayı önceki değerden yeni değere yumuşak sayar (~420 ms). prefers-reduced-motion saygılı.
  */
@@ -74,7 +74,7 @@ export function ConfidenceRing({ value, label, size = 132 }: Props) {
 
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-text-secondary">
-          AI Güveni
+          AI Beklentisi
         </span>
         <span className="text-[34px] font-black leading-none tabular-nums text-text-primary">
           {shown}

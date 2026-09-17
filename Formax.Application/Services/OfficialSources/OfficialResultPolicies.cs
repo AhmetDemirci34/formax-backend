@@ -16,7 +16,8 @@ namespace Formax.Application.Services.OfficialSources
         /// <summary>Başlama saatine göre dakika cinsinden plan (deneme sırası).</summary>
         public static readonly IReadOnlyList<int> MinutesFromKickoff = new[]
         {
-            105, 115, 125, 140, 160, 180,
+            // 17.09.2026: final yayımı ile yazım arası ≤ 10 dk hedefi — normal süre + uzatma penceresinde 5 dakikada bir.
+            105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 160, 170, 180,
             180 + 30, 180 + 60, 180 + 180, 180 + 360, 180 + 720, 180 + 1440
         };
 

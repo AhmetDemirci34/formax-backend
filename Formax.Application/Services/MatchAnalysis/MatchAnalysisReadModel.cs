@@ -25,6 +25,10 @@ namespace Formax.Application.Services.MatchAnalysis
         public string? Uncertainty { get; set; }
         /// <summary>OLASI SENARYOLARIN GEREKÇESİ — market adıyla eşleşir.</summary>
         public List<MatchAnalysisScenarioDto> Scenarios { get; set; } = new();
+        /// <summary>Analizin süzüldüğü tahmin snapshot kimliği (kartlarla aynı olmalı).</summary>
+        public string? SnapshotId { get; set; }
+        /// <summary>Çelişki kapısının düşürdüğü cümle sayısı.</summary>
+        public int RemovedSentences { get; set; }
     }
 
     public sealed class MatchAnalysisScenarioDto

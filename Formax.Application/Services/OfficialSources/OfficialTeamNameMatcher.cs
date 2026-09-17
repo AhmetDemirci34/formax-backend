@@ -41,7 +41,9 @@ namespace Formax.Application.Services.OfficialSources
             ["man utd"] = "manchester united",
             ["man city"] = "manchester city",
             ["inter"] = "internazionale",
-            ["psg"] = "paris saint germain"
+            ["psg"] = "paris saint germain",
+            // UEFA uluslararası yazımı (17.09.2026 ölçümü) — FORMAX kayıt adı
+            ["olympiacos"] = "olympiakos piraeus"
         };
 
         /// <summary>Aksan katlama + küçük harf + noktalama temizliği.</summary>

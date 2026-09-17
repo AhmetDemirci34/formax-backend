@@ -72,7 +72,7 @@ function normalizeLevel(raw: string): ConfidenceLevel {
 }
 
 /**
- * AI Güven Endeksi — DOĞRUDAN backend'in ürettiği değerdir.
+ * Karar paketi endeksi — DOĞRUDAN backend'in ürettiği değerdir (kullanıcıya "AI Beklentisi" olarak snapshot yüzdesi gösterilir).
  * Kaynak: Decision paketi `confidence { score, level, basis }`.
  *
  * Frontend hesaplama YAPMAZ. Eskiden senaryo olasılığından türetip, o da yoksa

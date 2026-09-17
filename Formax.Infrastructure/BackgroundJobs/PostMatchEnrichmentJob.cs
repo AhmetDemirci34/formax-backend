@@ -140,7 +140,9 @@ public sealed class PostMatchEnrichmentJob : BackgroundService
         // Eski api-football aşaması yalnız açıkça "ApiFootball" yazılırsa çalışır.
         try
         {
-            var source = config.GetValue("PostMatch:Data:Source", "Official");
+            // 17.09.2026 ürün kararı: maç sonrası şut/topa sahip olma/pas/korner ve olay toplama KAPALI (varsayılan Disabled);
+            // biten maçta yalnız sonuç botunun final skoru/durumu gösterilir.
+            var source = config.GetValue("PostMatch:Data:Source", "Disabled");
             if (string.Equals(source, "ApiFootball", StringComparison.OrdinalIgnoreCase))
                 await sp.GetRequiredService<PostMatch.PostMatchDataIngestionService>()
                     .RunCycleAsync(ct).ConfigureAwait(false);

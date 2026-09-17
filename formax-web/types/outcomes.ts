@@ -38,8 +38,13 @@ export interface OutcomeSnapshotDto {
   calibrationRunId?: string | null;
   computedAtUtc?: string | null;
   inputsCutoffUtc?: string | null;
-  /** "Available" | "InsufficientData" | "Pending" */
+  /** "Available" | "NotEligible" | "InsufficientData" | "Pending" */
   status: string;
+  /** "Enabled" | "Limited" | "Disabled" — yüzdeler yalnız Enabled'da gelir. */
+  predictionEligibility?: string | null;
+  eligibilityReasons?: string[];
+  triggerType?: string | null;
+  previousSnapshotId?: string | null;
   expectedHomeGoals?: number | null;
   expectedAwayGoals?: number | null;
   evidenceCoverage: number;

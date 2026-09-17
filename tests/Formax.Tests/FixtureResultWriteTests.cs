@@ -313,6 +313,7 @@ public class FixtureResultWriteTests
         var root = doc.RootElement;
 
         Assert.False(root.GetProperty("ApiFootball").GetProperty("Results").GetProperty("Enabled").GetBoolean());
-        Assert.Equal("Official", root.GetProperty("PostMatch").GetProperty("Data").GetProperty("Source").GetString());
+        // 17.09.2026 ürün kararı: biten maçta yeni olay/istatistik toplanmaz.
+        Assert.Equal("Disabled", root.GetProperty("PostMatch").GetProperty("Data").GetProperty("Source").GetString());
     }
 }

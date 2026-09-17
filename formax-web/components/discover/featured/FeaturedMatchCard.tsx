@@ -64,7 +64,7 @@ export function FeaturedMatchCard({
             %85          ← TopPrediction.Probability (olasılık)
             1.20         ← TopPrediction.Odd (GERÇEK bookmaker oranı)
           Oran yoksa yalnız o satır çıkmaz. Frontend oran HESAPLAMAZ, % → oran
-          çevirmez, 1/probability yapmaz; AI güven yüzdesi buraya BASILMAZ. */}
+          çevirmez, 1/probability yapmaz; karar paketi skoru buraya BASILMAZ. */}
       {topPrediction ? (
         <div className="mt-auto flex w-full flex-col items-center gap-0.5 border-t border-white/[0.06] pt-2">
           <span className="w-full break-words text-center text-[10px] font-semibold leading-tight text-text-secondary">

@@ -848,14 +848,16 @@ public class GlobalVideoAndSameDayResultsTests
     }
 
     [Fact]
-    public void KayitDefteri_LaLigaLigue1EflDogrulanmis_EredivisieRobotsNedeniyleBlocked_YouTubeRssKapali()
+    public void KayitDefteri_LaLigaLigue1EflUefaDogrulanmis_EredivisieUnsupported_YouTubeRssKapali()
     {
         Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(140, OfficialPurposes.Result));
         Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(61, OfficialPurposes.Result));
         Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(40, OfficialPurposes.Result));
         Assert.Empty(OfficialSourceRegistry.VerifiedFor(88, OfficialPurposes.Result));
         var ered = OfficialSourceRegistry.ByKey("eredivisie-site")!;
-        Assert.Equal(OfficialSourceStatuses.Blocked, ered.Status);
+        Assert.Equal(OfficialSourceStatuses.Unsupported, ered.Status);
+        foreach (var uefa in new[] { 2, 3, 848 }) Assert.NotEmpty(OfficialSourceRegistry.VerifiedFor(uefa, OfficialPurposes.Result));
+        Assert.True(OfficialSourceRegistry.IsAllowedHost("match.uefa.com"));
         Assert.Contains("Disallow: /cache/", ered.EvidenceNote);
         Assert.Equal(OfficialSourceStatuses.Blocked, OfficialSourceRegistry.ByKey("youtube-official-channels")!.Status);
         Assert.False(OfficialSourceRegistry.IsAllowedHost("www.youtube.com"));

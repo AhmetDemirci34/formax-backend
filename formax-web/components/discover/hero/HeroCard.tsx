@@ -5,6 +5,8 @@ import { StadiumBackground } from "./StadiumBackground";
 import { HeroOverlay } from "./HeroOverlay";
 import { LeagueBadge } from "./LeagueBadge";
 import { ConfidenceRing } from "./ConfidenceRing";
+import { useMatchOutcomes } from "@/hooks/useMatchOutcomes";
+import { outcomeExpectation } from "@/lib/outcomes/outcomeView";
 import { HeroAICommentCard } from "./HeroAICommentCard";
 import { HeroFollowButton } from "./HeroFollowButton";
 import { SwipeHint } from "./SwipeHint";
@@ -22,7 +24,7 @@ const CONF_LABEL_TR: Record<ConfidenceLabel, string> = {
 /**
  * FORMAX · HeroCard (05) — sadeleştirilmiş, TAMAMEN gerçek veri (RecommendationCardDto).
  * Kaldırıldı: "1 Numaralı Maç" etiketi, oyuncu görselleri, yeşil/kırmızı renk katmanları.
- * Kalan: nötr stadyum + iki logo + isimler + lig + saat/geri sayım/canlı + AI Güven + AI yorumu.
+ * Kalan: nötr stadyum + iki logo + isimler + lig + saat/geri sayım/canlı + AI Beklentisi + AI yorumu.
  * Hiçbir alan uydurulmaz; yoksa (lig/yorum) ilgili parça gizlenir.
  */
 export function HeroCard({
@@ -37,8 +39,10 @@ export function HeroCard({
   parallaxX?: MotionValue<number>;
 }) {
   const league = leagueLabel(card);
-  // AI Güveni backend'den: AiTrustScore (0–100) öncelikli; yoksa geçici olarak confidenceScore.
-  const conf = card.aiTrustScore ?? Math.round((card.confidenceScore ?? 0) * 100);
+  // AI BEKLENTİSİ — Olası Sonuçlar kartları ve Maç Detayı ile AYNI snapshot (aynı cache anahtarı; ikinci istek yok).
+  // Tahmin Enabled değilse halka çizilmez (karar paketi güven skoru bu göstergede KULLANILMAZ).
+  const { data: outcomes } = useMatchOutcomes(card.matchId);
+  const expectation = outcomeExpectation(outcomes);
   const kickoff = card.kickoffTime ?? card.matchDate ?? null;
   // TEASER — KAYNAK: FEED YANITI (/api/home/recommendations → radarSummary +
   // radarHighlights). Kart, teaser için maç detayı ucunu ÇAĞIRMAZ.
@@ -64,20 +68,14 @@ export function HeroCard({
           <MatchClock kickoff={kickoff} isLive={card.isLive} liveMinute={card.liveMinute} />
         </div>
 
-        {/* Merkez — iki logo + isimler + ortada AI Güven halkası */}
+        {/* Merkez — iki logo + isimler + ortada AI Beklentisi halkası */}
         <div className="flex flex-col items-center gap-3 pt-1">
           <TeamLogoPair
             home={{ name: homeName(card), logoUrl: card.homeTeam?.logoUrl }}
             away={{ name: awayName(card), logoUrl: card.awayTeam?.logoUrl }}
             size={46}
             showNames
-            center={
-              <ConfidenceRing
-                value={conf}
-                label={CONF_LABEL_TR[card.confidenceLabel] ?? "—"}
-                size={104}
-              />
-            }
+            center={expectation ? <ConfidenceRing value={expectation.value} label="" size={104} /> : undefined}
           />
         </div>
 

@@ -312,6 +312,8 @@ public static class DependencyInjection
             Formax.Infrastructure.OfficialSources.Providers.Ligue1ApiSource>();
         services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
             Formax.Infrastructure.OfficialSources.Providers.EflMultiClubSource>();
+        services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
+            Formax.Infrastructure.OfficialSources.Providers.UefaMatchApiSource>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialMatchCentreService>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialPostMatchDataService>();
@@ -329,6 +331,7 @@ public static class DependencyInjection
         services.AddScoped<Formax.Infrastructure.Outcomes.OutcomeHistoryLoader>();
         services.AddScoped<Formax.Infrastructure.Outcomes.OutcomeModelTrainingService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.MatchPredictionSnapshotService>();
+        services.AddScoped<Formax.Infrastructure.Outcomes.PredictionRecomputeWorker>();
         services.AddScoped<Formax.Application.Interfaces.IMatchOutcomeSnapshotReader, Formax.Infrastructure.Outcomes.MatchOutcomeSnapshotReader>();
         // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
         services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();

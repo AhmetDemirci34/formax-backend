@@ -238,6 +238,8 @@ namespace Formax.Infrastructure.OfficialSources
                 tracked.Status = newStatus;
                 observation.Decision = "StatusApplied";
                 _db.MatchResultObservations.Add(observation);
+                await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, matchId, "StatusChange", official,
+                    $"status:{matchId}:{newStatus}:{tracked.MatchDate:yyyyMMddHHmm}", utcNow, ct).ConfigureAwait(false);
                 await _db.SaveChangesAsync(ct).ConfigureAwait(false);
                 return new(StatusApplied, newStatus);
             }
