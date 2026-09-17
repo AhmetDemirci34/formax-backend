@@ -655,6 +655,19 @@ public class PredictionReliabilityTests
         Assert.False(OfficialMatchIdentityResolver.HomeMatches(oly, "Olympic Charleroi"));
         Assert.False(OfficialMatchIdentityResolver.AwayMatches(beer, "Dinamo Kiev"));
 
+        // 17.09.2026 ölçülen gerçek eşleşme hataları: LALIGA "Real Racing Club SAD" ↔ "Racing Santander"; Ligue 1 officialName "Lyon".
+        Assert.True(OfficialTeamNameMatcher.SameTeam("Real Racing Club SAD", "Racing Santander"));
+        Assert.True(OfficialTeamNameMatcher.SameTeam("R. Racing Club", "Racing Santander"));
+        Assert.False(OfficialTeamNameMatcher.SameTeam("Real Racing Club SAD", "Real Madrid"));
+        Assert.False(OfficialTeamNameMatcher.SameTeam("Real Madrid", "Atletico Madrid"));
+        var ligue1 = """
+            {"matches":[{"matchId":"l1_championship_match_73854","date":"2026-09-12T18:45:00.000Z","period":"fullTime","isLive":false,"home":{"score":0,"clubIdentity":{"name":"Paris FC","officialName":"Paris FC","shortName":"Paris FC"}},"away":{"score":0,"clubIdentity":{"name":"Olympique Lyonnais","officialName":"Lyon","shortName":"OL"}}}]}
+            """;
+        var paris = Ligue1ApiSource.ParseMatches(ligue1).Single();
+        Assert.True(OfficialMatchIdentityResolver.AwayMatches(paris, "Lyon"));
+        Assert.True(OfficialMatchIdentityResolver.HomeMatches(paris, "Paris FC"));
+        Assert.False(OfficialMatchIdentityResolver.AwayMatches(paris, "Paris Saint Germain"));
+
         Assert.Equal(OfficialMatchStatuses.FinishedAfterPenalties, UefaMatchApiSource.MapStatus("FINISHED", "WIN_ON_PENALTIES", true));
         Assert.Equal(OfficialMatchStatuses.FinishedAfterExtraTime, UefaMatchApiSource.MapStatus("FINISHED", "WIN_EXTRA_TIME", false));
         Assert.Equal(OfficialMatchStatuses.Postponed, UefaMatchApiSource.MapStatus("POSTPONED", null, false));

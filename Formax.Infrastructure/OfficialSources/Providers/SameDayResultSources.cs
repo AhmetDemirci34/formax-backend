@@ -238,6 +238,9 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                 var extra = new Dictionary<string, string>();
                 if (hi?.Str("shortName") is { } hn) extra["homeAltName"] = hn;
                 if (ai?.Str("shortName") is { } an) extra["awayAltName"] = an;
+                // Ölçüm 17.09.2026: "Olympique Lyonnais"/"OL" ↔ FORMAX "Lyon" eşleşmiyordu; kaynak officialName "Lyon" veriyor.
+                if (hi?.Str("officialName") is { } ho && ho != homeName) extra["homeAltName2"] = ho;
+                if (ai?.Str("officialName") is { } ao && ao != awayName) extra["awayAltName2"] = ao;
                 list.Add(new OfficialMatchRecord(Key, id, "https://ligue1.com/fr/match-sheet/" + id, homeName, awayName,
                     OfficialJson.Utc(x.Str("date")), status, hs, aws, raw, null, null, null, extra));
             }

@@ -144,6 +144,24 @@ namespace Formax.API.Controllers.Admin
                     .OrderByDescending(o => o.ObservedAtUtc).Take(200).ToListAsync(ct)
             });
 
+        /// <summary>
+        /// Belirli maçları normal sonuç botu hattından HEMEN geçirir (kontrol zamanını öne çeker). Önceki/sonraki kanonik durum ve süre döner.
+        /// </summary>
+        [HttpPost("recheck")]
+        public async Task<IActionResult> Recheck([FromServices] OfficialResultBotService bot, [FromQuery] string ids, CancellationToken ct)
+        {
+            var list = (ids ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var v) ? v : 0).Where(v => v > 0).Distinct().Take(50).ToList();
+            object State(int id) => _db.Matches.AsNoTracking().Where(m => m.Id == id)
+                .Select(m => new { m.Id, m.Status, m.HomeScore, m.AwayScore, m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.ResultSource, m.ResultDetail, m.ResultUpdatedAtUtc, m.ResultVerificationStatus })
+                .FirstOrDefault()!;
+            var before = list.Select(State).ToList();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var report = await bot.RecheckNowAsync(list, DateTime.UtcNow, ct);
+            sw.Stop();
+            var after = list.Select(State).ToList();
+            return Ok(new { elapsedMs = sw.ElapsedMilliseconds, before, report, after });
+        }
+
         /// <summary>Sonuç botunun bir turu (normal hat).</summary>
         [HttpPost("run")]
         public async Task<IActionResult> Run([FromServices] OfficialResultBotService bot, CancellationToken ct)

@@ -51,6 +51,25 @@ namespace Formax.Infrastructure.OfficialSources
 
         private int MaxPerCycle => Math.Clamp(_config.GetValue("OfficialSources:ResultBot:MaxMatchesPerCycle", 80), 1, 500);
 
+        /// <summary>
+        /// YÖNETİCİ YENİDEN DOĞRULAMA — verilen maçların MEVCUT kontrol satırlarının bir sonraki kontrol zamanını şimdiye çeker ve normal
+        /// turu çalıştırır (plan → kilit → kaynak → ayrıştırıcı → kimlik → uzlaşma → yazıcı aynen). Yeni iş mantığı yok, sonuç YAZMAZ;
+        /// resmî kaynakla eşleşmeyen maç yine yazılmaz. Kontrol satırı yoksa normal planlama turu açar.
+        /// </summary>
+        public async Task<ResultBotCycleReport> RecheckNowAsync(IReadOnlyCollection<int> matchIds, DateTime nowUtc, CancellationToken ct = default)
+        {
+            await EnqueueAsync(nowUtc, ct).ConfigureAwait(false);
+            var ids = matchIds.ToList();
+            var rows = await _db.MatchResultChecks.Where(c => ids.Contains(c.MatchId)).ToListAsync(ct).ConfigureAwait(false);
+            foreach (var c in rows.Where(c => c.State is "Pending" or "NoOfficialSource" or "Postponed"))
+            {
+                c.NextCheckUtc = nowUtc;
+                c.UpdatedAtUtc = nowUtc;
+            }
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            return await RunCycleAsync(nowUtc, ct).ConfigureAwait(false);
+        }
+
         public async Task<ResultBotCycleReport> RunCycleAsync(DateTime nowUtc, CancellationToken ct = default)
         {
             await _catalog.EnsureSeededAsync(nowUtc, ct).ConfigureAwait(false);

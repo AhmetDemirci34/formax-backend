@@ -43,7 +43,11 @@ namespace Formax.Application.Services.OfficialSources
             ["inter"] = "internazionale",
             ["psg"] = "paris saint germain",
             // UEFA uluslararası yazımı (17.09.2026 ölçümü) — FORMAX kayıt adı
-            ["olympiacos"] = "olympiakos piraeus"
+            ["olympiacos"] = "olympiakos piraeus",
+            // LALIGA tüzel/kısa adı (17.09.2026 ölçümü: Barcelona 7-2 "Real Racing Club SAD" / "R. Racing Club") — FORMAX "Racing Santander"
+            ["real racing club sad"] = "racing santander",
+            ["real racing club"] = "racing santander",
+            ["r racing club"] = "racing santander"
         };
 
         /// <summary>Aksan katlama + küçük harf + noktalama temizliği.</summary>
