@@ -220,6 +220,13 @@ namespace Formax.Infrastructure.OfficialSources
                     check.NextCheckUtc = check.State == "Postponed"
                         ? nowUtc.AddHours(24)
                         : OfficialResultSchedule.NextCheck(check.KickoffUtc, check.AttemptCount, nowUtc);
+                    // Kayıtlı skorla çelişen resmî gözlem ikinci gözlemle teyit edilir (≥ ConflictConfirmationGap): geri çekilme bunu
+                    // ertesi güne atmaz; tek seferlik kısa tekrar, teyitte sonuç yazılır ve plan kapanır.
+                    if (check.LastErrorClass == "Conflict")
+                    {
+                        var confirm = nowUtc + OfficialResultWriter.ConflictConfirmationGap + TimeSpan.FromMinutes(1);
+                        if (confirm < check.NextCheckUtc) check.NextCheckUtc = confirm;
+                    }
                 }
                 Release(check, nowUtc);
                 outcomes.Add(new(match.Id, outcome, usedSource, detail));

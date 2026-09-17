@@ -269,6 +269,39 @@ public class SameDayResultBotClosureTests
         }
     }
 
+    [Fact]
+    public async Task EskiEslesmeyenMac_HerDakikaDonenIsteKaynagiDovmez_GeriCekilmeGunluge()
+    {
+        // 17.09.2026 canlı gözlem (107549): 11 gün önceki maç, deneme 19–27 arası; her 1 dk'lık turda kaynak yeniden okunuyordu.
+        var (name, src) = await Arrange(false);
+        var now = Kickoff.AddDays(11);
+        using (var db = Db(name))
+        {
+            db.MatchResultChecks.Add(new MatchResultCheck { MatchId = MatchId, LeagueId = 140, KickoffUtc = Kickoff, State = "Pending", AttemptCount = 20,
+                NextCheckUtc = now, CreatedAtUtc = Kickoff, UpdatedAtUtc = Kickoff });
+            db.SaveChanges();
+        }
+        for (var minute = 0; minute < 60; minute++)
+            using (var db = Db(name)) await Bot(db, src).RunCycleAsync(now.AddMinutes(minute));
+        Assert.Equal(1, src.Reads);
+        using (var db = Db(name))
+        {
+            var c = db.MatchResultChecks.Single(x => x.MatchId == MatchId);
+            // Sıradaki günlük slot (kickoff + 27 sa saatine sabit): 60 dk'lık pencerenin dışında, 24 sa içinde.
+            Assert.True(c.NextCheckUtc > now.AddMinutes(60), c.NextCheckUtc.ToString("O"));
+            Assert.True(c.NextCheckUtc <= now.AddHours(24));
+        }
+
+        // Takvim birimi: kalan tüm adımlar geçmişteyse sonuç her zaman "şimdi"den sonraki günlük slot; asla şimdi+1 dk değil.
+        for (var attempts = 0; attempts < 40; attempts++)
+        {
+            var next = OfficialResultSchedule.NextCheck(Kickoff, attempts, now);
+            Assert.True(next > now.AddMinutes(5), $"attempts={attempts} next={next:O}");
+        }
+        // Pencere içinde restart: kaçırılan adımlar atlanır, sıradaki 3 dk'lık adım seçilir.
+        Assert.Equal(Kickoff.AddMinutes(132), OfficialResultSchedule.NextCheck(Kickoff, 1, Kickoff.AddMinutes(130)));
+    }
+
     // ── 12 ────────────────────────────────────────────────────────────────────
     [Fact]
     public async Task SonucYazilinca_KararPaketiOnbellegiTemizlenir_ApiOkumaYoluYeniSonucuDondurur()

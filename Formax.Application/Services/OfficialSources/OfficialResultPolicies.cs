@@ -32,30 +32,29 @@ namespace Formax.Application.Services.OfficialSources
         public static DateTime FirstCheck(DateTime kickoffUtc) => kickoffUtc.AddMinutes(MinutesFromKickoff[0]);
 
         /// <summary>
-        /// <paramref name="attemptsDone"/> kontrol yapıldıktan sonraki kontrol zamanı. Plan geçmişte kaldıysa (ör. restart
-        /// sonrası) kaçırılan adımlar üst üste çalıştırılmaz: bir sonraki kontrol en erken şimdiden 1 dk sonradır.
+        /// <paramref name="attemptsDone"/> kontrol yapıldıktan sonraki kontrol zamanı — HER ZAMAN şimdiden sonraki bir PLAN adımıdır.
+        /// Plan geçmişte kaldıysa (restart, geç açılan plan, eski maç) kaçırılan adımlar üst üste çalıştırılmaz: kalan adımlardan
+        /// ilk gelecekteki seçilir; hiçbiri kalmadıysa son adımdan itibaren günlük takvimin bir sonraki slotu.
+        /// 17.09.2026 kök neden: eskiden "geçmişte kaldı → şimdi+1 dk" dönüyordu; 11 günlük eşleşmeyen maç (107549) plan
+        /// bitene kadar her turda (1 dk) kaynağı yeniden okuyordu.
         /// </summary>
         public static DateTime NextCheck(DateTime kickoffUtc, int attemptsDone, DateTime nowUtc)
         {
-            DateTime planned;
-            if (attemptsDone < MinutesFromKickoff.Count)
+            for (var i = Math.Max(0, attemptsDone); i < MinutesFromKickoff.Count; i++)
             {
-                planned = kickoffUtc.AddMinutes(MinutesFromKickoff[attemptsDone]);
-                // Aynı turda geçmişte kalmış adımları atla: şimdiden sonraki ilk plan adımına geç.
-                var i = attemptsDone;
-                while (planned <= nowUtc && i + 1 < MinutesFromKickoff.Count && kickoffUtc.AddMinutes(MinutesFromKickoff[i + 1]) <= nowUtc)
-                {
-                    i++;
-                    planned = kickoffUtc.AddMinutes(MinutesFromKickoff[i]);
-                }
+                var step = kickoffUtc.AddMinutes(MinutesFromKickoff[i]);
+                if (step > nowUtc) return step;
             }
-            else
+
+            var last = kickoffUtc.AddMinutes(MinutesFromKickoff[^1]);
+            var extra = Math.Max(1, attemptsDone - MinutesFromKickoff.Count + 1);
+            var planned = last + TimeSpan.FromTicks(DailyAfterPlan.Ticks * extra);
+            if (planned <= nowUtc)
             {
-                var last = kickoffUtc.AddMinutes(MinutesFromKickoff[^1]);
-                var extra = attemptsDone - MinutesFromKickoff.Count + 1;
-                planned = last + TimeSpan.FromTicks(DailyAfterPlan.Ticks * extra);
+                var days = (long)Math.Floor((nowUtc - last).Ticks / (double)DailyAfterPlan.Ticks) + 1;
+                planned = last + TimeSpan.FromTicks(DailyAfterPlan.Ticks * days);
             }
-            return planned <= nowUtc ? nowUtc.AddMinutes(1) : planned;
+            return planned;
         }
     }
 
