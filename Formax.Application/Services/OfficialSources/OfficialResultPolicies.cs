@@ -7,7 +7,7 @@ namespace Formax.Application.Services.OfficialSources
     /// <summary>
     /// SONUÇ KONTROL TAKVİMİ — bot maç sırasında canlı veri aramaz.
     ///
-    /// İlk kontroller beklenen bitişe yakın: başlama +105, +115, +125, +140, +160, +180 dk.
+    /// İlk kontroller beklenen bitişe yakın: başlama +105 … +165 dk arası 3 dakikada bir, sonra +180 dk.
     /// Resmî kaynak henüz yayımlamadıysa +180'den sonra: 30 dk, 1 sa, 3 sa, 6 sa, 12 sa, 24 sa.
     /// Sonrasında günde bir düşük öncelikli kontrol.
     /// </summary>
@@ -16,10 +16,15 @@ namespace Formax.Application.Services.OfficialSources
         /// <summary>Başlama saatine göre dakika cinsinden plan (deneme sırası).</summary>
         public static readonly IReadOnlyList<int> MinutesFromKickoff = new[]
         {
-            // 17.09.2026: final yayımı ile yazım arası ≤ 10 dk hedefi — normal süre + uzatma penceresinde 5 dakikada bir.
-            105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 160, 170, 180,
-            180 + 30, 180 + 60, 180 + 180, 180 + 360, 180 + 720, 180 + 1440
+            // 17.09.2026 (2): final yayımı ile yazım arası ≤ 5 dk hedefi — normal süre + uzatma/penaltı penceresinde (+105…+165)
+            // 3 dakikada bir; iş 1 dk'da bir döner → en kötü durum ≈ 3 + 1 dk. Kaynak listesi tur başına bir kez okunur (aynı
+            // anda başlayan maçlar tek istek paylaşır); pencereden sonra seyrekleşir (geri çekilme).
+            105, 108, 111, 114, 117, 120, 123, 126, 129, 132, 135, 138, 141, 144, 147, 150, 153, 156, 159, 162, 165,
+            180, 180 + 30, 180 + 60, 180 + 180, 180 + 360, 180 + 720, 180 + 1440
         };
+
+        /// <summary>Beklenen final penceresindeki en uzun kontrol aralığı (dk).</summary>
+        public const int FinalWindowCadenceMinutes = 3;
 
         public static readonly TimeSpan DailyAfterPlan = TimeSpan.FromHours(24);
 
@@ -244,6 +249,56 @@ namespace Formax.Application.Services.OfficialSources
             if (stats == null) return None;
             if (MeasuredCount(stats.Home) == 0 && MeasuredCount(stats.Away) == 0) return None;
             return CoreMeasuredCount(stats.Home) == CoreFieldCount && CoreMeasuredCount(stats.Away) == CoreFieldCount ? Full : Partial;
+        }
+    }
+
+    /// <summary>Tek bot denemesinin kalıcı sınıflaması (MatchResultChecks.LastErrorClass / LastValidationStatus).</summary>
+    public sealed record ResultAttemptClassification(string? ErrorClass, string ValidationStatus);
+
+    /// <summary>
+    /// DENEME SINIFLAMASI — botun serbest metinli sonucundan (LastOutcome) teşhis edilebilir iki alan üretir:
+    ///  • hata sınıfı: null (hata yok) | NotFinalYet | NoOfficialSource | CircuitOpen | SourceReadFailed | IdentityNotMatched |
+    ///    Conflict | VerificationPending
+    ///  • doğrulama durumu: Verified | NotFinal | NotChecked | Rejected:{neden} | Conflict | Pending
+    /// </summary>
+    public static class ResultAttemptClassifier
+    {
+        private static readonly HashSet<string> IdentityReasons = new(StringComparer.Ordinal)
+        {
+            "NoCandidate", "WrongDate", "WrongTeams", "OrientationMismatch", "IdentityRejected", "Ambiguous", "NoKickoff"
+        };
+
+        /// <param name="outcome">Tur sonucu: ResultApplied | ResultUnchanged | StatusApplied | NotFinal | NotFinalYet | Conflict |
+        /// ResultConflict | VerificationPending | ResultConfirmationFetchFailed | NoObservation | ResultSourceUnavailable.</param>
+        /// <param name="lastFailure">Gözlem yoksa son kaynak hatası: "{kaynak}:{okuma sonucu|kimlik nedeni}[:{ayrıntı}]".</param>
+        public static ResultAttemptClassification Classify(string outcome, string? lastFailure)
+        {
+            switch (outcome)
+            {
+                case "ResultApplied":
+                case "ResultUnchanged":
+                case "StatusApplied":
+                    return new(null, "Verified");
+                case "NotFinal":
+                case "NotFinalYet":
+                    return new("NotFinalYet", "NotFinal");
+                case "Conflict":
+                case "ResultConflict":
+                    return new("Conflict", "Conflict");
+                case "VerificationPending":
+                    return new("VerificationPending", "Pending");
+                case "ResultConfirmationFetchFailed":
+                    return new("SourceReadFailed", "Pending");
+                case "ResultSourceUnavailable":
+                    return new("NoOfficialSource", "NotChecked");
+                case "NoObservation":
+                    var reason = (lastFailure ?? string.Empty).Split(':') is { Length: >= 2 } parts ? parts[1] : string.Empty;
+                    if (reason == "CircuitOpen") return new("CircuitOpen", "NotChecked");
+                    if (IdentityReasons.Contains(reason)) return new("IdentityNotMatched", "Rejected:" + reason);
+                    return new("SourceReadFailed", "NotChecked");
+                default:
+                    return new("Unknown", "NotChecked");
+            }
         }
     }
 }

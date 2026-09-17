@@ -110,6 +110,7 @@ namespace Formax.Infrastructure.OfficialSources
                     // Kaynak yok: eski NotStarted durumu "doğru" sayılmaz — teşhiste ResultSourceUnavailable görünür.
                     check.State = "NoOfficialSource";
                     check.LastOutcome = "ResultSourceUnavailable";
+                    (check.LastErrorClass, check.LastValidationStatus) = ResultAttemptClassifier.Classify("ResultSourceUnavailable", null);
                     check.AttemptCount++;
                     check.NextCheckUtc = nowUtc.AddHours(24);
                     Release(check, nowUtc);
@@ -211,7 +212,8 @@ namespace Formax.Infrastructure.OfficialSources
 
                 check.AttemptCount++;
                 check.LastOutcome = Trim(outcome + (detail == null ? "" : ":" + detail), 120);
-                check.LastSourceKey = usedSource;
+                check.LastSourceKey = usedSource ?? lastFailure?.Split(':')[0];
+                (check.LastErrorClass, check.LastValidationStatus) = ResultAttemptClassifier.Classify(outcome, lastFailure);
                 if (check.State is "Pending" or "NoOfficialSource" or "Postponed")
                 {
                     check.State = check.State == "Postponed" ? "Postponed" : "Pending";

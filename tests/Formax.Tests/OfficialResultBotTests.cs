@@ -70,16 +70,17 @@ public class OfficialResultBotTests
     // ── 1. TAKVİM ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public void SonucTakvimi_Kickoff105ten150ye5dk_160_170_180_SonraYarimSaat1_3_6_12_24_SonraGunluk()
+    public void SonucTakvimi_Kickoff105ten165e3dk_180_SonraYarimSaat1_3_6_12_24_SonraGunluk()
     {
-        // 17.09.2026: yayın → yazım ≤ 10 dk hedefi için +105…+150 arası 5 dakikada bir kontrol.
+        // 17.09.2026 (2): yayın → yazım ≤ 5 dk hedefi için +105…+165 arası 3 dakikada bir kontrol.
         var k = Kickoff;
         Assert.Equal(k.AddMinutes(105), OfficialResultSchedule.FirstCheck(k));
-        var expected = new[] { 110, 115, 120, 125, 130, 135, 140, 145, 150, 160, 170, 180, 210, 240, 360, 540, 900, 1620 };
+        var expected = Enumerable.Range(1, 20).Select(i => 105 + 3 * i).Concat(new[] { 180, 210, 240, 360, 540, 900, 1620 }).ToArray();
         for (var i = 0; i < expected.Length; i++)
             Assert.Equal(k.AddMinutes(expected[i]), OfficialResultSchedule.NextCheck(k, i + 1, k.AddMinutes(100)));
-        for (var i = 1; i < 13; i++)
-            Assert.True(OfficialResultSchedule.NextCheck(k, i, k.AddMinutes(100)) - OfficialResultSchedule.NextCheck(k, i - 1 == 0 ? 0 : i - 1, k.AddMinutes(100)) <= TimeSpan.FromMinutes(10));
+        for (var i = 1; i < 21; i++)
+            Assert.True(OfficialResultSchedule.NextCheck(k, i, k.AddMinutes(100)) - OfficialResultSchedule.NextCheck(k, i - 1, k.AddMinutes(100))
+                        <= TimeSpan.FromMinutes(OfficialResultSchedule.FinalWindowCadenceMinutes));
         Assert.Equal(k.AddMinutes(1620).AddDays(1), OfficialResultSchedule.NextCheck(k, expected.Length + 1, k.AddMinutes(1000)));
         // Restart sonrası geçmişte kalmış adımlar üst üste çalışmaz.
         var late = k.AddHours(30);
@@ -240,7 +241,7 @@ public class OfficialResultBotTests
         using (var db = Db(name))
         {
             var c = db.MatchResultChecks.AsNoTracking().Single();
-            Assert.Equal(("Pending", 1, Kickoff.AddMinutes(110)), (c.State, c.AttemptCount, c.NextCheckUtc));
+            Assert.Equal(("Pending", 1, Kickoff.AddMinutes(108)), (c.State, c.AttemptCount, c.NextCheckUtc));
             Assert.Equal(Kickoff.AddMinutes(106), c.LastNotFinalCheckUtc);   // gecikme ölçümünün alt sınırı
             Assert.Null(c.LockOwner);
             Assert.Equal(MatchStatuses.NotStarted, db.Matches.Single().Status);

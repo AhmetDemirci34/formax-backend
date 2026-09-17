@@ -91,7 +91,7 @@ namespace Formax.API.Controllers.Admin
                               {
                                   m.Id, m.LeagueId, Home = m.HomeTeam!.Name, Away = m.AwayTeam!.Name, m.MatchDate, m.Status, m.HomeScore, m.AwayScore,
                                   m.HalfTimeHomeScore, m.HalfTimeAwayScore, m.ResultDetail, m.ResultSource, m.ResultUpdatedAtUtc, m.ResultVerificationStatus,
-                                  Check = c == null ? null : new { c.State, c.AttemptCount, c.NextCheckUtc, c.LastCheckUtc, c.LastOutcome, c.FirstFinalSeenUtc, c.ResolvedAtUtc, c.ResolvedStatus, c.LastNotFinalCheckUtc, c.SourcePublishedFinalAtUtc },
+                                  Check = c == null ? null : new { c.State, c.AttemptCount, c.NextCheckUtc, c.LastCheckUtc, c.LastOutcome, c.LastSourceKey, c.LastErrorClass, c.LastValidationStatus, c.FirstFinalSeenUtc, c.ResolvedAtUtc, c.ResolvedStatus, c.LastNotFinalCheckUtc, c.SourcePublishedFinalAtUtc },
                                   Statistics = s == null ? null : new { s.State, s.Completeness, s.AttemptCount, s.NextCheckUtc, s.LastOutcome, s.LastSourceKey }
                               }).ToListAsync(ct);
             return Ok(new

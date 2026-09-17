@@ -66,6 +66,9 @@ public sealed class GetRecommendationFeedUseCase
     /// </summary>
     internal static TimeSpan DecisionCacheTtlFor(int matchId) => DecisionCacheTtl + TimeSpan.FromSeconds(((matchId % 300) + 300) % 300);
 
+    /// <summary>Karar paketi önbellek anahtarı — resmî sonuç yazıcısı bitmiş maçın ve takımlarının paketlerini bu anahtarla temizler.</summary>
+    public static string DecisionPackageCacheKey(int matchId) => $"decision:pkg:{matchId}";
+
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, object> DecisionBuildLocks = new();
 
     /// <summary>
@@ -606,7 +609,7 @@ public sealed class GetRecommendationFeedUseCase
     {
         if (!matchById.TryGetValue(card.MatchId, out var match)) return null;
 
-        var cacheKey = $"decision:pkg:{card.MatchId}";
+        var cacheKey = DecisionPackageCacheKey(card.MatchId);
         if (_cache.TryGetValue(cacheKey, out Formax.Application.AI.Decision.AiDecisionPackage? cached)
             && cached != null)
             return cached;

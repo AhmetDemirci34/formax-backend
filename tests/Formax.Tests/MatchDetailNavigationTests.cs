@@ -123,7 +123,8 @@ public class MatchDetailNavigationTests
         // React Query aynı queryKey için isteği tekilleştirir: StrictMode'un çift
         // mount'u ikinci bir HTTP isteği DOĞURMAZ (ölçüldü: her açılışta tam 1
         // /detail isteği).
-        Assert.Contains("queryKey: [\"match\", matchId]", hook, StringComparison.Ordinal);
+        Assert.Contains("matchDetailKey = (matchId: number) => [\"match\", matchId] as const", hook, StringComparison.Ordinal);
+        Assert.Contains("queryKey: matchDetailKey(matchId)", hook, StringComparison.Ordinal);
         Assert.Contains("enabled: enabled && matchId > 0", hook, StringComparison.Ordinal);
     }
 

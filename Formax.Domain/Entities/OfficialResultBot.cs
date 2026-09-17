@@ -53,6 +53,10 @@ namespace Formax.Domain.Entities
         public DateTime? LastCheckUtc { get; set; }
         public string? LastOutcome { get; set; }
         public string? LastSourceKey { get; set; }
+        /// <summary>Son denemenin hata sınıfı; hata yoksa null (NotFinalYet | NoOfficialSource | CircuitOpen | SourceReadFailed | IdentityNotMatched | Conflict | VerificationPending).</summary>
+        public string? LastErrorClass { get; set; }
+        /// <summary>Son denemenin doğrulama durumu (Verified | NotFinal | NotChecked | Rejected:{neden} | Conflict | Pending).</summary>
+        public string? LastValidationStatus { get; set; }
         /// <summary>Kaynağın maçı ilk kez "bitti" olarak gösterdiği gözlem zamanı.</summary>
         public DateTime? FirstFinalSeenUtc { get; set; }
         /// <summary>Kaynağın en son "henüz final değil" dediği kontrol (yayın anının alt sınırı; gecikme ölçümü).</summary>

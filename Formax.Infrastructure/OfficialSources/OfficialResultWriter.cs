@@ -68,11 +68,21 @@ namespace Formax.Infrastructure.OfficialSources
         private readonly IMatchLiveStatsRepository? _liveStats;
         private readonly ILeagueStandingsService? _standings;
         private readonly PostMatchWorkSignal? _signal;
+        private readonly MatchResultCacheInvalidator? _cacheInvalidator;
 
         public OfficialResultWriter(FormaxDbContext db, ILogger<OfficialResultWriter> log,
-            IMatchLiveStatsRepository? liveStats = null, ILeagueStandingsService? standings = null, PostMatchWorkSignal? signal = null)
+            IMatchLiveStatsRepository? liveStats = null, ILeagueStandingsService? standings = null, PostMatchWorkSignal? signal = null,
+            MatchResultCacheInvalidator? cacheInvalidator = null)
         {
-            _db = db; _log = log; _liveStats = liveStats; _standings = standings; _signal = signal;
+            _db = db; _log = log; _liveStats = liveStats; _standings = standings; _signal = signal; _cacheInvalidator = cacheInvalidator;
+        }
+
+        /// <summary>Kanonik durum değişti: süreç içi bayat önbellek girdileri silinir (hata yazımı geri almaz).</summary>
+        private async Task InvalidateCachesAsync(Match tracked, DateTime utcNow, CancellationToken ct)
+        {
+            if (_cacheInvalidator == null) return;
+            try { await _cacheInvalidator.InvalidateAsync(_db, tracked.Id, tracked.HomeTeamId, tracked.AwayTeamId, utcNow, ct).ConfigureAwait(false); }
+            catch (Exception ex) { _log.LogWarning(ex, "[RESULT BOT] {MatchId} önbellek temizlenemedi", tracked.Id); }
         }
 
         /// <summary>Gözlem içerik özeti — aynı gözlem ikinci kez deftere yazılmaz.</summary>
@@ -215,6 +225,7 @@ namespace Formax.Infrastructure.OfficialSources
                     try { await _standings.RefreshForSettledMatchAsync(tracked.LeagueId, tracked.MatchDate, ct).ConfigureAwait(false); }
                     catch (Exception ex) { _log.LogWarning(ex, "[RESULT BOT] {MatchId} puan durumu yenilenemedi", matchId); }
                 }
+                await InvalidateCachesAsync(tracked, utcNow, ct).ConfigureAwait(false);
                 _signal?.Notify();
 
                 _log.LogInformation("[RESULT BOT] {MatchId} resmî sonuç yazıldı: {Home}-{Away} {Detail} ({Source})",
@@ -241,6 +252,7 @@ namespace Formax.Infrastructure.OfficialSources
                 await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, matchId, "StatusChange", official,
                     $"status:{matchId}:{newStatus}:{tracked.MatchDate:yyyyMMddHHmm}", utcNow, ct).ConfigureAwait(false);
                 await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+                await InvalidateCachesAsync(tracked, utcNow, ct).ConfigureAwait(false);
                 return new(StatusApplied, newStatus);
             }
 

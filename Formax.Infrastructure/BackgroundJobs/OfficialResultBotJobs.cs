@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace Formax.Infrastructure.BackgroundJobs
 {
     /// <summary>
-    /// RESMÎ SONUÇ BOTU İŞİ — 2 dk'da bir tur. Tur yalnız zamanı gelmiş kontrol satırlarını işler (kickoff +105 dk'dan
+    /// RESMÎ SONUÇ BOTU İŞİ — 1 dk'da bir tur (≤ 5 dk yayın → yazım hedefi). Tur yalnız zamanı gelmiş kontrol satırlarını işler (kickoff +105 dk'dan
     /// önce hiçbir maç için istek üretmez). Tek örnek döngü: turlar üst üste binmez; satır kilidi ayrıca iki işçiyi ayırır.
     /// </summary>
     public sealed class OfficialResultBotJob : BackgroundService
@@ -26,7 +26,7 @@ namespace Formax.Infrastructure.BackgroundJobs
 
         public static bool Enabled(IConfiguration config) => config.GetValue("OfficialSources:ResultBot:Enabled", true);
 
-        private TimeSpan Interval => TimeSpan.FromMinutes(Math.Clamp(_config.GetValue("OfficialSources:ResultBot:IntervalMinutes", 2), 1, 15));
+        private TimeSpan Interval => TimeSpan.FromMinutes(Math.Clamp(_config.GetValue("OfficialSources:ResultBot:IntervalMinutes", 1), 1, 15));
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {

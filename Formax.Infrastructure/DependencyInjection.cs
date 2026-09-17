@@ -322,6 +322,7 @@ public static class DependencyInjection
         // gözlem defteri. Yalnız arka plan işleri çözer; kullanıcı yolu bu servisleri kullanmaz.
         services.AddSingleton<Formax.Infrastructure.OfficialSources.PostMatchWorkSignal>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialDataSourceCatalog>();
+        services.AddSingleton<Formax.Infrastructure.OfficialSources.MatchResultCacheInvalidator>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialResultWriter>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialResultBotService>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialStatisticsBotService>();

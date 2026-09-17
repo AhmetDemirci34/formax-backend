@@ -19,7 +19,10 @@ import { RESULT_DAY_SPAN, istanbulDay } from "@/lib/matches/resultDays";
  */
 
 const FINISHED_DATA_IS_IMMUTABLE = 10 * 60_000;
-export const TODAY_RESULTS_REFRESH_MS = 5 * 60_000;
+// Bugünün listesi: resmî sonuç DB'ye yazıldıktan sonra açık ekranda ≤ 30 sn içinde görünsün diye 20 sn (salt DB).
+export const TODAY_RESULTS_REFRESH_MS = 20_000;
+/** Gün şeridi ("hangi günde kaç sonuç") daha seyrek tazelenir. */
+export const RESULT_DAYS_REFRESH_MS = 5 * 60_000;
 
 /** Tazeleme aralığı: yalnız bugün; geçmiş gün için false. */
 export function resultsRefreshInterval(day: string | null, today: string = istanbulDay()): number | false {
@@ -32,7 +35,7 @@ export function useMatchResultDays(enabled: boolean) {
     queryFn: () => getMatchResultDays(RESULT_DAY_SPAN),
     staleTime: FINISHED_DATA_IS_IMMUTABLE,
     // Bugünün sayısı gün içinde değişir; "Son sonuçlar" butonu bu listeye bakar.
-    refetchInterval: enabled ? TODAY_RESULTS_REFRESH_MS : false,
+    refetchInterval: enabled ? RESULT_DAYS_REFRESH_MS : false,
     refetchIntervalInBackground: false,
     enabled,
   });

@@ -1252,6 +1252,8 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.State).HasMaxLength(24).IsRequired();
                 entity.Property(x => x.LastOutcome).HasMaxLength(120);
                 entity.Property(x => x.LastSourceKey).HasMaxLength(80);
+                entity.Property(x => x.LastErrorClass).HasMaxLength(32);
+                entity.Property(x => x.LastValidationStatus).HasMaxLength(48);
                 entity.Property(x => x.ResolvedStatus).HasMaxLength(16);
                 entity.Property(x => x.LockOwner).HasMaxLength(64);
                 entity.HasIndex(x => new { x.State, x.NextCheckUtc }).HasDatabaseName("IX_MatchResultChecks_Due");

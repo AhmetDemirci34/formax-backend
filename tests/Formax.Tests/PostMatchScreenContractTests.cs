@@ -27,7 +27,8 @@ public class PostMatchScreenContractTests
     private static string Screen() =>
         Read("formax-web/components/match-center/views/FinishedMatchSummary.tsx");
     private static string Types() => Read("formax-web/types/api.ts");
-    private static string MatchPage() => Read("formax-web/app/match/[id]/page.tsx");
+    // Sayfa gövdesi 17.09.2026'da görünüm bileşenine taşındı (page.tsx yalnız veri/durum yönetir).
+    private static string MatchPage() => Read("formax-web/components/match-center/MatchCenterScreen.tsx");
     private static string PredictionCard() => Read("formax-web/components/predictions/PredictionCard.tsx");
 
     private static string Read(string relative)
