@@ -346,8 +346,12 @@ namespace Formax.Infrastructure.Outcomes
                 dto.PreviousSnapshotId = prev?.SnapshotId;
                 foreach (var c in dto.MainCards.Concat(dto.Families.SelectMany(f => f.Items))) { c.SnapshotId = snapshotId; c.ModelVersion = dto.ModelVersion; }
 
-                var newMatches = prevDto?.InputsCutoffUtc is DateTime pc
+                // Geç yazılan sonuç (başlama saati önceki girdi kesiminden eski) da yeni girdidir: takım örneklem artışı ayrıca sayılır.
+                // Ölçüm 17.09.2026: Barcelona 7-2 Racing sonuç botuyla sonradan yazıldı, kesime göre sayılmadığı için Celta–Racing yanlış NeedsReview oldu.
+                var byKickoff = prevDto?.InputsCutoffUtc is DateTime pc
                     ? CountSince(ctx.TeamMatches, u.HomeTeamId, pc) + CountSince(ctx.TeamMatches, u.AwayTeamId, pc) : 0;
+                var bySample = prevDto == null ? 0 : Math.Max(0, e.HomeSample - prevDto.HomeSampleSize) + Math.Max(0, e.AwaySample - prevDto.AwaySampleSize);
+                var newMatches = Math.Max(byKickoff, bySample);
                 var newCompetition = prevDto?.InputsCutoffUtc is DateTime pcc ? CountSince(ctx.CompetitionMatches, u.LeagueId, pcc) : 0;
                 var inputs = new List<string>(fpInputs);
                 if (newMatches > 0) inputs.Add($"NewFinishedMatches:{newMatches}");

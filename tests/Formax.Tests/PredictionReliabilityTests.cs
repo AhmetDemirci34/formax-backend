@@ -496,6 +496,22 @@ public class PredictionReliabilityTests
         Assert.StartsWith("Unchanged", queued.Outcomes.Single(o => o.MatchId == World.MatchId).Outcome);   // ikinci snapshot yok
         using (var db = w.Db()) Assert.Equal(3, db.MatchPredictionSnapshots.Count(s => s.MatchId == World.MatchId));
 
+        // Geç yazılan gerçek sonuç (başlama saati eski) açıklanmış girdi sayılır: sonuç botu sonradan 7-2 yazar → NeedsReview değil.
+        using (var db = w.Db())
+        {
+            var late = db.Matches.First(m => m.Status == MatchStatuses.Finished && (m.HomeTeamId == 1 || m.AwayTeamId == 1));
+            db.Matches.Add(new Match { Id = 777001, LeagueId = 135, League = "Serie A", MatchDate = World.Kickoff.AddDays(-4), Status = MatchStatuses.Finished, HomeTeamId = 3, AwayTeamId = 1, HomeScore = 7, AwayScore = 2 });
+            db.SaveChanges();
+        }
+        using (var db = w.Db())
+        {
+            var r = await w.Snapshots(db).RunAsync(World.Kickoff.AddMinutes(-31));
+            Assert.Equal(0, r.NeedsReview);
+            var latest = db.MatchPredictionSnapshots.AsNoTracking().Where(s => s.MatchId == World.MatchId).OrderByDescending(s => s.ComputedAtUtc).First();
+            var audit = JsonSerializer.Deserialize<OutcomeChangeAudit>(latest.ChangeAuditJson!)!;
+            Assert.True(audit.NewFinishedMatches >= 1);
+        }
+
         // Kritik olmayan değişiklik yok → periyodik tur yeni snapshot yazmaz.
         using (var db = w.Db()) Assert.Equal(0, (await w.Snapshots(db).RunAsync(World.Kickoff.AddMinutes(-30))).Written);
     }
