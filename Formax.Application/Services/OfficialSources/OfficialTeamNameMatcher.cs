@@ -49,7 +49,11 @@ namespace Formax.Application.Services.OfficialSources
             ["real racing club"] = "racing santander",
             ["r racing club"] = "racing santander",
             // KNVB yazımı (17.09.2026 ölçümü: "N.E.C." → katlanmış "n e c") — FORMAX kayıt adı
-            ["n e c"] = "nec nijmegen"
+            ["n e c"] = "nec nijmegen",
+            // UEFA yazımı (18.09.2026 ölçümü: "Sint-Truidense" / "K. Sint-Truidense VV") — FORMAX "St. Truiden".
+            // Aynı kulüp (STVV); ortak sözcük olmadığı için sözcük kapsaması bu çifti çözemiyor.
+            ["sint truidense"] = "st truiden",
+            ["k sint truidense vv"] = "st truiden"
         };
 
         /// <summary>Aksan katlama + küçük harf + noktalama temizliği.</summary>
