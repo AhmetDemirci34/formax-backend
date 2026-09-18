@@ -8,12 +8,21 @@ namespace Formax.Application.Services.Outcomes
     public static class OutcomeModelVersion
     {
         /// <summary>
+        /// 4.0 (18.09.2026): PARSİMONİ KAPILI PARAMETRE SEÇİMİ. 3.0 reyting parametrelerini (sezon daraltması, ligler arası takım
+        /// payı, lig ofseti oranı) seçim penceresindeki argmin ile alıyordu; ölçüldü ki bu farklar örneklem gürültüsünün altında
+        /// (sezon daraltması: −0,0008 fark, %95 eşli aralık [−0,0029, +0,0013]; ligler arası takım payı: yalnız 50 maç, aralık
+        /// [−0,045, +0,028]). 4.0 bir parametreyi nötr değerinden ancak eşli %95 aralık tamamen 0'ın altındaysa ayırır.
+        /// Ölçülen etki (18.09.2026, 5.328 zamansal test maçı): 1X2 log loss 1,0087 → 1,0059 (eşli %95 aralık [−0,0043, −0,0011]),
+        /// Brier 0,6028 → 0,6011, ligler arası 0,9877 → 0,9830.
         /// 3.0 (17.09.2026): ligler arası ORTAK GÜÇ ÖLÇEĞİ (ligler arası maçlardan öğrenilen lig güç ofseti; takım lig değiştirince
         /// reyting ölçek farkıyla taşınır), sezon arası daraltma, bağımsız Elo yön kontrolü, maç düzeyi güvenlik kapıları.
         /// 2.0: yalnız lig içi göreli reyting (UEFA maçlarında Kıbrıs lideri La Liga takımıyla doğrudan kıyaslanıyordu).
         /// </summary>
-        public const string Current = "formax-outcome-3.0";
-        public const string Previous = "formax-outcome-2.0";
+        public const string Current = "formax-outcome-4.0";
+        /// <summary>Bir önceki ÜRETİM sürümü — koşu kaydında aynı pencerede yeniden kurulup karşılaştırılır.</summary>
+        public const string Previous = "formax-outcome-3.0";
+        /// <summary>Ligler arası ortak ölçekten ÖNCEKİ sürüm — ligler arası gerileme denetimi için korunur.</summary>
+        public const string NoCrossScale = "formax-outcome-2.0";
     }
 
     /// <summary>Tarihsel (bitmiş) maç — modelin tek girdisi. Maç sonrası başka veri modele girmez.</summary>
@@ -113,11 +122,32 @@ namespace Formax.Application.Services.Outcomes
         public int StrengthRefitDays { get; set; } = 14;
         /// <summary>Toplu çözümde eski ligler arası maçların yarı ömrü (gün).</summary>
         public int StrengthHalfLifeDays { get; set; } = 730;
-        /// <summary>Ligler arası maçta hatanın takım reytingine giden payı (kalan açıklama lig ofsetine kalır).</summary>
-        public double CrossLeagueTeamWeight { get; set; } = 0.5;
+        /// <summary>
+        /// Ligler arası maçta hatanın takım reytingine giden payı (kalan açıklama lig ofsetine kalır).
+        /// Nötr değer 1,0'dır (4.0): <see cref="OutcomeRatingModel.Update"/> hatayı zaten lig ofseti DÜŞÜLDÜKTEN sonra hesaplar,
+        /// lig gücü ayrıca bütün ligler arası maç grafiğinden toplu çözülür — çift sayım yoktur. Bu yüzden ligler arası maçın
+        /// takım reytingine katkısı KANIT OLMADAN kısılmaz.
+        /// </summary>
+        public double CrossLeagueTeamWeight { get; set; } = 1.0;
         /// <summary>Uzun aradan (sezon arası) sonra takım reytinginin korunan payı (1 = daraltma yok).</summary>
         public double SeasonCarry { get; set; } = 1.0;
         public int SeasonBreakDays { get; set; } = 50;
+
+        // ── Takım düzeyi iç saha avantajı — ÖLÇÜLDÜ, KANITLANMADI (18.09.2026). Varsayılan KAPALI. ──
+        /// <summary>
+        /// TAKIM İÇ SAHA AVANTAJI η — 3.0/4.0'da iç saha avantajı YALNIZ lig tabanındaki ev/deplasman gol farkıdır; bütün takımlar
+        /// aynı kabul edilir. η_t takımın kendi sahasındaki artık üstünlüğüdür: λ_ev ×= e^{η_ev}, λ_dep ×= e^{−η_ev}.
+        ///
+        /// ÖLÇÜM SONUCU (18.09.2026, 5.328 zamansal test maçı): η eğitim ve kalibrasyon pencerelerinde kaybı DÜŞÜRÜYOR
+        /// (2,38236 → 2,38160 / 2,40384 → 2,40052) ama TEST penceresinde BOZUYOR: 1X2 log loss 1,0061 → 1,0063 → 1,0072 → 1,0101,
+        /// ECE 0,0100 → 0,0182, ev sapması +0,003 → +0,012. Nedeni: iç saha üstünlüğü uydurma penceresi ile test penceresi
+        /// arasında GERİLEDİ; iç sahayı büyüten her katman geçmişe uyup geleceği şişiriyor. Aynı sonuç lig bazlı
+        /// <see cref="HomeTilt"/> için de çıktı. Bu yüzden 0 (kapalı) bırakıldı — kanıt gelmeden açılmaz.
+        /// </summary>
+        public double TeamHomeEdgeRate { get; set; } = 0;
+        /// <summary>η'nin her güncellemede 0'a (lig ortalamasına) çekilme payı — küçük örneklemde takım üstünlüğü uydurulmaz.</summary>
+        public double TeamHomeEdgeDecay { get; set; } = 0.01;
+        public double TeamHomeEdgeCap { get; set; } = 0.35;
 
         // ── Kalibrasyon (dağılımın kendisine uygulanır: bütün marketler aynı matristen türemeye devam eder) ──
         /// <summary>Beklenen gollerin ölçeği (toplam gol yanlılığını düzeltir).</summary>
@@ -137,6 +167,34 @@ namespace Formax.Application.Services.Outcomes
         /// <summary>Lig başına gol ölçeği (küçük örneklemde global değere daraltılmış).</summary>
         public Dictionary<int, double> LeagueGoalScale { get; set; } = new();
 
+        // ── SINANMIŞ ama KANITLANMAMIŞ dağılım katmanları (18.09.2026) — hepsi varsayılan olarak ETKİSİZ. ──
+        // Aramaya DAHİL EDİLMEZ: ölçümleri aşağıda; yeniden denenecekse önce bu ölçümler çürütülmelidir.
+        /// <summary>
+        /// DÜŞÜK SKOR BAĞIMLILIĞI (Dixon–Coles ρ) — bağımsız Poisson'un 0-0, 1-0, 0-1 ve 1-1 hücrelerindeki sistematik hatasını
+        /// düzeltir. ρ &lt; 0 beraberlik hücrelerini büyütür. <see cref="DrawInflation"/>'dan farkı: köşegenin TAMAMINI (3-3, 4-4)
+        /// değil yalnız düşük skor hücrelerini değiştirir.
+        ///
+        /// ÖLÇÜM SONUCU: kalibrasyon penceresinde en iyi değer ρ = 0 çıktı (ρ=−0,04 → 2,40077, ρ=−0,08 → 2,40151, ρ=0 → 2,40054);
+        /// test penceresinde de 1X2 log loss ρ ile KÖTÜLEŞİYOR (1,0087 → 1,0091 → 1,0100 → 1,0131). Mevcut <see cref="DrawInflation"/>
+        /// (1,08) ile ρ birbirinin YERİNE geçiyor (ρ=−0,08 + draw=1,00 ≈ ρ=0 + draw=1,08); yani DC bu veride EK bilgi getirmiyor.
+        /// </summary>
+        public double LowScoreRho { get; set; } = 0;
+        /// <summary>
+        /// İÇ SAHA EĞİMİ δ — λ_ev ×= e^{δ}, λ_dep ×= e^{−δ}. Toplam gol beklentisini değiştirmeden ev/deplasman dengesini kaydırır.
+        ///
+        /// ÖLÇÜM SONUCU: kalibrasyon penceresinde her lig için POZİTİF seçiliyor (+0,006 … +0,056) ama test penceresinde ev sapmasını
+        /// −0,002'den +0,013'e çıkarıyor ve 1X2 log loss'u 1,0087 → 1,0097 kötüleştiriyor. <see cref="TeamHomeEdgeRate"/> ile aynı
+        /// kök neden: iç saha avantajı uydurma penceresinden test penceresine geriledi.
+        /// </summary>
+        public double HomeTilt { get; set; } = 0;
+        /// <summary>Lig başına beraberlik ağırlığı (boşsa global <see cref="DrawInflation"/>). ÖLÇÜM: lig bazlı kalibrasyon
+        /// örneklemi 73–260 maç; K=200 daraltmasıyla bile UEFA Avrupa Ligi'ndeki +0,082 beraberlik sapmasını kapatamadı (+0,079).</summary>
+        public Dictionary<int, double> LeagueDrawInflation { get; set; } = new();
+        /// <summary>Lig başına iç saha eğimi (boşsa global <see cref="HomeTilt"/>). ÖLÇÜM: bkz. <see cref="HomeTilt"/> — reddedildi.</summary>
+        public Dictionary<int, double> LeagueHomeTilt { get; set; } = new();
+        /// <summary>Lig başına düşük skor bağımlılığı (boşsa global <see cref="LowScoreRho"/>).</summary>
+        public Dictionary<int, double> LeagueLowScoreRho { get; set; } = new();
+
         // ── Kalibrasyon penceresinden ölçülen güvenlik sınırları (keyfî sabit değil) ──
         /// <summary>Kalibrasyon penceresinde güvenilirliği doğrulanmış en yüksek 1X2 olasılığı; üstü "kanıtsız aşırı olasılık".</summary>
         public double MaxSupportedProbability { get; set; } = 0.80;
@@ -152,10 +210,22 @@ namespace Formax.Application.Services.Outcomes
             CrossLeagueAware = CrossLeagueAware, StrengthLearningRate = StrengthLearningRate, MinLeagueLinks = MinLeagueLinks, CrossLeagueTeamWeight = CrossLeagueTeamWeight,
             LeagueStrengthPriorSd = LeagueStrengthPriorSd, StrengthRefitDays = StrengthRefitDays, StrengthHalfLifeDays = StrengthHalfLifeDays,
             SeasonCarry = SeasonCarry, SeasonBreakDays = SeasonBreakDays,
+            TeamHomeEdgeRate = TeamHomeEdgeRate, TeamHomeEdgeDecay = TeamHomeEdgeDecay, TeamHomeEdgeCap = TeamHomeEdgeCap,
             GoalScale = GoalScale, TotalGoalShrink = TotalGoalShrink, DrawInflation = DrawInflation, BaselineMix = BaselineMix, UncertaintyMix = UncertaintyMix,
             LeagueGoalScale = new Dictionary<int, double>(LeagueGoalScale),
+            LowScoreRho = LowScoreRho, HomeTilt = HomeTilt,
+            LeagueDrawInflation = new Dictionary<int, double>(LeagueDrawInflation),
+            LeagueHomeTilt = new Dictionary<int, double>(LeagueHomeTilt),
+            LeagueLowScoreRho = new Dictionary<int, double>(LeagueLowScoreRho),
             MaxSupportedProbability = MaxSupportedProbability, EloConflictThreshold = EloConflictThreshold, GoalResidualStd = GoalResidualStd
         };
+
+        /// <summary>Bu maçın organizasyonu için geçerli kalibrasyon sabitleri (lig değeri yoksa global değer).</summary>
+        public (double Scale, double Draw, double Tilt, double Rho) ForLeague(int leagueId) => (
+            LeagueGoalScale.TryGetValue(leagueId, out var s) ? s : GoalScale,
+            LeagueDrawInflation.TryGetValue(leagueId, out var d) ? d : DrawInflation,
+            LeagueHomeTilt.TryGetValue(leagueId, out var t) ? t : HomeTilt,
+            LeagueLowScoreRho.TryGetValue(leagueId, out var r) ? r : LowScoreRho);
 
         /// <summary>2.0 davranışı (karşılaştırma için): ligler arası katman ve sezon daraltması kapalı.</summary>
         public static OutcomeModelParameters Legacy() => new() { CrossLeagueAware = false, StrengthLearningRate = 0, SeasonCarry = 1.0 };
@@ -173,6 +243,9 @@ namespace Formax.Application.Services.Outcomes
         public DateTime? HomeLeagueSeenUtc;
         /// <summary>Bağımsız kontrol reytingi (sonuç tabanlı Elo, lig ofsetsiz takım değeri).</summary>
         public double Elo = 1500;
+        /// <summary>Takımın kendi sahasındaki artık üstünlüğü (log ölçek; 0 = lig ortalaması kadar).</summary>
+        public double HomeEdge;
+        public int HomeMatches;
         /// <summary>Son 10 maç (attığı, yediği, iç saha mı).</summary>
         public readonly Queue<(int For, int Against, bool Home)> Recent = new();
     }
@@ -305,8 +378,10 @@ namespace Formax.Application.Services.Outcomes
                 }
             }
             var off = (sH - sA) / 2;
-            var lh = Clamp(lg.Home * Math.Exp(hAtt + aDef + off), 0.15, 4.5);
-            var la = Clamp(lg.Away * Math.Exp(aAtt + hDef - off), 0.15, 4.5);
+            // Takım düzeyi iç saha üstünlüğü (kapalıyken 0): ev sahibinin kendi sahasındaki artık üstünlüğü.
+            var edge = (h?.HomeEdge ?? 0) * ch;
+            var lh = Clamp(lg.Home * Math.Exp(hAtt + aDef + off + edge), 0.15, 4.5);
+            var la = Clamp(lg.Away * Math.Exp(aAtt + hDef - off - edge), 0.15, 4.5);
             var nh = h?.Matches ?? 0;
             var na = a?.Matches ?? 0;
             var coverage = Math.Clamp(Math.Min(nh, na) / (double)Parameters.FullCoverageSample, 0, 1);
@@ -360,11 +435,17 @@ namespace Formax.Application.Services.Outcomes
             var off = cross ? (sh!.Strength - sa!.Strength) / 2 : 0;
 
             var lg = League(m.LeagueId);
-            var lh = Clamp(lg.Home * Math.Exp(h.LogAttack + a.LogDefence + off), 0.15, 4.5);
-            var la = Clamp(lg.Away * Math.Exp(a.LogAttack + h.LogDefence - off), 0.15, 4.5);
+            var lh = Clamp(lg.Home * Math.Exp(h.LogAttack + a.LogDefence + off + h.HomeEdge), 0.15, 4.5);
+            var la = Clamp(lg.Away * Math.Exp(a.LogAttack + h.LogDefence - off - h.HomeEdge), 0.15, 4.5);
             var eta = Parameters.LearningRate * (cross ? Parameters.CrossLeagueTeamWeight : 1.0);
             var errH = Math.Clamp(m.HomeGoals - lh, -4, 4);
             var errA = Math.Clamp(m.AwayGoals - la, -4, 4);
+            if (Parameters.TeamHomeEdgeRate > 0)
+            {
+                h.HomeEdge = Clamp(h.HomeEdge * (1 - Parameters.TeamHomeEdgeDecay) + Parameters.TeamHomeEdgeRate * (errH - errA) / 2,
+                    -Parameters.TeamHomeEdgeCap, Parameters.TeamHomeEdgeCap);
+                h.HomeMatches++;
+            }
             h.LogAttack = Clamp(h.LogAttack + eta * errH, -1.6, 1.6);
             a.LogDefence = Clamp(a.LogDefence + eta * errH, -1.6, 1.6);
             a.LogAttack = Clamp(a.LogAttack + eta * errA, -1.6, 1.6);
@@ -455,6 +536,7 @@ namespace Formax.Application.Services.Outcomes
             if (c >= 1) return;
             t.LogAttack *= c;
             t.LogDefence *= c;
+            t.HomeEdge *= c;
             t.Elo = 1500 + (t.Elo - 1500) * c;
         }
 
@@ -503,15 +585,33 @@ namespace Formax.Application.Services.Outcomes
         public double this[int h, int a] => _p[h, a];
 
         public static ScoreDistribution Poisson(double lambdaHome, double lambdaAway, double drawInflation = 1.0)
+            => Poisson(lambdaHome, lambdaAway, drawInflation, 0.0);
+
+        /// <summary>
+        /// <paramref name="lowScoreRho"/> — Dixon–Coles düşük skor düzeltmesi: yalnız (0,0), (0,1), (1,0) ve (1,1) hücrelerini
+        /// çarpanla değiştirir (τ). ρ = 0 bağımsız Poisson'dur. Hücreler 0'ın altına düşmeyecek biçimde sınırlanır; dağılım
+        /// her hâlükârda normalize edilir, bu yüzden bütün market toplamları %100 kalır.
+        /// </summary>
+        public static ScoreDistribution Poisson(double lambdaHome, double lambdaAway, double drawInflation, double lowScoreRho)
         {
             var d = new ScoreDistribution();
             var hp = Pmf(lambdaHome);
             var ap = Pmf(lambdaAway);
+            var lh = Math.Max(0.01, lambdaHome);
+            var la = Math.Max(0.01, lambdaAway);
+            // ρ'nun geçerli aralığı λ'lara bağlıdır; dışına çıkılırsa negatif olasılık üretilirdi.
+            var rho = Math.Clamp(lowScoreRho, Math.Max(-1.0 / (lh * la), -1.0), Math.Min(1.0 / (lh * la), 1.0));
             double total = 0;
             for (var i = 0; i <= MaxGoals; i++)
                 for (var j = 0; j <= MaxGoals; j++)
                 {
-                    var v = hp[i] * ap[j] * (i == j ? drawInflation : 1.0);
+                    var tau = rho == 0 ? 1.0
+                        : i == 0 && j == 0 ? 1 - lh * la * rho
+                        : i == 0 && j == 1 ? 1 + lh * rho
+                        : i == 1 && j == 0 ? 1 + la * rho
+                        : i == 1 && j == 1 ? 1 - rho
+                        : 1.0;
+                    var v = hp[i] * ap[j] * (i == j ? drawInflation : 1.0) * Math.Max(0, tau);
                     d._p[i, j] = v;
                     total += v;
                 }
@@ -593,10 +693,13 @@ namespace Formax.Application.Services.Outcomes
         public static OutcomePrediction Predict(OutcomeExpectation e, int leagueId, OutcomeModelParameters p)
         {
             var raw = ScoreDistribution.Poisson(e.LambdaHome, e.LambdaAway);
-            var scale = p.LeagueGoalScale.TryGetValue(leagueId, out var ls) ? ls : p.GoalScale;
-            var baseline = ScoreDistribution.Poisson(e.LeagueHome * scale, e.LeagueAway * scale, p.DrawInflation);
+            var (scale, draw, tilt, rho) = p.ForLeague(leagueId);
+            // İç saha eğimi toplam gol beklentisini değiştirmez: e^{+δ} ve e^{−δ} çarpımı 1'dir.
+            var th = Math.Exp(tilt);
+            var ta = Math.Exp(-tilt);
+            var baseline = ScoreDistribution.Poisson(e.LeagueHome * scale * th, e.LeagueAway * scale * ta, draw, rho);
             var (lh, la) = Shrink(e, p.TotalGoalShrink);
-            var model = ScoreDistribution.Poisson(lh * scale, la * scale, p.DrawInflation);
+            var model = ScoreDistribution.Poisson(lh * scale * th, la * scale * ta, draw, rho);
             var w = Math.Clamp(p.BaselineMix + p.UncertaintyMix * (1 - e.Coverage), 0, 0.85);
             return new OutcomePrediction(e, raw, model.Mix(baseline, w), baseline, w);
         }

@@ -94,7 +94,10 @@ namespace Formax.Infrastructure.Outcomes
             var report = await Task.Run(() =>
             {
                 var catalog = CompetitionCatalog.Build(history, names);
-                return OutcomeBacktest.Run(history, catalog, LockedCompetitions.All.ToHashSet(), evalStart, calStart, testStart, nowUtc, nowUtc, compareLegacy: true);
+                // candidate: true = 4.0 parsimoni kapılı parametre seçimi. TEK ANAHTAR: bu bayrak ve OutcomeModelVersion.Current
+                // birlikte geri alınırsa sistem 3.0 davranışına döner; geçmiş snapshot'lar değişmez.
+                return OutcomeBacktest.Run(history, catalog, LockedCompetitions.All.ToHashSet(), evalStart, calStart, testStart, nowUtc, nowUtc,
+                    compareLegacy: true, candidate: true);
             }, ct).ConfigureAwait(false);
             var run = new PredictionModelRun
             {

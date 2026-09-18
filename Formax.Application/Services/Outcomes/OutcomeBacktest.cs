@@ -151,8 +151,17 @@ namespace Formax.Application.Services.Outcomes
         public ModelVariantMetrics TestRaw { get; set; } = new();
         public ModelVariantMetrics TestCalibrated { get; set; } = new();
         public ModelVariantMetrics TestLeagueBaseline { get; set; } = new();
-        /// <summary>Önceki model sürümü (2.0) aynı pencerelerde, aynı seçim prosedürüyle.</summary>
+        /// <summary>Ligler arası ortak ölçekten önceki sürüm (2.0) aynı pencerelerde, aynı seçim prosedürüyle.</summary>
         public ModelVariantMetrics? TestPreviousModel { get; set; }
+        /// <summary>Bir önceki ÜRETİM sürümü (3.0 — parsimoni kapısı olmadan argmin seçimi) aynı pencerelerde, AYNI test maçlarında.</summary>
+        public ModelVariantMetrics? TestPreviousProduction { get; set; }
+        public List<GroupMetrics> PreviousProductionLeagues { get; set; } = new();
+        /// <summary>Aday/üretim ayrımı: parametre seçimi parsimoni kapısından mı geçti?</summary>
+        public bool ParsimoniousSelection { get; set; }
+        /// <summary>4.0 − 3.0 eşli 1X2 log loss farkı ve %95 bootstrap aralığı (negatif = yeni sürüm iyi).</summary>
+        public double PreviousProductionLogLossDiff { get; set; }
+        public double PreviousProductionLogLossDiffCiLow { get; set; }
+        public double PreviousProductionLogLossDiffCiHigh { get; set; }
         public List<LeagueMetric> Leagues { get; set; } = new();
         /// <summary>Lig bazlı bağımsız sınav + uygunluk kararı (Enabled/Limited/Disabled).</summary>
         public List<GroupMetrics> LeagueEligibility { get; set; } = new();
@@ -185,6 +194,8 @@ namespace Formax.Application.Services.Outcomes
         private static readonly double[] BaselineMixes = { 0.0, 0.05, 0.12, 0.2 };
         private static readonly double[] UncertaintyMixes = { 0.0, 0.2, 0.4, 0.6 };
         private static readonly double[] TotalGoalShrinks = { 1.0, 0.75, 0.5, 0.25, 0.0 };
+        /// <summary>Aday 4.0 — veri azaldıkça yüzdelerin lig tabanına çekilme oranının alt sınırı (ürün kuralı, ölçüm değil).</summary>
+        public const double MinUncertaintyMix = 0.2;
         public const double LeagueShrinkageK = 200;
         public const double MinimumCalibrationGain = 0.0005;
         public const double BaselinePriorWeight = 20;
@@ -197,7 +208,8 @@ namespace Formax.Application.Services.Outcomes
             => Run(ordered, CompetitionCatalog.Unclassified, evalLeagues, evalStart, calStart, testStart, testEnd, testEnd, compareLegacy: false);
 
         public static OutcomeBacktestReport Run(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog, ISet<int> evalLeagues,
-            DateTime evalStart, DateTime calStart, DateTime testStart, DateTime testEnd, DateTime nowUtc, bool compareLegacy = true)
+            DateTime evalStart, DateTime calStart, DateTime testStart, DateTime testEnd, DateTime nowUtc, bool compareLegacy = true,
+            bool candidate = false)
         {
             var report = new OutcomeBacktestReport
             {
@@ -211,7 +223,7 @@ namespace Formax.Application.Services.Outcomes
             var space = catalog.LeagueCount > 0
                 ? (from lr in LearningRates from c in SeasonCarries select (lr, 0.02, c)).ToList()
                 : LearningRates.Select(lr => (lr, 0.0, 1.0)).ToList();
-            var current = Fit(ordered, catalog, InEval, InCross, space, evalStart, calStart, testStart, testEnd, crossAware: catalog.LeagueCount > 0, report);
+            var current = Fit(ordered, catalog, InEval, InCross, space, evalStart, calStart, testStart, testEnd, crossAware: catalog.LeagueCount > 0, report, candidate);
 
             report.Parameters = current.Chosen;
             report.ChosenLearningRate = current.Chosen.LearningRate;
@@ -256,30 +268,65 @@ namespace Formax.Application.Services.Outcomes
                 legacy = Fit(ordered, CompetitionCatalog.Unclassified, InEval, InCross, legacySpace, evalStart, calStart, testStart, testEnd, crossAware: false, null);
                 var lp = legacy.Chosen;
                 var legacyLocked = legacy.Test.Samples.Where(s => evalLeagues.Contains(s.LeagueId)).ToList();
-                report.TestPreviousModel = Evaluate("PreviousModel_" + OutcomeModelVersion.Previous, legacyLocked, s => OutcomePredictor.Predict(s.E, s.LeagueId, lp).Calibrated);
+                report.TestPreviousModel = Evaluate("PreviousModel_" + OutcomeModelVersion.NoCrossScale, legacyLocked, s => OutcomePredictor.Predict(s.E, s.LeagueId, lp).Calibrated);
                 report.PreviousModelLeagues = LeagueGroups(evalLeagues, legacy.Test, lp, recentByLeague);
                 report.PreviousModelBias = AuditBias(legacyLocked, lp);
             }
             report.CrossLeague = AuditCrossLeague(current, legacy, catalog);
 
+            // ── Bir önceki ÜRETİM sürümü (3.0): aynı pencere, aynı reyting arama uzayı, parsimoni kapısı KAPALI ──
+            report.ParsimoniousSelection = candidate;
+            if (candidate)
+            {
+                var prod = Fit(ordered, catalog, InEval, InCross, space, evalStart, calStart, testStart, testEnd, crossAware: catalog.LeagueCount > 0, null, candidate: false);
+                var prodById = prod.Test.Samples.Where(s => evalLeagues.Contains(s.LeagueId)).ToDictionary(s => s.MatchId);
+                var paired = testLocked.Where(s => prodById.ContainsKey(s.MatchId)).ToList();
+                report.TestPreviousProduction = Evaluate("PreviousProduction_" + OutcomeModelVersion.Previous,
+                    paired.Select(s => prodById[s.MatchId]).ToList(), s => OutcomePredictor.Predict(s.E, s.LeagueId, prod.Chosen).Calibrated);
+                report.PreviousProductionLeagues = LeagueGroups(evalLeagues, prod.Test, prod.Chosen, recentByLeague);
+                var diffs = paired.Select(s =>
+                    ResultLoss(OutcomePredictor.Predict(s.E, s.LeagueId, chosen).Calibrated, s)
+                    - ResultLoss(OutcomePredictor.Predict(prodById[s.MatchId].E, s.LeagueId, prod.Chosen).Calibrated, s)).ToArray();
+                if (diffs.Length > 0)
+                {
+                    report.PreviousProductionLogLossDiff = Math.Round(diffs.Average(), 5);
+                    var (lo, hi) = GroupEvaluator.BootstrapMeanCi(diffs, EligibilityPolicy.BootstrapSamples, seed: 909);
+                    report.PreviousProductionLogLossDiffCiLow = Math.Round(lo, 5);
+                    report.PreviousProductionLogLossDiffCiHigh = Math.Round(hi, 5);
+                }
+            }
+
             report.Decision = report.CalibrationApplied
                 ? (report.TestCalibrated.CombinedLogLoss <= report.TestRaw.CombinedLogLoss ? "CALIBRATION_APPLIED_TEST_IMPROVED" : "CALIBRATION_APPLIED_TEST_NOT_IMPROVED")
                 : "RAW_MODEL_KEPT_NO_CALIBRATION_GAIN";
+            LastArtifacts = new BacktestArtifacts(report, testLocked, current.Test.Samples, current.Cal, chosen, baseParams);
             return report;
         }
+
+        /// <summary>
+        /// Koşunun maç düzeyi çıktıları — YALNIZ çevrimdışı denetim (segment tabloları, gerçek maç sanity kontrolü, dış oran
+        /// karşılaştırması) içindir; üretim yolu bu alanı okumaz ve DB'ye yazılmaz.
+        /// </summary>
+        public sealed record BacktestArtifacts(OutcomeBacktestReport Report, IReadOnlyList<EvalSample> LockedTestSamples,
+            IReadOnlyList<EvalSample> AllTestSamples, IReadOnlyList<EvalSample> CalibrationSamples,
+            OutcomeModelParameters Chosen, OutcomeModelParameters BaseParams);
+
+        /// <summary>Son <see cref="Run"/> çağrısının maç düzeyi çıktıları (tek iş parçacıklı çevrimdışı kullanım).</summary>
+        [ThreadStatic] public static BacktestArtifacts? LastArtifacts;
 
         private sealed record FitResult(OutcomeModelParameters Chosen, OutcomeModelParameters BaseParams, List<EvalSample> Cal, Collected Test,
             int TrainCount, bool CalibrationApplied, double CalibrationImprovement);
 
         private static FitResult Fit(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog, Func<HistoricalMatch, bool> inEval,
             Func<HistoricalMatch, bool> inCross, List<(double Lr, double Slr, double Carry)> space,
-            DateTime evalStart, DateTime calStart, DateTime testStart, DateTime testEnd, bool crossAware, OutcomeBacktestReport? report)
+            DateTime evalStart, DateTime calStart, DateTime testStart, DateTime testEnd, bool crossAware, OutcomeBacktestReport? report,
+            bool candidate = false)
         {
             var identity = new OutcomeModelParameters { GoalScale = 1, DrawInflation = 1, BaselineMix = 0, UncertaintyMix = 0, CrossLeagueAware = crossAware };
 
             // 1) Reyting parametreleri — eğitim penceresinde ham (kalibrasyonsuz) birleşik log loss.
             double bestLoss = double.MaxValue; var best = space[0]; var trainCount = 0;
-            foreach (var cand in space)
+            foreach (var cand in candidate ? space.Where(x => x.Carry >= 1).ToList() : space)
             {
                 var p = identity.Clone(); p.LearningRate = cand.Lr; p.StrengthLearningRate = cand.Slr; p.SeasonCarry = cand.Carry;
                 // Reyting parametreleri geniş veriyle seçilir (eğitim penceresindeki bütün rekabetçi maçlar): kilitli liglerin
@@ -293,10 +340,25 @@ namespace Formax.Application.Services.Outcomes
 
             var baseParams = identity.Clone(); baseParams.LearningRate = best.Lr; baseParams.StrengthLearningRate = best.Slr; baseParams.SeasonCarry = best.Carry;
 
+            // 1a-parsimoni (aday 4.0) — SEZON DARALTMASI yalnız KANITLANIRSA açılır.
+            // Ölçüm 18.09.2026 (seçim penceresi, 4.356 maç): carry 0,8 ↔ 1,0 farkı −0,0008 ve %95 eşli aralık [−0,0029, +0,0013];
+            // yani seçim ölçütü bu parametreyi ayırt EDEMİYOR. 3.0 yine de argmin'i (0,8) alıyordu. Aday: ayırt edilemiyorsa
+            // nötr değerde (daraltma yok) kalınır.
+            if (candidate)
+            {
+                foreach (var carry in SeasonCarries.Where(c => c < 1))
+                {
+                    var p = baseParams.Clone(); p.SeasonCarry = carry;
+                    var (mean, _, hi) = PairedSelection(ordered, catalog, baseParams, p, evalStart, calStart, m => !catalog.IsExcluded(m.LeagueId));
+                    report?.LearningRateSearch.TryAdd(string.Create(CultureInfo.InvariantCulture, $"parsimony:carry={carry:0.0};mean={mean:0.00000};ciHigh={hi:0.00000}"), Math.Round(hi, 5));
+                    if (hi < 0) { baseParams.SeasonCarry = carry; break; }
+                }
+            }
+
             // 1b) Ligler arası parametreler (lig ofseti öğrenme oranı × takım payı) YALNIZ ligler arası maçlarda, testten ÖNCEKİ
             //     pencerede seçilir: lig içi maçta ofset sadeleşir, genel kayıp bu parametreyi ölçemez (ölçüm 17.09.2026: genel
             //     kayıpla seçilen 0,01 oranı Kıbrıs–La Liga farkını 0,33'te bıraktı, Omonia–Celta %71 ev sahibi kaldı).
-            if (crossAware)
+            if (crossAware && !candidate)
             {
                 double bestCross = double.MaxValue;
                 foreach (var slr in StrengthLearningRates)
@@ -309,6 +371,27 @@ namespace Formax.Application.Services.Outcomes
                     if (report != null)
                         report.LearningRateSearch[string.Create(CultureInfo.InvariantCulture, $"cross:s={slr:0.00};teamWeight={w:0.00};n={crossSamples.Count}")] = Math.Round(loss, 5);
                     if (loss < bestCross) { bestCross = loss; baseParams.StrengthLearningRate = slr; baseParams.CrossLeagueTeamWeight = w; }
+                }
+            }
+            // 1b-parsimoni (aday 4.0) — LİGLER ARASI parametreler.
+            // Ölçüm 18.09.2026: seçim penceresinde yalnız 50 ligler arası maç var (lig bağlantısı 20 maçla açıldığı için erken
+            // maçlar kapıda eleniyor). 3.0 bu 50 maçta iki parametreyi birden argmin ile seçiyor; takım payının %95 eşli aralığı
+            // [−0,045, +0,028] — yani ölçüm parametreyi AYIRT EDEMİYOR ve 3.0 gürültüyü takip ediyor.
+            // Nötr değer yapısaldır: Update'te hata zaten lig ofseti DÜŞÜLDÜKTEN sonra hesaplanıyor (çift sayım yok), lig gücü
+            // ayrıca bütün ligler arası maç grafiğinden toplu çözülüyor. Dolayısıyla ligler arası maçın takım reytingine katkısı
+            // kanıt olmadan kısılmaz: takım payı = 1, çevrimiçi lig ofseti nudge'ı = 0 (toplu çözüm zaten yapıyor).
+            if (crossAware && candidate)
+            {
+                baseParams.CrossLeagueTeamWeight = 1.0;
+                baseParams.StrengthLearningRate = 0.0;
+                var neutral = baseParams.Clone();
+                foreach (var slr in StrengthLearningRates.Where(x => x > 0))
+                foreach (var w in CrossLeagueTeamWeights.Where(x => x < 1))
+                {
+                    var p = neutral.Clone(); p.StrengthLearningRate = slr; p.CrossLeagueTeamWeight = w;
+                    var (mean, _, hi) = PairedSelection(ordered, catalog, neutral, p, evalStart, testStart, inCross, crossOnly: true);
+                    report?.LearningRateSearch.TryAdd(string.Create(CultureInfo.InvariantCulture, $"parsimony:cross s={slr:0.00};w={w:0.00};mean={mean:0.00000}"), Math.Round(hi, 5));
+                    if (hi < 0) { baseParams.StrengthLearningRate = slr; baseParams.CrossLeagueTeamWeight = w; }
                 }
             }
 
@@ -331,7 +414,8 @@ namespace Formax.Application.Services.Outcomes
                 double bestCal = double.MaxValue;
                 OutcomeModelParameters? bestP = null;
                 // Koordinat araması (iki tur): (gol ölçeği × beraberlik × toplam gol daraltması) → (sabit karışım × belirsizlik karışımı).
-                var cur = baseParams.Clone(); cur.UncertaintyMix = 0; cur.BaselineMix = 0;
+                // Aday 4.0'da belirsizlik karışımı ürün kuralı gereği tabandan (MinUncertaintyMix) başlar ve altına inemez.
+                var cur = baseParams.Clone(); cur.UncertaintyMix = candidate ? MinUncertaintyMix : 0; cur.BaselineMix = 0;
                 for (var round = 0; round < 2; round++)
                 {
                     foreach (var gs in GoalScales)
@@ -343,8 +427,13 @@ namespace Formax.Application.Services.Outcomes
                         if (loss < bestCal) { bestCal = loss; bestP = p; }
                     }
                     cur = (bestP ?? cur).Clone();
+                    // Aday 4.0 — BELİRSİZLİK TABANI: kullanıcıya "sınırlı veri: yüzdeler lig ortalamasına yaklaştırıldı" yazılıyordu
+                    // ama 3.0'da kalibrasyon araması belirsizlik karışımını 0 seçtiği için HİÇBİR daraltma yapılmıyordu (ölçüm
+                    // 18.09.2026: SV Elversberg–Bayern, kapsam %33, belirsizlik ağırlığı %0). Belirsizlik bir etiket değil, ürün
+                    // kuralıdır: veri azaldıkça yüzdeler lig tabanına çekilir. Ölçülen bedel test penceresinde +0,0001 birleşik
+                    // log loss; 1X2 log loss değişmiyor, 1X2 ECE 0,0039 → 0,0036 iyileşiyor.
                     foreach (var bm in BaselineMixes)
-                    foreach (var um in UncertaintyMixes)
+                    foreach (var um in (candidate ? UncertaintyMixes.Where(x => x >= MinUncertaintyMix) : UncertaintyMixes))
                     {
                         var p = cur.Clone(); p.BaselineMix = bm; p.UncertaintyMix = um;
                         var loss = cal.Average(s => Combined(OutcomePredictor.Predict(s.E, s.LeagueId, p).Calibrated, s));
@@ -374,6 +463,32 @@ namespace Formax.Application.Services.Outcomes
             // Güvenlik sınırları testten ÖNCEKİ bütün örneklerden (eğitim + kalibrasyon) ölçülür.
             DeriveSafetyLimits(chosen, preTest);
             return new FitResult(chosen, baseParams, cal, test, trainCount, applied, improvement);
+        }
+
+        /// <summary>
+        /// PARSİMONİ SINAVI — bir parametre nötr değerinden ancak SEÇİM penceresinde AYNI maçlarda ölçülen eşli kayıp farkının
+        /// %95 bootstrap aralığı tamamen 0'ın altındaysa ayrılır. Aynı maç iki parametreyle iki kez tahmin edilir; fark maç
+        /// düzeyinde eşlenir (farklı parametrede kapıya takılan maçlar eşlemeden düşer). Test penceresine BAKILMAZ.
+        /// </summary>
+        private static (double Mean, double Low, double High) PairedSelection(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog,
+            OutcomeModelParameters neutral, OutcomeModelParameters cand, DateTime from, DateTime to, Func<HistoricalMatch, bool> include,
+            bool crossOnly = false)
+        {
+            Dictionary<int, double> Losses(OutcomeModelParameters p)
+            {
+                var c = Collect(ordered, catalog, p, from, to, include);
+                var src = crossOnly ? c.Samples.Where(s => s.E.CrossLeague) : c.Samples;
+                var d = new Dictionary<int, double>();
+                foreach (var s in src) d[s.MatchId] = Combined(OutcomePredictor.Predict(s.E, s.LeagueId, p).Calibrated, s);
+                return d;
+            }
+            var a = Losses(neutral);
+            var b = Losses(cand);
+            var diffs = new List<double>(Math.Min(a.Count, b.Count));
+            foreach (var kv in b) if (a.TryGetValue(kv.Key, out var v)) diffs.Add(kv.Value - v);
+            if (diffs.Count < 30) return (0, double.MinValue, double.MaxValue); // ölçülemeyen parametre nötr kalır
+            var (lo, hi) = GroupEvaluator.BootstrapMeanCi(diffs, EligibilityPolicy.BootstrapSamples, seed: 4242);
+            return (diffs.Average(), lo, hi);
         }
 
         /// <summary>
@@ -689,7 +804,7 @@ namespace Formax.Application.Services.Outcomes
             audit.CurrentModel = GroupEvaluator.Evaluate("CrossLeague:" + OutcomeModelVersion.Current, null, paired,
                 s => OutcomePredictor.Predict(s.E, s.LeagueId, cp).Calibrated, audit.GatedMatches);
             var legacySamples = paired.Select(s => legacyById[s.MatchId]).ToList();
-            audit.PreviousModel = GroupEvaluator.Evaluate("CrossLeague:" + OutcomeModelVersion.Previous, null, legacySamples,
+            audit.PreviousModel = GroupEvaluator.Evaluate("CrossLeague:" + OutcomeModelVersion.NoCrossScale, null, legacySamples,
                 s => OutcomePredictor.Predict(s.E, s.LeagueId, lp).Calibrated, 0);
             var curExtreme = paired.Select(s => (s, p: OutcomePredictor.Predict(s.E, s.LeagueId, cp).Calibrated.HomeWin)).Where(x => x.p > 0.65).ToList();
             var legExtreme = legacySamples.Select(s => (s, p: OutcomePredictor.Predict(s.E, s.LeagueId, lp).Calibrated.HomeWin)).Where(x => x.p > 0.65).ToList();
@@ -783,6 +898,11 @@ namespace Formax.Application.Services.Outcomes
             Domain.Constants.OddsMarketKeys.Under35 => h + a < 4,
             Domain.Constants.OddsMarketKeys.BttsYes => h > 0 && a > 0,
             Domain.Constants.OddsMarketKeys.BttsNo => h == 0 || a == 0,
+            // Bileşik (çifte şans) marketler: ana kartlara girmedikleri için üretimde hiç sorulmuyordu; eksik oldukları için
+            // sorulduklarında SESSİZCE "tutmadı" sayılıyorlardı — seçim kuralı denetimini yanlış yönde bozan boşluk.
+            Domain.Constants.OddsMarketKeys.DoubleChance1X => h >= a,
+            Domain.Constants.OddsMarketKeys.DoubleChanceX2 => h <= a,
+            Domain.Constants.OddsMarketKeys.DoubleChance12 => h != a,
             _ => false
         };
     }
