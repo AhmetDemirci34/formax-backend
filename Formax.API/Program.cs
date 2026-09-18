@@ -918,6 +918,9 @@ internal class Program
 
         // ── Timeline Operations — GERÇEK API istek ölçümü (metering) + senkron telemetrisi ──
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.ApiFootballMetrics>();
+        // Abonelik planı yetenek durumu (18.09.2026): plan takım penceresini (last=/next=) kapatıyorsa
+        // o uca istek üretilmez. Süreç ömrü boyunca hatırlanır; plan yükseltilirse restart sıfırlar.
+        builder.Services.AddSingleton<Formax.Infrastructure.Http.ApiFootballPlanState>();
         // İstek başına SIRSIZ kayıt (job, uç, fikstür, cache, bütçe, HTTP sonucu). Video keşfinin
         // sayacı API-Football'dan tamamen AYRIDIR.
         builder.Services.AddSingleton<Formax.Infrastructure.Telemetry.ApiFootballRequestLog>();

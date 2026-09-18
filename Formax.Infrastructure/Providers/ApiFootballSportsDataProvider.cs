@@ -70,17 +70,22 @@ namespace Formax.Infrastructure.Providers
         // 6h TTL: aynı döngüde tekrar-çağrıyı önler, kotayı korur.
         private static readonly TimeSpan TtlTeamTimeline = TimeSpan.FromHours(6);
 
+        /// <summary>Abonelik planı yetenek durumu (takım penceresi reddi); null ise öğrenme yapılmaz.</summary>
+        private readonly Formax.Infrastructure.Http.ApiFootballPlanState? _planState;
+
         public ApiFootballSportsDataProvider(
             HttpClient http,
             IMemoryCache cache,
             IConfiguration configuration,
             ILogger<ApiFootballSportsDataProvider> logger,
-            ApiFootballMetrics metrics)
+            ApiFootballMetrics metrics,
+            Formax.Infrastructure.Http.ApiFootballPlanState? planState = null)
         {
             _http   = http;
             _cache  = cache;
             _logger = logger;
             _metrics = metrics;
+            _planState = planState;
 
             _apiKey = configuration["ApiFootball:ApiKey"] ?? string.Empty;
 
@@ -355,6 +360,17 @@ namespace Formax.Infrastructure.Providers
                 return new List<SportsFixtureResult>();
 
             var window   = isPast ? "last" : "next";
+
+            // ÖĞRENİLMİŞ PLAN REDDİ — last=/next= parametresi plan tarafından kapatılmışsa İSTEK ÜRETİLMEZ.
+            // Reddedilecek bir ucu her turda yeniden satın almak kotanın sessiz kaçağıdır (ölçüldü 18.09.2026).
+            if (_planState?.TeamWindowBlocked == true)
+            {
+                _logger.LogDebug(
+                    "[SPORTS] Team {TeamId} {Window}={N} — abonelik planı bu parametreyi kapatıyor, istek yapılmadı.",
+                    teamId, window, windowN);
+                return new List<SportsFixtureResult>();
+            }
+
             var cacheKey = $"teamfx:{window}:{teamId}:{windowN}";
             if (_cache.TryGetValue(cacheKey, out List<SportsFixtureResult>? cached) && cached != null)
             {
@@ -367,8 +383,30 @@ namespace Formax.Infrastructure.Providers
                 var response = await _http.GetFromJsonAsync<ApiFootballFixtureSyncResponse>(
                     $"fixtures?team={teamId}&{window}={windowN}{_tzQuery}", ct);
 
+                // SAĞLAYICI PROBLEMİ ≠ "BU TAKIMIN MAÇI YOK". api-football kota/plan reddinde HTTP 200 +
+                // dolu "errors" + boş "response" döndürür; bu cevabı geçerli boş liste sayıp ÖNBELLEĞE ALMAK
+                // sahte başarıdır (tarih ayağında bu kural zaten vardı, takım ayağında eksikti).
+                if (response == null || response.Response == null || HasProviderError(response.Errors))
+                {
+                    _metrics.RecordBodyError("fixtures");
+                    var detail = DescribeProviderError(response?.Errors);
+
+                    if (Formax.Infrastructure.Http.ApiFootballPlanState.IsTeamWindowRestriction(detail)
+                        && _planState?.BlockTeamWindow(detail, DateTime.UtcNow) == true)
+                        _logger.LogWarning(
+                            "[SPORTS] Abonelik planı takım penceresini (fixtures?team=&last=/next=) KAPATIYOR: {Detail}. " +
+                            "Bu uca artık istek ÜRETİLMEYECEK; ileri takvim yalnız plan penceresindeki " +
+                            "fixtures?date= ile alınabilir.", detail);
+                    else
+                        _logger.LogWarning(
+                            "[SPORTS] Team {TeamId} {Window}={N} — sağlayıcı kullanılabilir gövde döndürmedi: {Detail}",
+                            teamId, window, windowN, detail.Length > 0 ? detail : "(kota/hata)");
+
+                    return new List<SportsFixtureResult>();   // ÖNBELLEĞE ALINMAZ
+                }
+
                 var results = new List<SportsFixtureResult>();
-                foreach (var entry in response?.Response ?? new())
+                foreach (var entry in response.Response)
                 {
                     var mapped = MapSyncEntry(entry);
                     if (mapped != null) results.Add(mapped);

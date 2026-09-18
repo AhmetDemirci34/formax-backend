@@ -112,6 +112,21 @@ namespace Formax.Infrastructure.BackgroundJobs
             var metrics   = sp.GetRequiredService<ApiFootballMetrics>();
             var telemetry = sp.GetRequiredService<TimelineSyncTelemetry>();
 
+            // ── ABONELİK PLANI KAPISI ──────────────────────────────────────────────
+            // Bu job'un İKİ ayağı da (fixtures?team=&last= / &next=) plan tarafından kapatılmışsa
+            // (ölçüldü 18.09.2026: "Free plans do not have access to the Last/Next parameter.")
+            // tur hiç açılmaz: istek üretmek kotayı boşa harcar ve takımı "senkronlandı" damgalamak
+            // kapsamı YANLIŞ gösterir (plan reddi ≠ takımın maçı yok). Plan yükseltilirse restart
+            // durumu sıfırlar ve istekler kendiliğinden yeniden denenir.
+            var planState = sp.GetService<Formax.Infrastructure.Http.ApiFootballPlanState>();
+            if (planState?.TeamWindowBlocked == true)
+            {
+                _logger.LogWarning(
+                    "[TIMELINE SYNC] Abonelik planı takım penceresini kapatıyor ({Detail}) — tur atlandı, " +
+                    "istek üretilmedi, watermark damgalanmadı.", planState.TeamWindowDetail ?? "plan reddi");
+                return 0;
+            }
+
             var maxTeams     = ConfigInt(config, "Timeline:MaxTeamsPerCycle", DefaultMaxTeamsPerCycle, 1, 1000);
             var refreshHours = ConfigInt(config, "Timeline:RefreshIntervalHours", DefaultRefreshHours, 1, 100000);
             var now = DateTime.UtcNow;
@@ -154,6 +169,17 @@ namespace Formax.Infrastructure.BackgroundJobs
             }
 
             var added = await IngestFixturesAsync(sp, allFixtures, ct);
+
+            // Plan reddi tur ORTASINDA öğrenilmiş olabilir (ilk deneme): bu turun takımları
+            // "senkronlandı" damgalanmaz, yoksa kapsam yanlış görünür ve plan yükseltildiğinde
+            // bu takımlar RefreshInterval dolana kadar bir daha sorulmazdı.
+            if (planState?.TeamWindowBlocked == true)
+            {
+                _logger.LogWarning(
+                    "[TIMELINE SYNC] Abonelik planı takım penceresini kapattı ({Detail}) — watermark damgalanmadı; " +
+                    "bu turda yazılan maç: {Added}.", planState.TeamWindowDetail ?? "plan reddi", added);
+                return added;
+            }
 
             // ── Stamp watermark on the processed teams (Cold Start → Incremental). ──
             // Set even when a team returned 0 fixtures (no coverage) so it is not
