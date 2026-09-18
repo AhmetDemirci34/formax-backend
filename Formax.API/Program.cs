@@ -967,6 +967,12 @@ internal class Program
         // API'SİZ RESMÎ SONUÇ + İSTATİSTİK BOTU — kalıcı plan; API-Football çağrılmaz.
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialResultBotJob>();
         builder.Services.AddHostedService<Formax.Infrastructure.BackgroundJobs.OfficialStatisticsBotJob>();
+        // RESMÎ UEFA FİKSTÜR SENKRONU (18.09.2026) — UCL/UEL/UECL yaklaşan maçları resmî kaynaktan.
+        // API-Football planı ileri takvimi vermiyor; bu job API-Football'a HİÇ çıkmaz. Admin tetiği
+        // (POST /admin/results/uefa-fixtures/run) AYNI örneği çözer → tek uçuş kilidi paylaşılır.
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OfficialUefaFixtureSyncJob>();
+        builder.Services.AddHostedService(sp =>
+            sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OfficialUefaFixtureSyncJob>());
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>());
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PredictionRecomputeJob>();

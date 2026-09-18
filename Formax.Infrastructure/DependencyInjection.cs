@@ -317,6 +317,10 @@ public static class DependencyInjection
         // Eredivisie (17.09.2026): federasyonun (KNVB) sunucuda üretilen uitslagen/programma sayfaları.
         services.AddScoped<Formax.Application.Services.OfficialSources.IOfficialCompetitionSource,
             Formax.Infrastructure.OfficialSources.Providers.KnvbSiteSource>();
+        // RESMÎ UEFA FİKSTÜR ALIMI — kaynak sınıfı fikstür okuması için de kendi tipiyle çözülür
+        // (IOfficialCompetitionSource kaydı sonuç botu için aynen durur).
+        services.AddScoped<Formax.Infrastructure.OfficialSources.Providers.UefaMatchApiSource>();
+        services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialUefaFixtureService>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialLineupCollector>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialMatchCentreService>();
         services.AddScoped<Formax.Infrastructure.OfficialSources.OfficialPostMatchDataService>();

@@ -263,6 +263,45 @@ namespace Formax.API.Controllers.Admin
             return Ok(new { elapsedMs = sw.ElapsedMilliseconds, before, report, after });
         }
 
+        /// <summary>
+        /// RESMÎ UEFA FİKSTÜR SENKRONU — bir tur (normal hat: aynı kaynak, aynı kimlik kuralları, aynı tek
+        /// uçuş kilidi). API-Football'a çıkmaz, sonuç/skor yazmaz. Elle fikstür yazan uç YOKTUR.
+        /// </summary>
+        [HttpPost("uefa-fixtures/run")]
+        public async Task<IActionResult> RunUefaFixtures(
+            [FromServices] Formax.Infrastructure.BackgroundJobs.OfficialUefaFixtureSyncJob job, CancellationToken ct)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var report = await job.RunOnceAsync(DateTime.UtcNow, ct);
+            sw.Stop();
+            return Ok(new { elapsedMs = sw.ElapsedMilliseconds, skipped = report == null, report, job.LastSuccessUtc });
+        }
+
+        /// <summary>Resmî UEFA fikstür kapsamı — SALT DB okur (dış istek üretmez).</summary>
+        [HttpGet("uefa-fixtures")]
+        public async Task<IActionResult> UefaFixtures(CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+            var rows = await _db.Matches.AsNoTracking()
+                .Where(m => LockedCompetitions.Uefa.Contains(m.LeagueId))
+                .GroupBy(m => m.LeagueId)
+                .Select(g => new
+                {
+                    leagueId = g.Key,
+                    total = g.Count(),
+                    upcoming = g.Count(m => m.MatchDate > now),
+                    fromOfficialSchedule = g.Count(m => m.ScheduleSource == "official:uefa-match-api"),
+                    withoutApiFootballId = g.Count(m => m.MatchDate > now && m.ExternalMatchId == null),
+                    maxKickoffUtc = g.Max(m => m.MatchDate)
+                }).ToListAsync(ct);
+            var links = await _db.OfficialMatchLinks.AsNoTracking()
+                .Where(l => l.SourceKey == "uefa-match-api").CountAsync(ct);
+            var identities = await _db.TeamProviderIdentities.AsNoTracking()
+                .Where(i => i.Provider == "uefa")
+                .GroupBy(i => i.MatchedBy).Select(g => new { matchedBy = g.Key, count = g.Count() }).ToListAsync(ct);
+            return Ok(new { generatedAtUtc = now, organizations = rows, officialMatchLinks = links, teamIdentities = identities });
+        }
+
         /// <summary>Sonuç botunun bir turu (normal hat).</summary>
         [HttpPost("run")]
         public async Task<IActionResult> Run([FromServices] OfficialResultBotService bot, CancellationToken ct)

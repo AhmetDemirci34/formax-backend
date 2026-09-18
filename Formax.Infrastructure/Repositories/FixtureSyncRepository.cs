@@ -264,6 +264,24 @@ SELECT {externalMatchId}, {purpose}, {day}, 1, {nowUtc}, N'Reserved'
     }
 
     /// <inheritdoc />
+    public List<Formax.Application.Services.Fixtures.CanonicalMatchCandidate> GetCanonicalCandidates(
+        IReadOnlyCollection<int> leagueIds, DateTime fromUtc, DateTime toUtc)
+    {
+        if (leagueIds == null || leagueIds.Count == 0)
+            return new List<Formax.Application.Services.Fixtures.CanonicalMatchCandidate>();
+        var ids = leagueIds.ToHashSet();
+        return _context.Matches.AsNoTracking()
+            .Where(m => ids.Contains(m.LeagueId) && m.MatchDate >= fromUtc && m.MatchDate <= toUtc)
+            .Select(m => new Formax.Application.Services.Fixtures.CanonicalMatchCandidate(
+                m.Id, m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.MatchDate, m.ExternalMatchId))
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public Match? GetTrackedMatch(int matchId)
+        => _context.Matches.FirstOrDefault(m => m.Id == matchId);
+
+    /// <inheritdoc />
     public void AddTeam(Team team)
         => _context.Teams.Add(team);
 

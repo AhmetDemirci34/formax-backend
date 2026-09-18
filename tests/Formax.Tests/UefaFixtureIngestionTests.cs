@@ -361,6 +361,59 @@ public class UefaFixtureIngestionTests : IDisposable
         Assert.Contains(_db.Teams, t => t.ExternalTeamId == "194" && t.Name == "Ajax");
     }
 
+    // ── UEFA ÖNCE, API-FOOTBALL SONRA: kanonik maç devralınır, DUPLICATE AÇILMAZ ──
+
+    [Fact]
+    public async Task ResmiUefaFiksturu_TminusBirdeApiFootballdanGelince_DuplicateAcilmaz_KimlikDevralinir()
+    {
+        var kickoff = Future(2);
+        // Resmî UEFA kaynağının yazdığı satır: api-football kimliği YOK, takvim kaynağı resmî.
+        _db.Teams.AddRange(
+            new Team { Id = 700, Name = "Bayern München", ExternalTeamId = "157" },
+            new Team { Id = 701, Name = "Manchester United", ExternalTeamId = "33" });
+        _db.Matches.Add(new Match
+        {
+            Id = 970001, ExternalMatchId = null, LeagueId = Ucl, League = "UEFA Champions League",
+            MatchDate = kickoff, Status = MatchStatuses.NotStarted, HomeTeamId = 700, AwayTeamId = 701,
+            ScheduleSource = "official:uefa-match-api", KickoffPrecision = KickoffPrecisions.Confirmed
+        });
+        _db.SaveChanges();
+        _db.ChangeTracker.Clear();
+
+        // api-football aynı maçı T−1'de kendi kimliğiyle getiriyor (saat 10 dk kaymış).
+        var (job, _) = BuildJob(Incoming("1700100", Ucl, "UEFA Champions League", kickoff.AddMinutes(10)));
+        await RunCycle(job);
+
+        var rows = _db.Matches.Where(m => m.LeagueId == Ucl).ToList();
+        Assert.Single(rows);                                   // DUPLICATE YOK
+        Assert.Equal(970001, rows[0].Id);                      // kanonik kimlik korundu
+        Assert.Equal("1700100", rows[0].ExternalMatchId);      // ikinci sağlayıcı referansı devralındı
+        Assert.Equal((700, 701), (rows[0].HomeTeamId, rows[0].AwayTeamId));
+        // RESMÎ SAAT GERİ ALINMAZ: ScheduleSource "official:" olduğu için sağlayıcı saati yazılmadı.
+        Assert.Equal(kickoff, rows[0].MatchDate);
+    }
+
+    [Fact]
+    public async Task KanonikAdayBelirsizse_ApiFootballTuru_DuplicateAcmaz_MacYazmaz()
+    {
+        var kickoff = Future(2);
+        _db.Teams.AddRange(
+            new Team { Id = 710, Name = "Bayern München", ExternalTeamId = "157" },
+            new Team { Id = 711, Name = "Manchester United", ExternalTeamId = "33" });
+        // Aynı sıralı çift, aynı pencerede İKİ kanonik satır → belirsiz.
+        _db.Matches.AddRange(
+            new Match { Id = 970010, LeagueId = Ucl, MatchDate = kickoff, Status = MatchStatuses.NotStarted, HomeTeamId = 710, AwayTeamId = 711 },
+            new Match { Id = 970011, LeagueId = Ucl, MatchDate = kickoff.AddHours(2), Status = MatchStatuses.NotStarted, HomeTeamId = 710, AwayTeamId = 711 });
+        _db.SaveChanges();
+        _db.ChangeTracker.Clear();
+
+        var (job, _) = BuildJob(Incoming("1700200", Ucl, "UEFA Champions League", kickoff));
+        await RunCycle(job);
+
+        Assert.Equal(2, _db.Matches.Count(m => m.LeagueId == Ucl));      // üçüncü satır AÇILMADI
+        Assert.DoesNotContain(_db.Matches.ToList(), m => m.ExternalMatchId == "1700200");
+    }
+
     // ── 6. Idempotent upsert ────────────────────────────────────────────────
 
     [Fact]

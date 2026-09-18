@@ -48,6 +48,9 @@ namespace Formax.Infrastructure.Data
         public DbSet<OfficialSourceFetch> OfficialSourceFetches { get; set; } = null!;
         public DbSet<OfficialSourceCacheEntry> OfficialSourceCache { get; set; } = null!;
         public DbSet<OfficialMatchLink> OfficialMatchLinks { get; set; } = null!;
+
+        /// <summary>Kanonik takım ↔ sağlayıcı takım kimliği (resmî UEFA fikstür kaynağı).</summary>
+        public DbSet<TeamProviderIdentity> TeamProviderIdentities { get; set; } = null!;
         public DbSet<MatchAnalysisSnapshot> MatchAnalysisSnapshots { get; set; } = null!;
         public DbSet<MatchCriticalDevelopment> MatchCriticalDevelopments { get; set; } = null!;
         public DbSet<MatchPostMatchSummary> MatchPostMatchSummaries { get; set; } = null!;
@@ -1107,6 +1110,23 @@ namespace Formax.Infrastructure.Data
                       .HasDatabaseName("UX_OfficialMatchLinks_Source_OfficialMatch");
                 entity.HasIndex(x => new { x.MatchId, x.SourceKey }).IsUnique()
                       .HasDatabaseName("UX_OfficialMatchLinks_Match_Source");
+            });
+
+            // ── TAKIM SAĞLAYICI KİMLİĞİ (resmî UEFA fikstür kaynağı için; additive) ──
+            // Kanonik takım ↔ sağlayıcı takım kimliği. Aynı sağlayıcı kimliği iki kanonik takıma
+            // bağlanamaz (tekil indeks): yanlış takıma fikstür yazmanın önündeki son kapı.
+            modelBuilder.Entity<TeamProviderIdentity>(entity =>
+            {
+                entity.ToTable("TeamProviderIdentities");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Provider).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ProviderTeamId).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.ProviderTeamName).HasMaxLength(200);
+                entity.Property(x => x.MatchedBy).HasMaxLength(40).IsRequired();
+                entity.HasIndex(x => new { x.Provider, x.ProviderTeamId }).IsUnique()
+                      .HasDatabaseName("UX_TeamProviderIdentities_Provider_ProviderTeam");
+                entity.HasIndex(x => new { x.Provider, x.TeamId })
+                      .HasDatabaseName("IX_TeamProviderIdentities_Provider_Team");
             });
 
             // ── KRİTİK GELİŞME (resmî yapılandırılmış veri; aynı kanıt tek satır) ──

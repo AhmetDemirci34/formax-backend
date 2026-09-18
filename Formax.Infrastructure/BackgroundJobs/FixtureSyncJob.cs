@@ -725,6 +725,30 @@ public sealed class FixtureSyncJob : BackgroundService
         int matchesAdded   = 0;
         int matchesUpdated = 0;
         int matchesSkipped = 0;
+        int matchesAdopted = 0;
+
+        // ── KANONİK KİMLİK ADAYLARI (18.09.2026) ─────────────────────────────
+        // Resmî UEFA fikstür kaynağı maçı HAFTALAR ÖNCE yazıyor ve o satırda api-football'un
+        // ExternalMatchId'si yoktur. Yalnız o kimlikle arayan upsert eşleşme bulamaz ve İKİNCİ
+        // Match satırı açardı. Bu liste kimliğin ikinci ayağıdır: organizasyon + SIRALI takım
+        // çifti + dar başlama penceresi (çift maçlı turun iki ayağı asla karışmaz).
+        List<Formax.Application.Services.Fixtures.CanonicalMatchCandidate> canonicalCandidates;
+        try
+        {
+            var windowed = fixtures.Where(f => f.MatchDate != default).ToList();
+            canonicalCandidates = windowed.Count == 0
+                ? new()
+                : repo.GetCanonicalCandidates(
+                    windowed.Select(f => f.LeagueExternalId).Distinct().ToList(),
+                    windowed.Min(f => f.MatchDate) - Formax.Application.Services.Fixtures.OfficialFixtureIdentityPolicy.KickoffTolerance,
+                    windowed.Max(f => f.MatchDate) + Formax.Application.Services.Fixtures.OfficialFixtureIdentityPolicy.KickoffTolerance);
+        }
+        catch (Exception ex)
+        {
+            // Aday sorgusu düşerse normal upsert AYNEN devam eder (yalnız duplicate koruması devre dışı kalır).
+            _logger.LogWarning(ex, "[FIXTURE SYNC] Kanonik aday listesi okunamadı — kimlik yalnız ExternalMatchId ile.");
+            canonicalCandidates = new();
+        }
 
         // Collected finished matches whose score must be mirrored to MatchLiveStats
         // after SaveChanges (so new rows have DB-assigned IDs).
@@ -757,7 +781,43 @@ public sealed class FixtureSyncJob : BackgroundService
                              && fixture.HomeScore.HasValue
                              && fixture.AwayScore.HasValue;
 
-            if (existingMatches.TryGetValue(fixture.ExternalMatchId, out var existingMatch))
+            existingMatches.TryGetValue(fixture.ExternalMatchId, out var existingMatch);
+
+            // Sağlayıcı kimliğiyle bulunamadıysa KANONİK KİMLİK denenir: aynı maç resmî UEFA kaynağından
+            // zaten yazılmış olabilir. Bulunursa İKİNCİ SATIR AÇILMAZ; o satır api-football kimliğini de
+            // üstlenir (ikinci sağlayıcı referansı). Belirsiz eşleşmede hiçbir şey yazılmaz.
+            if (existingMatch == null && canonicalCandidates.Count > 0)
+            {
+                var canonical = Formax.Application.Services.Fixtures.OfficialFixtureIdentityPolicy.Resolve(
+                    fixture.LeagueExternalId, homeTeam.Id, awayTeam.Id, fixture.MatchDate,
+                    canonicalCandidates, fixture.ExternalMatchId);
+
+                if (canonical.Outcome == Formax.Application.Services.Fixtures.CanonicalFixtureDecision.Ambiguous)
+                {
+                    _logger.LogWarning(
+                        "[FIXTURE SYNC] {FixtureId} — kanonik kimlik BELİRSİZ ({Reason}); duplicate açılmadı, maç yazılmadı.",
+                        fixture.ExternalMatchId, canonical.Reason);
+                    matchesSkipped++;
+                    continue;
+                }
+
+                if (canonical.Outcome == Formax.Application.Services.Fixtures.CanonicalFixtureDecision.Adopt
+                    && canonical.MatchId is int canonicalId)
+                {
+                    existingMatch = repo.GetTrackedMatch(canonicalId);
+                    if (existingMatch != null)
+                    {
+                        existingMatch.ExternalMatchId = fixture.ExternalMatchId;
+                        existingMatches[fixture.ExternalMatchId] = existingMatch;
+                        matchesAdopted++;
+                        _logger.LogInformation(
+                            "[FIXTURE SYNC] {FixtureId} — kanonik maç {MatchId} ({Source}) devralındı; duplicate açılmadı.",
+                            fixture.ExternalMatchId, canonicalId, existingMatch.ScheduleSource ?? "(kaynak yok)");
+                    }
+                }
+            }
+
+            if (existingMatch != null)
             {
                 // Update mutable fields only.
                 // RESMÎ SAAT GERİ ALINMAZ: başlama saati resmî maç merkezinden doğrulandıysa
@@ -939,8 +999,8 @@ public sealed class FixtureSyncJob : BackgroundService
         }
 
         _logger.LogInformation(
-            "[FIXTURE SYNC] Matches — added {Added}, updated {Updated}, skipped {Skipped}.",
-            matchesAdded, matchesUpdated, matchesSkipped);
+            "[FIXTURE SYNC] Matches — added {Added}, updated {Updated}, adopted {Adopted}, skipped {Skipped}.",
+            matchesAdded, matchesUpdated, matchesAdopted, matchesSkipped);
 
         // ── 10. Heartbeat ────────────────────────────────────────────────────
         await lockRepo.HeartbeatAsync(_instanceId, ct);

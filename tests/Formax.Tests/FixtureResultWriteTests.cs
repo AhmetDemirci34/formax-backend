@@ -83,6 +83,14 @@ public class FixtureResultWriteTests
         public void RecordFixtureAttemptBlocked(string id, string purpose, DateTime nowUtc, string outcome) { }
         public List<Match> GetFutureScheduleRefreshCandidates(
             DateTime nowUtc, DateTime horizonUtc, IReadOnlyCollection<int> leagueIds) => new();
+        public List<Formax.Application.Services.Fixtures.CanonicalMatchCandidate> GetCanonicalCandidates(
+            IReadOnlyCollection<int> leagueIds, DateTime fromUtc, DateTime toUtc)
+            => Matches.Values
+                .Where(m => leagueIds.Contains(m.LeagueId) && m.MatchDate >= fromUtc && m.MatchDate <= toUtc)
+                .Select(m => new Formax.Application.Services.Fixtures.CanonicalMatchCandidate(
+                    m.Id, m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.MatchDate, m.ExternalMatchId))
+                .ToList();
+        public Match? GetTrackedMatch(int matchId) => Matches.Values.FirstOrDefault(m => m.Id == matchId);
         public void AddTeam(Team t) => Teams[t.ExternalTeamId!] = t;
         public void AddMatch(Match m) { Added.Add(m); Matches[m.ExternalMatchId!] = m; }
         public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;

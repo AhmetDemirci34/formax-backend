@@ -126,6 +126,20 @@ public interface IFixtureSyncRepository
         DateTime horizonUtc,
         IReadOnlyCollection<int> leagueIds);
 
+    /// <summary>
+    /// KANONİK ADAYLAR — verilen organizasyonlarda, verilen pencerede duran maçlar (izlenmeyen, salt okuma).
+    ///
+    /// NEDEN VAR (18.09.2026): resmî UEFA kaynağı maçı haftalar önce yazıyor ve o satırda api-football'un
+    /// <c>ExternalMatchId</c>'si YOKTUR. api-football aynı maçı T−1'de getirdiğinde yalnız o kimlikle arasa
+    /// eşleşme bulamaz ve DUPLICATE satır açar. Bu liste, kimliğin ikinci ayağıdır: organizasyon + sıralı
+    /// takım çifti + dar başlama penceresi.
+    /// </summary>
+    List<Formax.Application.Services.Fixtures.CanonicalMatchCandidate> GetCanonicalCandidates(
+        IReadOnlyCollection<int> leagueIds, DateTime fromUtc, DateTime toUtc);
+
+    /// <summary>Tek kanonik maç (İZLENEN varlık) — kimlik eşleşmesi sonrası güncelleme için.</summary>
+    Match? GetTrackedMatch(int matchId);
+
     // ── Write (tracked entities — EF handles the rest) ─────────────────────────
 
     void AddTeam(Team team);
