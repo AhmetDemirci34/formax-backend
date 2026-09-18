@@ -127,15 +127,15 @@ namespace Formax.Infrastructure.OfficialSources
                 .Select(m => new CanonicalMatchCandidate(m.Id, m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.MatchDate, m.ExternalMatchId))
                 .ToListAsync(ct).ConfigureAwait(false);
 
-            // Ad ile çözüm YALNIZ o organizasyonda oynadığı bilinen takımlar arasında ve TEK adayla yapılır.
-            var byLeagueTeams = await LoadLeagueTeamsAsync(leagues, ct).ConfigureAwait(false);
+            // Ad ile çözüm YALNIZ Avrupa kulüpleri havuzunda (üç UEFA müsabakası) ve TEK adayla yapılır.
+            var uefaTeamPool = await LoadUefaTeamPoolAsync(ct).ConfigureAwait(false);
 
             foreach (var (rec, leagueId, kickoff) in work)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var home = ResolveTeam(rec, "home", leagueId, identities, byLeagueTeams, nowUtc, out var homeNote);
-                var away = ResolveTeam(rec, "away", leagueId, identities, byLeagueTeams, nowUtc, out var awayNote);
+                var home = ResolveTeam(rec, "home", identities, uefaTeamPool, nowUtc, out var homeNote);
+                var away = ResolveTeam(rec, "away", identities, uefaTeamPool, nowUtc, out var awayNote);
                 if (home == null || away == null)
                 {
                     unresolved++;
@@ -271,41 +271,40 @@ namespace Formax.Infrastructure.OfficialSources
                 .ToDictionaryAsync(i => i.ProviderTeamId, i => i.TeamId, StringComparer.Ordinal, ct)
                 .ConfigureAwait(false);
 
-        /// <summary>Organizasyon başına, o organizasyonda oynadığı BİLİNEN kanonik takımlar (ad çözümünün kapsamı).</summary>
-        private async Task<Dictionary<int, List<(int Id, string Name)>>> LoadLeagueTeamsAsync(
-            IReadOnlyCollection<int> leagues, CancellationToken ct)
+        /// <summary>
+        /// AD ÇÖZÜMÜNÜN KAPSAMI — ÜÇ UEFA MÜSABAKASINDA oynadığı bilinen kanonik takımlar.
+        ///
+        /// NEDEN ÜÇÜ BİRDEN (ölçüldü 18.09.2026, gerçek tur): kulüpler müsabakalar arasında geçer —
+        /// Aarhus/CSKA Sofia/Crvena Zvezda/Thun FORMAX'ta UCL-UEL elemelerinden biliniyor ama artık
+        /// Konferans Ligi'nde oynuyor. Havuz tek müsabakayla sınırlıyken 45 kayıt "takım yok" diye
+        /// atlanıyordu.
+        ///
+        /// NEDEN YURT İÇİ LİGLER DEĞİL: havuzu 8 ulusal lige de açmak yanlış TEK adayı mümkün kılar
+        /// (ör. UEFA "Rangers" adı FORMAX'taki "Queens Park Rangers" ile tek adayla eşleşirdi).
+        /// Avrupa kulüpleri evreniyle sınırlı kalmak, tekillik şartının anlamını korur.
+        /// </summary>
+        private async Task<List<(int Id, string Name)>> LoadUefaTeamPoolAsync(CancellationToken ct)
         {
+            var uefa = LockedCompetitions.Uefa.ToList();
             // İki taraf AYRI projeksiyonla okunur: "from side in new[]{...}" sorgusu EF'te çevrilemiyor.
             var pairs = await _db.Matches.AsNoTracking()
-                .Where(m => leagues.Contains(m.LeagueId))
-                .Select(m => new { m.LeagueId, m.HomeTeamId, m.AwayTeamId })
+                .Where(m => uefa.Contains(m.LeagueId))
+                .Select(m => new { m.HomeTeamId, m.AwayTeamId })
                 .Distinct().ToListAsync(ct).ConfigureAwait(false);
-            var rows = pairs
-                .SelectMany(p => new[]
-                {
-                    new { p.LeagueId, TeamId = p.HomeTeamId },
-                    new { p.LeagueId, TeamId = p.AwayTeamId }
-                })
-                .Distinct().ToList();
 
-            var teamIds = rows.Select(r => r.TeamId).Distinct().ToList();
+            var teamIds = pairs.SelectMany(p => new[] { p.HomeTeamId, p.AwayTeamId }).Distinct().ToList();
             var names = await _db.Teams.AsNoTracking().Where(t => teamIds.Contains(t.Id))
                 .Select(t => new { t.Id, t.Name }).ToListAsync(ct).ConfigureAwait(false);
-            var nameById = names.ToDictionary(t => t.Id, t => t.Name);
-
-            return rows.GroupBy(r => r.LeagueId).ToDictionary(
-                g => g.Key,
-                g => g.Where(x => nameById.ContainsKey(x.TeamId))
-                      .Select(x => (x.TeamId, nameById[x.TeamId])).Distinct().ToList());
+            return names.Select(t => (t.Id, t.Name)).ToList();
         }
 
         /// <summary>
-        /// Kanonik takımı çözer. Sıra: (1) kalıcı kimlik haritası, (2) AYNI ORGANİZASYONDA oynadığı bilinen
+        /// Kanonik takımı çözer. Sıra: (1) kalıcı kimlik haritası, (2) ÜÇ UEFA MÜSABAKASINDA oynadığı bilinen
         /// takımlar arasında TEK adayla ad eşleşmesi. Hiçbiri değilse null — takım YARATILMAZ.
         /// </summary>
         private int? ResolveTeam(
-            OfficialMatchRecord rec, string side, int leagueId,
-            Dictionary<string, int> identities, Dictionary<int, List<(int Id, string Name)>> byLeagueTeams,
+            OfficialMatchRecord rec, string side,
+            Dictionary<string, int> identities, List<(int Id, string Name)> pool,
             DateTime nowUtc, out string note)
         {
             var providerTeamId = rec.Extra?.GetValueOrDefault(side + "TeamId");
@@ -319,9 +318,6 @@ namespace Formax.Infrastructure.OfficialSources
                 rec.Extra?.GetValueOrDefault(side + "AltName2")
             }.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal).ToList();
 
-            var pool = byLeagueTeams.TryGetValue(leagueId, out var teams)
-                ? teams
-                : new List<(int Id, string Name)>();
             var hits = pool.Where(t => sourceNames.Any(n => OfficialTeamNameMatcher.SameTeam(n, t.Name)))
                 .Select(t => t.Id).Distinct().ToList();
 

@@ -69,6 +69,10 @@ namespace Formax.Application.Services.OfficialSources
                     case 'Ö': case 'ö': sb.Append('o'); continue;
                     case 'Ü': case 'ü': sb.Append('u'); continue;
                     case 'ß': sb.Append("ss"); continue;
+                    // Ölçüldü 18.09.2026: UEFA "Nordsjælland" ↔ FORMAX "Nordsjaelland" eşleşmiyordu —
+                    // æ/œ tek harftir, aksan ayrıştırması onları çözmez; açık karşılığı yazılır.
+                    case 'Æ': case 'æ': sb.Append("ae"); continue;
+                    case 'Œ': case 'œ': sb.Append("oe"); continue;
                     case 'Ø': case 'ø': sb.Append('o'); continue;
                     case 'Đ': case 'đ': sb.Append('d'); continue;
                     case 'Ł': case 'ł': sb.Append('l'); continue;
