@@ -165,6 +165,9 @@ namespace Formax.Application.Services.Outcomes
         public List<LeagueMetric> Leagues { get; set; } = new();
         /// <summary>Lig bazlı bağımsız sınav + uygunluk kararı (Enabled/Limited/Disabled).</summary>
         public List<GroupMetrics> LeagueEligibility { get; set; } = new();
+        /// <summary>ORGANİZASYON × MARKET AİLESİ matrisi — yayın kararının birinci katmanı.</summary>
+        public List<MarketFamilyMetrics> MarketEligibility { get; set; } = new();
+        public string MarketEligibilityPolicyVersion { get; set; } = MarketEligibilityPolicy.Version;
         public List<GroupMetrics> PreviousModelLeagues { get; set; } = new();
         public BiasAudit Bias { get; set; } = new();
         public BiasAudit? PreviousModelBias { get; set; }
@@ -256,6 +259,7 @@ namespace Formax.Application.Services.Outcomes
             var recentFrom = nowUtc.AddDays(-60);
             var recentByLeague = ordered.Where(m => m.KickoffUtc >= recentFrom && m.KickoffUtc < nowUtc).GroupBy(m => m.LeagueId).ToDictionary(g => g.Key, g => g.Count());
             report.LeagueEligibility = LeagueGroups(evalLeagues, current.Test, chosen, recentByLeague);
+            report.MarketEligibility = MarketGroups(evalLeagues, current.Test, chosen, recentByLeague);
             report.Bias = AuditBias(testLocked, chosen);
             report.MainCards = AuditMainCards(testLocked, chosen);
             report.LegacyRanking = AuditLegacy(testLocked, baseParams);
@@ -545,6 +549,23 @@ namespace Formax.Application.Services.Outcomes
             return list;
         }
 
+        /// <summary>
+        /// ORGANİZASYON × MARKET AİLESİ MATRİSİ — aynı kilitli test örnekleri, her aile için ayrı sınav. Model yeniden
+        /// eğitilmez; yalnız ölçüm ve karar.
+        /// </summary>
+        private static List<MarketFamilyMetrics> MarketGroups(ISet<int> evalLeagues, Collected test, OutcomeModelParameters p, Dictionary<int, int> recent)
+        {
+            var list = new List<MarketFamilyMetrics>();
+            foreach (var league in evalLeagues.OrderBy(x => x))
+            {
+                var samples = test.Samples.Where(s => s.LeagueId == league).ToList();
+                list.AddRange(MarketFamilyEvaluator.EvaluateAll(league, samples,
+                    s => OutcomePredictor.Predict(s.E, s.LeagueId, p).Calibrated,
+                    test.NotPredictedByLeague.GetValueOrDefault(league), recent.GetValueOrDefault(league), seed: 5000 + league));
+            }
+            return list;
+        }
+
         /// <summary>Zamansal toplayıcı — tahmin maçtan ÖNCE, güncelleme SONRA. Taban frekansları da aynı sırayla güncellenir.</summary>
         private static Collected Collect(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog, OutcomeModelParameters p,
             DateTime from, DateTime to, Func<HistoricalMatch, bool> include)
@@ -562,8 +583,8 @@ namespace Formax.Application.Services.Outcomes
                     var e = model.Expect(m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.KickoffUtc);
                     if (e.Sufficient)
                     {
-                        var (bh, bd, ba, bo, bb) = freq.Baseline(m.LeagueId);
-                        list.Add(new EvalSample(m.MatchId, m.LeagueId, m.KickoffUtc, e, m.HomeGoals, m.AwayGoals, bh, bd, ba, bo, bb));
+                        var (bh, bd, ba, bo, bb, b15, b35) = freq.Baseline(m.LeagueId);
+                        list.Add(new EvalSample(m.MatchId, m.LeagueId, m.KickoffUtc, e, m.HomeGoals, m.AwayGoals, bh, bd, ba, bo, bb, b15, b35));
                     }
                     else
                     {
@@ -587,29 +608,34 @@ namespace Formax.Application.Services.Outcomes
         /// <summary>Organizasyon bazlı sızıntısız sonuç frekansları (lig ortalaması tabanı).</summary>
         private sealed class Frequencies
         {
+            private const int Slots = 8;
             private readonly Dictionary<int, double[]> _c = new();
-            private readonly double[] _g = new double[6];
+            private readonly double[] _g = new double[Slots];
 
             public void Add(HistoricalMatch m)
             {
-                var row = _c.TryGetValue(m.LeagueId, out var r) ? r : _c[m.LeagueId] = new double[6];
+                var row = _c.TryGetValue(m.LeagueId, out var r) ? r : _c[m.LeagueId] = new double[Slots];
                 foreach (var t in new[] { row, _g })
                 {
                     t[0]++;
                     if (m.HomeGoals > m.AwayGoals) t[1]++; else if (m.HomeGoals == m.AwayGoals) t[2]++; else t[3]++;
                     if (m.HomeGoals + m.AwayGoals > 2) t[4]++;
                     if (m.HomeGoals > 0 && m.AwayGoals > 0) t[5]++;
+                    if (m.HomeGoals + m.AwayGoals > 1) t[6]++;
+                    if (m.HomeGoals + m.AwayGoals > 3) t[7]++;
                 }
             }
 
-            public (double H, double D, double A, double O25, double Btts) Baseline(int leagueId)
+            /// <summary>Her gol çizgisinin KENDİ sızıntısız lig frekansı — 2.5'in tabanı 1.5 ve 3.5 için kullanılmaz.</summary>
+            public (double H, double D, double A, double O25, double Btts, double O15, double O35) Baseline(int leagueId)
             {
                 var n = _g[0];
                 double G(int i, double fallback) => n > 0 ? _g[i] / n : fallback;
                 var gh = G(1, 0.45); var gd = G(2, 0.26); var ga = G(3, 0.29); var go = G(4, 0.5); var gb = G(5, 0.5);
-                var row = _c.GetValueOrDefault(leagueId) ?? new double[6];
+                var g15 = G(6, 0.75); var g35 = G(7, 0.3);
+                var row = _c.GetValueOrDefault(leagueId) ?? new double[Slots];
                 double S(int i, double prior) => (row[i] + BaselinePriorWeight * prior) / (row[0] + BaselinePriorWeight);
-                return (S(1, gh), S(2, gd), S(3, ga), S(4, go), S(5, gb));
+                return (S(1, gh), S(2, gd), S(3, ga), S(4, go), S(5, gb), S(6, g15), S(7, g35));
             }
         }
 
@@ -773,9 +799,10 @@ namespace Formax.Application.Services.Outcomes
             foreach (var s in test)
             {
                 var snap = OutcomeSnapshotBuilder.Build(0, OutcomePredictor.Predict(s.E, s.LeagueId, p), "Ev", "Dep");
-                var res = snap.Families[0].Items;
+                var res = snap.Families.First(f => f.Family == OutcomeSnapshotBuilder.ResultFamily).Items;
                 if (res.OrderByDescending(c => c.SelectionScore).First().MarketKey == Domain.Constants.OddsMarketKeys.MsX) drawTop++;
-                if (snap.MainCards[0].MarketKey == Domain.Constants.OddsMarketKeys.MsX) drawMain++;
+                // Kart sayısı artık dinamik (0–3): maç sonucu kartı olmayabilir.
+                if (snap.MainCards.FirstOrDefault(c => c.Family == OutcomeSnapshotBuilder.ResultFamily)?.MarketKey == Domain.Constants.OddsMarketKeys.MsX) drawMain++;
             }
             a.DrawHighestSelectionScoreShare = R(drawTop / n);
             a.MainResultCardDrawShare = R(drawMain / n);

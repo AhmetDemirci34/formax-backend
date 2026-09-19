@@ -68,6 +68,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<MatchPredictionSnapshot> MatchPredictionSnapshots { get; set; } = null!;
         public DbSet<PredictionModelRun> PredictionModelRuns { get; set; } = null!;
         public DbSet<LeaguePredictionEligibility> LeaguePredictionEligibilities { get; set; } = null!;
+        public DbSet<LeagueMarketEligibility> LeagueMarketEligibilities { get; set; } = null!;
         public DbSet<PredictionRecomputeRequest> PredictionRecomputeRequests { get; set; } = null!;
         public DbSet<PredictionScorecard> PredictionScorecards { get; set; } = null!;
         public DbSet<PredictionDiagnostic> PredictionDiagnostics { get; set; } = null!;
@@ -1335,6 +1336,19 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.ReasonsJson).IsRequired();
                 entity.Property(x => x.MetricsJson).IsRequired();
                 entity.HasIndex(x => new { x.RunId, x.LeagueId }).IsUnique().HasDatabaseName("UX_LeaguePredictionEligibilities_Run_League");
+            });
+            modelBuilder.Entity<LeagueMarketEligibility>(entity =>
+            {
+                entity.ToTable("LeagueMarketEligibilities");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.RunId).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.PolicyVersion).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Family).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.ReasonsJson).IsRequired();
+                entity.Property(x => x.MetricsJson).IsRequired();
+                entity.HasIndex(x => new { x.RunId, x.LeagueId, x.Family }).IsUnique().HasDatabaseName("UX_LeagueMarketEligibilities_Run_League_Family");
             });
             modelBuilder.Entity<PredictionRecomputeRequest>(entity =>
             {

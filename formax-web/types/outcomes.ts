@@ -23,6 +23,8 @@ export interface OutcomeCandidateDto {
   reasonCodes: string[];
   reason?: string | null;
   limitation?: string | null;
+  /** Uygunluğu belirleyen ÖLÇÜLEN market ailesi (görsel aile ile aynı olmayabilir). */
+  measuredFamily?: string | null;
 }
 
 export interface OutcomeFamilyDto {
@@ -57,4 +59,23 @@ export interface OutcomeSnapshotDto {
   topScores: { home: number; away: number; probability: number }[];
   reasonCodes: string[];
   notice?: string | null;
+  /**
+   * Market ailesi bazlı yayın durumu. Hangi ailenin gösterileceği BACKEND kararıdır; ekran bu listeyi yalnız okur,
+   * eligibility hesaplamaz ve eksik kart yerine başka market üretmez.
+   */
+  markets?: OutcomeMarketStatusDto[];
+  /** "Full" (3 kart) | "Partial" (1–2 kart) | "NotEligible" (0 kart). */
+  overallStatus?: string | null;
+  publishedCardCount?: number;
+  marketPolicyVersion?: string | null;
+}
+
+/** Tek market ailesinin yayın durumu — reasonCodes teknik metin olarak kullanıcıya GÖSTERİLMEZ. */
+export interface OutcomeMarketStatusDto {
+  family: string;
+  title: string;
+  status: string;
+  reasonCodes: string[];
+  published: boolean;
+  sampleSize: number;
 }

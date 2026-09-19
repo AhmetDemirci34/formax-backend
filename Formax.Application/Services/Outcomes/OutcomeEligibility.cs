@@ -15,7 +15,8 @@ namespace Formax.Application.Services.Outcomes
     /// <summary>Zamansal test penceresindeki tek değerlendirme örneği (model + lig ortalaması tabanı aynı maçta).</summary>
     public sealed record EvalSample(
         int MatchId, int LeagueId, DateTime KickoffUtc, OutcomeExpectation E, int HomeGoals, int AwayGoals,
-        double BaseHome, double BaseDraw, double BaseAway, double BaseOver25, double BaseBtts);
+        double BaseHome, double BaseDraw, double BaseAway, double BaseOver25, double BaseBtts,
+        double BaseOver15 = 0.75, double BaseOver35 = 0.30);
 
     /// <summary>Bir grubun (lig ya da ligler arası maç kümesi) test metrikleri.</summary>
     public sealed class GroupMetrics

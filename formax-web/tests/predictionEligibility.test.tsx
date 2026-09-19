@@ -14,6 +14,7 @@ import { OUTCOMES_REFRESH_MS, matchOutcomesKey } from "@/hooks/useMatchOutcomes"
 import { ConfidenceRing } from "@/components/discover/hero/ConfidenceRing";
 import { ConfidenceGauge } from "@/components/match-center/ConfidenceGauge";
 import { MatchCenterHero } from "@/components/match-center/MatchCenterHero";
+import { OutcomeCards } from "@/components/outcomes/OutcomeCards";
 import type { MatchDetailDto } from "@/types/api";
 
 // FORMAX · TAHMİN UYGUNLUĞU (17.09.2026) — AI BEKLENTİSİ dili, Limited/Disabled boş durumu, Keşfet ↔ Detay aynı snapshot,
@@ -73,10 +74,55 @@ describe("Limited / Disabled tahmin", () => {
     expect(outcomeExpectation(snap())).toEqual({ value: 47, side: "Deplasman" });
   });
 
-  it("ana kartlarda 1X/X2/12 yok, üç farklı aile (backend sözleşmesi aynen çizilir)", () => {
+  it("ana kartlar farklı ailelerden gelir; backend sözleşmesi aynen çizilir", () => {
     const s = snap();
-    expect(new Set(s.mainCards.map((c) => c.family)).size).toBe(3);
-    expect(s.mainCards.some((c) => /Çifte Şans|1X|X2|12/.test(c.market))).toBe(false);
+    expect(new Set(s.mainCards.map((c) => c.family)).size).toBe(s.mainCards.length);
+  });
+
+  it("kart sayısı 0/1/2/3 olabilir; ekran eksik yuvayı DOLDURMAZ, yer tutucu çizmez", () => {
+    const one = snap({ mainCards: [card("MatchResult", "Ev Sahibi Kazanır", "MS1", 52)], publishedCardCount: 1, overallStatus: "Partial" });
+    const two = snap({
+      mainCards: [card("MatchResult", "Ev Sahibi Kazanır", "MS1", 52), card("TotalGoals", "1.5 Üst", "UST_1_5", 78)],
+      publishedCardCount: 2, overallStatus: "Partial",
+    });
+    for (const [s, n] of [[one, 1], [two, 2], [snap(), 3]] as const) {
+      const view = outcomeViewState(s);
+      expect(view.kind).toBe("ready");
+      const html = renderToStaticMarkup(<OutcomeCards snapshot={s} />);
+      expect((html.match(/Beklenti/g) ?? []).length).toBe(n);      // kart başına tek etiket → kart sayısı kadar
+      expect(html).not.toMatch(/placeholder|--%|%NaN/i);
+    }
+    // 0 kart: yüzde yok, dürüst metin.
+    expect(outcomeViewState(snap({ mainCards: [], publishedCardCount: 0, overallStatus: "NotEligible", status: "NotEligible", predictionEligibility: "Limited" })).kind)
+      .toBe("insufficient");
+  });
+
+  it("Partial durumda kullanıcıya teknik/korkutucu sistem dili gösterilmez", () => {
+    const s = snap({
+      mainCards: [card("MatchResult", "Ev Sahibi Kazanır", "MS1", 52)], publishedCardCount: 1, overallStatus: "Partial",
+      markets: [
+        { family: "MatchResult1X2", title: "Maç Sonucu", status: "Eligible", reasonCodes: [], published: true, sampleSize: 500 },
+        { family: "BothTeamsToScore", title: "İki Takımın Gol Durumu", status: "WorseThanBaseline", reasonCodes: ["WORSE_THAN_LEAGUE_AVERAGE"], published: false, sampleSize: 500 },
+      ],
+    });
+    const html = renderToStaticMarkup(<OutcomeCards snapshot={s} />);
+    for (const forbidden of ["WORSE_THAN_LEAGUE_AVERAGE", "Partial", "NotEligible", "CalibrationFailed", "InsufficientSample", "market-eligibility"]) {
+      expect(html).not.toContain(forbidden);
+    }
+    expect(html).not.toMatch(/AI GÜVENİ/i);
+  });
+
+  it("frontend eligibility HESAPLAMAZ: karar alanları yalnız okunur", () => {
+    const view = read("lib/outcomes/outcomeView.ts");
+    const cards = read("components/outcomes/OutcomeCards.tsx");
+    for (const src of [view, cards]) {
+      // Eşik/karşılaştırma ile market açma-kapama ya da yüzde aritmetiği yok.
+      expect(src).not.toMatch(/baselineProbability\s*[<>]/);
+      expect(src).not.toMatch(/informationLift\s*[<>]/);
+      expect(src).not.toMatch(/selectionScore\s*[<>]/);
+      expect(src).not.toMatch(/\.sort\(/);
+      expect(src).not.toMatch(/probability\s*[+\-*/]\s*\d/);
+    }
   });
 });
 

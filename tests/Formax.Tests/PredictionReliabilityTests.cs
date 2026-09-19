@@ -115,16 +115,17 @@ public class PredictionReliabilityTests
     }
 
     [Fact]
-    public void Matematik_TekDagilim_AnaKartta1X_X2_12Yok_UcFarkliAile_OranGirdiDegil()
+    public void Matematik_TekDagilim_BilesikKartTekVeSonucYuvasinda_UcFarkliAile_OranGirdiDegil()
     {
         var rnd = new Random(3);
         for (var i = 0; i < 300; i++)
         {
             var s = OutcomeSnapshotBuilder.Build(1, OutcomePredictor.Predict(E(0.3 + rnd.NextDouble() * 2.8, 0.3 + rnd.NextDouble() * 2.5), 140, new OutcomeModelParameters { TotalGoalShrink = 0.5 }), "Ev", "Dep");
             Assert.True(s.Checks!.Consistent);
-            Assert.DoesNotContain(s.MainCards, c => c.MarketKey != null && OutcomeFamilies.IsCompound(c.MarketKey));
+            // selection-3: bileşik kart serbest ama aynı maçta en fazla bir tane ve yalnız sonuç yuvasında.
+            Assert.True(s.MainCards.Count(c => c.MarketKey != null && OutcomeFamilies.IsCompound(c.MarketKey)) <= 1);
             Assert.Equal(3, s.MainCards.Select(c => c.Family).Distinct().Count());
-            var r = s.Families[0].Items;
+            var r = s.Families.First(f => f.Family == OutcomeFamilies.Result).Items;
             Assert.Equal(100, r.Sum(x => x.Probability));
         }
         // Oran (bookmaker) tahmin zincirine girmez: kurucu ve servis imzalarında/kaynağında oran yok.
@@ -388,6 +389,16 @@ public class PredictionReliabilityTests
                 RunId = "run-test", ModelVersion = OutcomeModelVersion.Current, PolicyVersion = EligibilityPolicy.Version, LeagueId = 135, Status = eligibility,
                 ReasonsJson = "[]", MetricsJson = "{}", EvaluatedAtUtc = Kickoff.AddDays(-1)
             });
+            // ORGANİZASYON × MARKET AİLESİ matrisi — yayın kararının birinci katmanı. Enabled dünyada bütün aileler uygun;
+            // aksi hâlde hiçbiri (matris yoksa sistem KAPALI tarafa düşer).
+            foreach (var family in MarketFamilies.All)
+                db.LeagueMarketEligibilities.Add(new LeagueMarketEligibility
+                {
+                    RunId = "run-test", ModelVersion = OutcomeModelVersion.Current, PolicyVersion = MarketEligibilityPolicy.Version,
+                    LeagueId = 135, Family = family, TestMatches = 400,
+                    Status = eligibility == PredictionEligibilities.Enabled ? MarketEligibilityStatuses.Eligible : MarketEligibilityStatuses.Limited,
+                    ReasonsJson = "[]", MetricsJson = "{}", EvaluatedAtUtc = Kickoff.AddDays(-1)
+                });
             db.SaveChanges();
         }
 

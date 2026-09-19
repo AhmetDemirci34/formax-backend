@@ -58,12 +58,13 @@ public class OutcomeModelTests
     [InlineData(0.7, 0.6)]
     [InlineData(2.3, 2.1)]
     [InlineData(0.5, 2.2)]
-    public void AnaKartlar_UcFarkliAile_CifteSansAsla_YokOranGirdisiYok(double lh, double la)
+    public void AnaKartlar_UcFarkliAile_BilesikKartSonucYuvasinda_OranGirdisiYok(double lh, double la)
     {
         var s = Snap(lh, la);
         Assert.Equal(3, s.MainCards.Count);
         Assert.Equal(new[] { OutcomeFamilies.Result, OutcomeFamilies.Goals, OutcomeFamilies.Btts }, s.MainCards.Select(c => c.Family).ToArray());
-        Assert.DoesNotContain(s.MainCards, c => c.MarketKey != null && OutcomeFamilies.IsCompound(c.MarketKey));
+        // selection-3: çifte şans artık YASAK DEĞİL; seçilirse maç sonucu yuvasında ve tek karttır (aynı bilgi iki kez gösterilmez).
+        Assert.True(s.MainCards.Count(c => c.MarketKey != null && OutcomeFamilies.IsCompound(c.MarketKey)) <= 1);
         Assert.All(s.MainCards, c => Assert.False(string.IsNullOrWhiteSpace(c.Reason)));
         Assert.All(s.MainCards, c => Assert.NotEmpty(c.ReasonCodes));
         // Oran hiçbir girdide yok: kurucu imzası yalnız dağılım + takım adı alır.
@@ -156,8 +157,10 @@ public class OutcomeModelTests
         Assert.InRange(report.TestCalibrated.ResultLogLoss, 0.5, 1.3);
         Assert.InRange(report.TestCalibrated.CalibrationError, 0, 0.2);
         Assert.Equal(5, report.TestCalibrated.Bands.Count);
-        Assert.Equal(0, report.MainCards.DoubleChanceCards);
-        Assert.Equal(report.TestMatches * 3, report.MainCards.FamilyDistribution.Values.Sum());
+        // selection-3: çifte şans yasak değil ama otomatik de değil — kartların küçük bir payında görünür.
+        Assert.True(report.MainCards.DoubleChanceCards < report.MainCards.FamilyDistribution.Values.Sum() / 2);
+        // Kart sayısı artık 0–3 arasında dinamiktir (yalnız yayımlanabilir ve bilgi taşıyan aileler): üst sınır 3×maç.
+        Assert.InRange(report.MainCards.FamilyDistribution.Values.Sum(), report.TestMatches * 2, report.TestMatches * 3);
         Assert.True(report.LegacyRanking.AnyOfTop3DoubleChanceShare > 0.5);           // eski kural çifte şansı öne çıkarıyordu
 
         // Test penceresindeki sonuçlar değişse bile seçilen parametreler aynı kalmalı.

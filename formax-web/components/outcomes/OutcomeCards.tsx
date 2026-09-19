@@ -5,12 +5,15 @@ import type { OutcomeCandidateDto, OutcomeSnapshotDto } from "@/types/outcomes";
 import { OUTCOME_DISCLAIMER, OUTCOME_EXPECTATION_LABEL } from "@/lib/outcomes/outcomeView";
 
 /**
- * AI OLASI SONUÇLAR — üç ana kart (Maç Sonucu · Gol Beklentisi · İki Takımın Gol Durumu) + "Tüm Olasılıkları Gör".
+ * AI OLASI SONUÇLAR — backend'in yayımladığı 1, 2 ya da 3 ana kart + "Tüm Olasılıkları Gör".
  *
  * KURALLAR:
- *  • Kartlar, sırası ve yüzdeleri backend snapshot'ından gelir; burada sıralama/filtre/hesap YOK.
- *  • Çifte şans (1X/X2/12) ana kartta ASLA yok (backend koymaz); yalnız ayrıntıda "Diğer" ailesinde.
+ *  • Kartlar, sayısı, sırası ve yüzdeleri backend snapshot'ından gelir; burada sıralama/filtre/hesap YOK.
+ *  • Kart sayısı DEĞİŞKENDİR: bir organizasyonda yalnız kanıtlanmış market aileleri yayımlanır. Eksik yuva için
+ *    boş kutu, yer tutucu ya da başka bir market ÜRETİLMEZ — liste neyse o çizilir.
+ *  • Çifte şans (1X/X2/12) yasak değildir; backend bilgi değeriyle seçerse maç sonucu yuvasında gelir.
  *  • Gerekçe backend'in gerçek gerekçe kodlarından ürettiği metindir; ekran cümle yazmaz.
+ *  • Market durumu (markets[].status/reasonCodes) teknik bilgidir; kullanıcıya metin olarak gösterilmez.
  *  • Oran gösterilmez: bookmaker oranı AI tahmini değildir.
  */
 export function OutcomeCards({

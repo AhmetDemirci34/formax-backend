@@ -54,6 +54,43 @@ namespace Formax.API.Controllers.Admin
         }
 
         /// <summary>
+        /// ORGANİZASYON × MARKET AİLESİ matrisi (son koşu) — yayın kararının birinci katmanı. Zayıf bir market artık bütün
+        /// organizasyonu kapatmaz; burada hangi ailenin hangi gerekçeyle açık/kapalı olduğu görülür.
+        /// </summary>
+        [HttpGet("markets")]
+        public async Task<IActionResult> Markets(CancellationToken ct)
+        {
+            var run = await _db.PredictionModelRuns.AsNoTracking().Where(r => r.Status == "Accepted" && r.ModelVersion == OutcomeModelVersion.Current)
+                .OrderByDescending(r => r.CompletedAtUtc).FirstOrDefaultAsync(ct);
+            if (run == null) return Ok(new { status = "NoRun" });
+            var rows = await _db.LeagueMarketEligibilities.AsNoTracking().Where(e => e.RunId == run.RunId)
+                .OrderBy(e => e.LeagueId).ToListAsync(ct);
+            var byLeague = rows.GroupBy(r => r.LeagueId).ToList();
+            return Ok(new
+            {
+                run.RunId, run.ModelVersion, policy = MarketEligibilityPolicy.Version, thresholds = MarketEligibilityPolicy.ThresholdSummary,
+                run.CompletedAtUtc,
+                summary = new
+                {
+                    organizationsWithAnyEligibleMarket = byLeague.Count(g => g.Any(r => r.Status == MarketEligibilityStatuses.Eligible)),
+                    organizationsFullyClosed = byLeague.Count(g => g.All(r => r.Status != MarketEligibilityStatuses.Eligible)),
+                    eligibleCells = rows.Count(r => r.Status == MarketEligibilityStatuses.Eligible),
+                    byFamily = MarketFamilies.All.ToDictionary(f => f, f => rows.Count(r => r.Family == f && r.Status == MarketEligibilityStatuses.Eligible))
+                },
+                leagues = byLeague.Select(g => new
+                {
+                    leagueId = g.Key,
+                    eligible = g.Where(r => r.Status == MarketEligibilityStatuses.Eligible).Select(r => r.Family),
+                    markets = g.OrderBy(r => r.Family).Select(r => new
+                    {
+                        r.Family, r.Status, reasons = JsonSerializer.Deserialize<List<string>>(r.ReasonsJson),
+                        r.TestMatches, r.LogLoss, r.BaselineLogLoss, r.Brier, r.LogLossDiffCiHigh, r.CalibrationError, r.MaxBias
+                    })
+                })
+            });
+        }
+
+        /// <summary>
         /// Yaklaşan maçların GÜNCEL snapshot denetimi: uygunluk dağılımı, Enabled ana sonuç kartında Ev/Beraberlik/Deplasman, 1X/X2/12
         /// sayısı, ligler arası kapı sayısı, tekrar eden gerekçe, NeedsReview ve analiz–kart çelişkisi.
         /// </summary>

@@ -79,6 +79,34 @@ namespace Formax.Domain.Entities
     }
 
     /// <summary>
+    /// ORGANİZASYON × MARKET AİLESİ UYGUNLUĞU — yayın kararının BİRİNCİ katmanı. Lig anahtarı (yukarıdaki
+    /// <see cref="LeaguePredictionEligibility"/>) korunur ama artık tek başına yayını kapatmaz: her market ailesi
+    /// kendi sınavından geçer. Model sürümüyle birlikte ÖNCEDEN üretilir; okuma yolu backtest çalıştırmaz.
+    /// </summary>
+    public sealed class LeagueMarketEligibility
+    {
+        public long Id { get; set; }
+        public string RunId { get; set; } = string.Empty;
+        public string ModelVersion { get; set; } = string.Empty;
+        public string PolicyVersion { get; set; } = string.Empty;
+        public int LeagueId { get; set; }
+        /// <summary>MatchResult1X2 | DoubleChance | TotalGoals15 | TotalGoals25 | TotalGoals35 | BothTeamsToScore.</summary>
+        public string Family { get; set; } = string.Empty;
+        /// <summary>Eligible | Limited | InsufficientSample | WorseThanBaseline | CalibrationFailed | DataQualityFailed.</summary>
+        public string Status { get; set; } = string.Empty;
+        public string ReasonsJson { get; set; } = "[]";
+        public int TestMatches { get; set; }
+        public double LogLoss { get; set; }
+        public double BaselineLogLoss { get; set; }
+        public double Brier { get; set; }
+        public double LogLossDiffCiHigh { get; set; }
+        public double CalibrationError { get; set; }
+        public double MaxBias { get; set; }
+        public string MetricsJson { get; set; } = string.Empty;
+        public DateTime EvaluatedAtUtc { get; set; }
+    }
+
+    /// <summary>
     /// KALICI TAHMİN YENİLEME KUYRUĞU — doğrulanmış yapılandırılmış olay (resmî ilk 11, erteleme, saat değişikliği...) canonical DB'ye
     /// yazıldığı İŞLEMDE eklenir. Aynı olay (DedupeKey) ikinci kez eklenmez; restart sonrası kaybolmaz; kısa debounce (DueAtUtc) sonra işlenir.
     /// </summary>

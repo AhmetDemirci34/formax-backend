@@ -124,6 +124,19 @@ namespace Formax.Infrastructure.Outcomes
                     MetricsJson = JsonSerializer.Serialize(g, Json), EvaluatedAtUtc = run.CompletedAtUtc
                 });
             }
+            // ORGANİZASYON × MARKET AİLESİ matrisi — model sürümüyle birlikte ÖNCEDEN üretilir; okuma yolu backtest çalıştırmaz.
+            foreach (var m in report.MarketEligibility.Where(m => m.LeagueId != null))
+            {
+                _db.LeagueMarketEligibilities.Add(new LeagueMarketEligibility
+                {
+                    RunId = run.RunId, ModelVersion = run.ModelVersion, PolicyVersion = MarketEligibilityPolicy.Version,
+                    LeagueId = m.LeagueId!.Value, Family = m.Family, Status = m.Status,
+                    ReasonsJson = JsonSerializer.Serialize(m.ReasonCodes, Json), TestMatches = m.Matches,
+                    LogLoss = m.LogLoss, BaselineLogLoss = m.BaselineLogLoss, Brier = m.Brier,
+                    LogLossDiffCiHigh = m.LogLossDiffCiHigh, CalibrationError = m.CalibrationError, MaxBias = m.MaxBias,
+                    MetricsJson = JsonSerializer.Serialize(m, Json), EvaluatedAtUtc = run.CompletedAtUtc
+                });
+            }
             await _db.SaveChangesAsync(ct).ConfigureAwait(false);
             _log.LogInformation("[OUTCOME MODEL] koşu {Run} {Status}: eğitim={Train} kalibrasyon={Cal} test={Test} karar={Decision} 1X2 logloss kalibre={Cal2} önceki={Prev} taban={Base} uygunluk={Elig}",
                 run.RunId, run.Status, report.TrainMatches, report.CalibrationMatches, report.TestMatches, report.Decision,
@@ -147,6 +160,19 @@ namespace Formax.Infrastructure.Outcomes
             var rows = await _db.LeaguePredictionEligibilities.AsNoTracking().Where(e => e.RunId == runId)
                 .Select(e => new { e.LeagueId, e.Status, e.ReasonsJson }).ToListAsync(ct).ConfigureAwait(false);
             return rows.ToDictionary(r => r.LeagueId, r => (r.Status, JsonSerializer.Deserialize<List<string>>(r.ReasonsJson) ?? new List<string>()));
+        }
+
+        /// <summary>Organizasyon × market ailesi matrisi (yayın kararının birinci katmanı) — koşuyla birlikte saklanır.</summary>
+        public async Task<Dictionary<int, List<MarketFamilyMetrics>>> MarketEligibilityAsync(string? runId, CancellationToken ct = default)
+        {
+            if (runId == null) return new();
+            var rows = await _db.LeagueMarketEligibilities.AsNoTracking().Where(e => e.RunId == runId)
+                .Select(e => new { e.LeagueId, e.Family, e.Status, e.ReasonsJson, e.TestMatches }).ToListAsync(ct).ConfigureAwait(false);
+            return rows.GroupBy(r => r.LeagueId).ToDictionary(g => g.Key, g => g.Select(r => new MarketFamilyMetrics
+            {
+                LeagueId = g.Key, Family = r.Family, Status = r.Status, Matches = r.TestMatches,
+                ReasonCodes = JsonSerializer.Deserialize<List<string>>(r.ReasonsJson) ?? new List<string>()
+            }).ToList());
         }
     }
 
@@ -190,6 +216,7 @@ namespace Formax.Infrastructure.Outcomes
             public PredictionModelRun? Run;
             public OutcomeModelParameters Parameters = new();
             public Dictionary<int, (string Status, List<string> Reasons)> Eligibility = new();
+            public Dictionary<int, List<MarketFamilyMetrics>> MarketEligibility = new();
             public OutcomeRatingModel Model = null!;
             public DateTime Cutoff;
             public Dictionary<int, List<DateTime>> TeamMatches = new();
@@ -201,6 +228,7 @@ namespace Formax.Infrastructure.Outcomes
             var ctx = new ModelContext();
             (ctx.Run, ctx.Parameters) = await _training.LatestAcceptedAsync(ct).ConfigureAwait(false);
             ctx.Eligibility = await _training.EligibilityAsync(ctx.Run?.RunId, ct).ConfigureAwait(false);
+            ctx.MarketEligibility = await _training.MarketEligibilityAsync(ctx.Run?.RunId, ct).ConfigureAwait(false);
             var history = await _history.LoadAsync(nowUtc, ct).ConfigureAwait(false);
             var names = await _history.LoadCompetitionNamesAsync(ct).ConfigureAwait(false);
             await Task.Run(() =>
@@ -305,16 +333,29 @@ namespace Formax.Infrastructure.Outcomes
                 if (!Scheduled.Contains(u.Status)) matchGates.Add("MATCH_NOT_SCHEDULED");
                 OutcomeSnapshotDto dto;
                 IReadOnlyList<string> outputGates = Array.Empty<string>();
+                // BİRİNCİ KATMAN: organizasyon × market ailesi (tarihsel sınav). Matris yoksa hiçbir market yayımlanmaz.
+                var marketRows = ctx.MarketEligibility.TryGetValue(u.LeagueId, out var mr) ? mr : new List<MarketFamilyMetrics>();
                 if (e.Sufficient)
                 {
                     var pr = OutcomePredictor.Predict(e, u.LeagueId, ctx.Parameters);
-                    dto = OutcomeSnapshotBuilder.Build(u.Id, pr, home, away);
                     outputGates = OutcomePredictor.OutputGates(pr, ctx.Parameters);
+                    // İKİNCİ KATMAN: bu maçın çıktı kapıları — yalnız ilgili aileyi kapatır (aşırı 1X2 olasılığı gol dağılımını bozmaz).
+                    var publication = marketRows.Count == 0
+                        ? new OutcomeSnapshotBuilder.MarketPublication(
+                            MarketFamilies.All.Select(f => new MarketFamilyMetrics
+                            {
+                                LeagueId = u.LeagueId, Family = f,
+                                Status = MarketEligibilityStatuses.DataQualityFailed,
+                                ReasonCodes = new List<string> { "LEAGUE_NOT_EVALUATED" }
+                            }))
+                        : new OutcomeSnapshotBuilder.MarketPublication(marketRows, OutcomeSnapshotBuilder.MatchGatedFamilies(outputGates));
+                    dto = OutcomeSnapshotBuilder.Build(u.Id, pr, home, away, publication);
+                    foreach (var m in dto.Markets)
+                        m.SampleSize = marketRows.FirstOrDefault(x => x.Family == m.Family)?.Matches ?? 0;
                 }
                 else dto = OutcomeSnapshotBuilder.Insufficient(u.Id, e, home, away);
 
-                var league = ctx.Eligibility.TryGetValue(u.LeagueId, out var le) ? le : ((string Status, List<string> Reasons)?)null;
-                var (eligibility, reasons) = OutcomeSnapshotBuilder.Combine(league?.Status, league?.Reasons ?? new List<string>(), matchGates, outputGates);
+                var (eligibility, reasons) = OutcomeSnapshotBuilder.Finalize(dto, matchGates, outputGates);
                 dto.PredictionEligibility = eligibility;
                 dto.EligibilityReasons = reasons;
                 if (eligibility != PredictionEligibilities.Enabled) dto.Notice = OutcomeSnapshotBuilder.NotEligibleNotice;
@@ -458,7 +499,7 @@ namespace Formax.Infrastructure.Outcomes
             => InputHash(runId, e, home, away, null, null);
 
         public static string InputHash(string? runId, OutcomeExpectation e, string? home, string? away, string? eligibility, string? fingerprint)
-            => Hash(string.Join("|", OutcomeModelVersion.Current, OutcomeSnapshotBuilder.SelectionVersion, EligibilityPolicy.Version, runId,
+            => Hash(string.Join("|", OutcomeModelVersion.Current, OutcomeSnapshotBuilder.SelectionVersion, EligibilityPolicy.Version, MarketEligibilityPolicy.Version, runId,
                 Math.Round(e.LambdaHome, 3), Math.Round(e.LambdaAway, 3), Math.Round(e.LeagueHome, 3), Math.Round(e.LeagueAway, 3),
                 e.HomeSample, e.AwaySample, Math.Round(e.Coverage, 3), string.Join(",", e.GateReasons), home, away, eligibility, fingerprint));
     }
