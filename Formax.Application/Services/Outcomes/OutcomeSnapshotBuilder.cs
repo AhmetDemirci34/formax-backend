@@ -470,10 +470,13 @@ namespace Formax.Application.Services.Outcomes
                 }
             }
             // 2) Gol yuvası: yalnız UYGUN gol çizgilerinin adayları yarışır (2.5 zayıfsa 1.5/3.5 otomatik kapanmaz).
+            // İKİLİ MARKET KURALI: kart, modelin olması DAHA OLASI gördüğü tarafı söyler (p ≥ 0,5) VE lig ortalamasına göre
+            // bilgi taşır (lift > 0). İkisi birden sağlanmıyorsa yuva BOŞ kalır — "1.5 Alt %21" gibi hem düşük olasılıklı hem
+            // okunması güç bir kart üretilmez (ölçüm 19.09.2026: Athletic–Alaves).
             var goalCandidates = new List<OutcomeCandidateDto>();
             for (var i = 0; i < GoalLines.Length; i++)
                 if (pub.IsPublished(GoalLines[i].Family))
-                    goalCandidates.AddRange(new[] { goals[i * 2], goals[i * 2 + 1] }.Where(c => c.InformationLift > 0));
+                    goalCandidates.AddRange(new[] { goals[i * 2], goals[i * 2 + 1] }.Where(Informative));
             if (goalCandidates.Count > 0)
             {
                 var pick = Best(goalCandidates);
@@ -483,7 +486,7 @@ namespace Formax.Application.Services.Outcomes
             // 3) KG yuvası.
             if (pub.IsPublished(MarketFamilies.BothTeamsToScore))
             {
-                var pick = btts.Where(c => c.InformationLift > 0).ToList();
+                var pick = btts.Where(Informative).ToList();
                 if (pick.Count > 0)
                 {
                     var b = Best(pick);
@@ -565,6 +568,13 @@ namespace Formax.Application.Services.Outcomes
         /// </summary>
         public static double Score(OutcomeCandidateDto c, double coverage)
             => InformationValue(c) * (0.4 + 0.6 * coverage);
+
+        /// <summary>
+        /// İkili market adayı kart olabilir mi? İki koşul birden: modelin daha olası gördüğü taraf (p ≥ 0,5) VE lig
+        /// ortalamasının üstünde bilgi (lift &gt; 0). 1X2 ailesi bu kuraldan muaftır: üç şıklı bir bölünmede hiçbir sonuç
+        /// %50'ye ulaşmayabilir, orada anlamlı ifade en olası sonuçtur.
+        /// </summary>
+        private static bool Informative(OutcomeCandidateDto c) => c.CalibratedProbability >= 0.5 && c.InformationLift > 0;
 
         /// <summary>Deterministik en iyi aday: bilgi değeri, eşitlikte market anahtarı.</summary>
         private static OutcomeCandidateDto Best(IReadOnlyList<OutcomeCandidateDto> candidates)

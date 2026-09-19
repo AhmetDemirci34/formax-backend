@@ -124,7 +124,9 @@ public class PredictionReliabilityTests
             Assert.True(s.Checks!.Consistent);
             // selection-3: bileşik kart serbest ama aynı maçta en fazla bir tane ve yalnız sonuç yuvasında.
             Assert.True(s.MainCards.Count(c => c.MarketKey != null && OutcomeFamilies.IsCompound(c.MarketKey)) <= 1);
-            Assert.Equal(3, s.MainCards.Select(c => c.Family).Distinct().Count());
+            // Kart sayısı dinamik: her kart ayrı aileden, en fazla üç, bilgi taşımayan yuva boş kalır.
+            Assert.Equal(s.MainCards.Count, s.MainCards.Select(c => c.Family).Distinct().Count());
+            Assert.InRange(s.MainCards.Count, 1, 3);
             var r = s.Families.First(f => f.Family == OutcomeFamilies.Result).Items;
             Assert.Equal(100, r.Sum(x => x.Probability));
         }
