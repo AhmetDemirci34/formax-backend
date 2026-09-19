@@ -73,6 +73,25 @@ export function LineupPanel({ match, pitchHeight = 440 }: { match: MatchDetailDt
 }
 
 /**
+ * MEVKİ ETİKETİ — yalnız resmî kaynağın verdiği G/D/M/F kodundan. Kaynak vermediyse ya da
+ * tanınmayan bir değer geldiyse etiket HİÇ ÇIKMAZ; mevki tahmin edilmez.
+ */
+export function positionLabel(position?: string | null): string | null {
+  switch (position?.trim().toUpperCase()) {
+    case "G":
+      return "KL";
+    case "D":
+      return "DEF";
+    case "M":
+      return "ORT";
+    case "F":
+      return "FOR";
+    default:
+      return null;
+  }
+}
+
+/**
  * Sahaya yerleştirme ancak İLK 11 oyuncularının tamamı kaynaktan gelen grid taşıyorsa yapılır.
  * Tek bir eksik konum bile sahayı yanıltıcı yapar → liste görünümü.
  */
@@ -152,6 +171,11 @@ function BenchColumn({
             <li key={`${p.shirtNumber}-${i}`} className="flex min-w-0 items-baseline gap-1.5 text-[11.5px] text-white/90">
               <span className="w-5 shrink-0 text-right font-bold tabular-nums text-white/75">{p.shirtNumber}</span>
               <span className="truncate">{p.playerName}</span>
+              {positionLabel(p.position) && (
+                <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-white/60">
+                  {positionLabel(p.position)}
+                </span>
+              )}
             </li>
           ))}
         </ul>

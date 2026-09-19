@@ -138,6 +138,13 @@ namespace Formax.Application.Services.Outcomes
         public string? PreviousSnapshotId { get; set; }
         /// <summary>Ligler arası maç bilgisi (ortak güç ölçeği) — teşhis için.</summary>
         public OutcomeStrengthDto? Strength { get; set; }
+
+        /// <summary>
+        /// KADRO KATMANI — kadro öncesi/sonrası olasılıklar, kaynak durumu, güven ve gerekçe kodları.
+        /// Kadro yoksa ya da katman üretimde değilse <c>Applied=false</c> olur ve yayımlanan yüzdeler
+        /// temel modelinkilerle birebir aynı kalır. Bu blok bilgilendiricidir; kart seçimini DEĞİŞTİRMEZ.
+        /// </summary>
+        public Lineups.OutcomeLineupDto? Lineup { get; set; }
     }
 
     public sealed class OutcomeStrengthDto
@@ -337,9 +344,27 @@ namespace Formax.Application.Services.Outcomes
                 EvidenceCoverage = s.EvidenceCoverage, SampleQuality = s.SampleQuality,
                 HomeSampleSize = s.HomeSampleSize, AwaySampleSize = s.AwaySampleSize,
                 ReasonCodes = s.ReasonCodes, TriggerType = s.TriggerType, PreviousSnapshotId = s.PreviousSnapshotId,
-                Notice = NotEligibleNotice
+                Notice = NotEligibleNotice,
+                // Kadro KAYNAK DURUMU tahmin uygunluğundan bağımsız dürüst bilgidir ve kullanıcıya gider;
+                // kadro bloğundaki OLASILIKLAR ise yüzde taşıdığı için burada TAŞINMAZ.
+                Lineup = StripLineupProbabilities(s.Lineup)
             };
         }
+
+        /// <summary>Yüzde taşımayan kadro görünümü — yalnız kaynak durumu, güven ve gerekçe kodları.</summary>
+        public static Lineups.OutcomeLineupDto? StripLineupProbabilities(Lineups.OutcomeLineupDto? l)
+            => l == null ? null : new Lineups.OutcomeLineupDto
+            {
+                Version = l.Version,
+                PolicyVersion = l.PolicyVersion,
+                Applied = false,
+                LineupSourceStatus = l.LineupSourceStatus,
+                LineupConfidence = l.LineupConfidence,
+                ResolvedStarters = l.ResolvedStarters,
+                TotalStarters = l.TotalStarters,
+                // Yüzdeler bilerek 0 bırakıldı; gerekçe kodu bunu açıkça söyler (eksik veri DEĞİL, saklanan veri).
+                AdjustmentReasonCodes = l.AdjustmentReasonCodes.Concat(new[] { "PROBABILITIES_WITHHELD" }).ToList()
+            };
 
         private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 

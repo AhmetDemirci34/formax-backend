@@ -7,11 +7,13 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Formax.Application.Interfaces;
+using Formax.Application.Services.Lineups;
 using Formax.Application.Services.Outcomes;
 using Formax.Domain.Constants;
 using Formax.Domain.Entities;
 using Formax.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using HistoricalMatch = Formax.Application.Services.Outcomes.HistoricalMatch;
 
@@ -203,12 +205,19 @@ namespace Formax.Infrastructure.Outcomes
         private readonly FormaxDbContext _db;
         private readonly OutcomeHistoryLoader _history;
         private readonly OutcomeModelTrainingService _training;
+        private readonly Formax.Infrastructure.Lineups.LineupHistoryLoader? _lineups;
+        private readonly Microsoft.Extensions.Configuration.IConfiguration? _config;
         private readonly ILogger<MatchPredictionSnapshotService> _log;
 
         public MatchPredictionSnapshotService(FormaxDbContext db, OutcomeHistoryLoader history, OutcomeModelTrainingService training,
             ILogger<MatchPredictionSnapshotService> log)
+            : this(db, history, training, null, null, log) { }
+
+        public MatchPredictionSnapshotService(FormaxDbContext db, OutcomeHistoryLoader history, OutcomeModelTrainingService training,
+            Formax.Infrastructure.Lineups.LineupHistoryLoader? lineups, Microsoft.Extensions.Configuration.IConfiguration? config,
+            ILogger<MatchPredictionSnapshotService> log)
         {
-            _db = db; _history = history; _training = training; _log = log;
+            _db = db; _history = history; _training = training; _lineups = lineups; _config = config; _log = log;
         }
 
         private sealed class ModelContext
@@ -221,7 +230,19 @@ namespace Formax.Infrastructure.Outcomes
             public DateTime Cutoff;
             public Dictionary<int, List<DateTime>> TeamMatches = new();
             public Dictionary<int, List<DateTime>> CompetitionMatches = new();
+            /// <summary>Öğrenilmiş oyuncu etkileri; katman kapalıysa boş model (her etki 0).</summary>
+            public PlayerImpactModel PlayerImpact = PlayerImpactModel.Empty();
+            /// <summary>Kadro deltası YAYIMLANAN olasılığa uygulansın mı? (kabul kapısı + ayar)</summary>
+            public bool LineupImpactInProduction;
         }
+
+        /// <summary>
+        /// KADRO KATMANI AYARI — <c>LineupImpact:Production</c> yalnız ölçüm kabul kapısını GERÇEKTEN
+        /// geçtiğinde açılır. Varsayılan KAPALI: katman hesaplanır ve snapshot'a yazılır (gölge), ama
+        /// yayımlanan yüzdeye uygulanmaz. Bu, "metrikler iyileşmediyse üretime açma" kuralının kodda
+        /// karşılığıdır.
+        /// </summary>
+        public const string ProductionConfigKey = "LineupImpact:Production";
 
         private async Task<ModelContext> BuildContextAsync(DateTime nowUtc, CancellationToken ct)
         {
@@ -231,20 +252,41 @@ namespace Formax.Infrastructure.Outcomes
             ctx.MarketEligibility = await _training.MarketEligibilityAsync(ctx.Run?.RunId, ct).ConfigureAwait(false);
             var history = await _history.LoadAsync(nowUtc, ct).ConfigureAwait(false);
             var names = await _history.LoadCompetitionNamesAsync(ct).ConfigureAwait(false);
+            // Kadro gözlemleri — YALNIZ resmî kaynaktan doğrulanmış olanlar öğrenmeye girer.
+            var lineupObs = _lineups == null
+                ? new List<Formax.Application.Services.Lineups.MatchLineupObservation>()
+                : await _lineups.LoadAsync(null, officialOnly: true, ct).ConfigureAwait(false);
+            var impactParameters = new PlayerImpactParameters();
             await Task.Run(() =>
             {
                 var catalog = CompetitionCatalog.Build(history, names);
                 ctx.Model = new OutcomeRatingModel(ctx.Parameters, catalog);
+                var lineupMatchIds = lineupObs.Select(l => l.MatchId).ToHashSet();
+                var residuals = new List<TeamMatchResidual>(lineupMatchIds.Count * 2);
                 foreach (var m in history)
                 {
+                    // Artık, maç MODELE İŞLENMEDEN ÖNCE hesaplanır: bir maçın kendi sonucu kendi
+                    // beklentisine giremez (zamansal sızıntı yapısal olarak engellidir).
+                    if (lineupMatchIds.Contains(m.MatchId))
+                    {
+                        var pre = ctx.Model.Expect(m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.KickoffUtc);
+                        if (pre.Sufficient)
+                        {
+                            var (h, a) = PlayerImpactModel.Residuals(m.MatchId, m.KickoffUtc, m.LeagueId, m.HomeTeamId, m.AwayTeamId,
+                                m.HomeGoals, m.AwayGoals, pre.LambdaHome, pre.LambdaAway, impactParameters.ResidualSmoothing);
+                            residuals.Add(h); residuals.Add(a);
+                        }
+                    }
                     ctx.Model.Update(m);
                     Add(ctx.TeamMatches, m.HomeTeamId, m.KickoffUtc);
                     Add(ctx.TeamMatches, m.AwayTeamId, m.KickoffUtc);
                     Add(ctx.CompetitionMatches, m.LeagueId, m.KickoffUtc);
                 }
                 ctx.Model.RefitLeagueStrengths(nowUtc);
+                ctx.PlayerImpact = PlayerImpactModel.BuildAsOf(lineupObs, residuals, nowUtc, impactParameters);
             }, ct).ConfigureAwait(false);
             ctx.Cutoff = history.Count == 0 ? nowUtc : history[^1].KickoffUtc;
+            ctx.LineupImpactInProduction = _config?.GetValue(ProductionConfigKey, false) ?? false;
             return ctx;
         }
 
@@ -317,6 +359,11 @@ namespace Formax.Infrastructure.Outcomes
                 .ToDictionaryAsync(m => m.Id, ct).ConfigureAwait(false);
             var current = await _db.MatchPredictionSnapshots.Where(s => ids.Contains(s.MatchId) && s.IsCurrent).ToListAsync(ct).ConfigureAwait(false);
             var fingerprints = await FingerprintsAsync(ids, ct).ConfigureAwait(false);
+            // Kadro gözlemi — DB'den, dış istek YOK. Kadrosu olmayan maç için null döner ve katman
+            // hiçbir şey uydurmaz.
+            var lineupById = _lineups == null
+                ? new Dictionary<int, Formax.Application.Services.Lineups.MatchLineupObservation>()
+                : (await _lineups.LoadAsync(ids, officialOnly: true, ct).ConfigureAwait(false)).ToDictionary(l => l.MatchId);
             var results = new List<RecomputeOutcome>();
 
             foreach (var t in triggers.GroupBy(x => x.MatchId).Select(g => g.OrderBy(x => x.TriggeredAtUtc).Last()))
@@ -335,9 +382,25 @@ namespace Formax.Infrastructure.Outcomes
                 IReadOnlyList<string> outputGates = Array.Empty<string>();
                 // BİRİNCİ KATMAN: organizasyon × market ailesi (tarihsel sınav). Matris yoksa hiçbir market yayımlanmaz.
                 var marketRows = ctx.MarketEligibility.TryGetValue(u.LeagueId, out var mr) ? mr : new List<MarketFamilyMetrics>();
+
+                // ── KADRO KATMANI ────────────────────────────────────────────────────────────
+                // Doğrulanmış resmî kadro varsa sınırlı bir delta hesaplanır. Katman üretimde
+                // DEĞİLSE (varsayılan) delta yalnız snapshot'a kaydedilir; yayımlanan olasılık
+                // temel modelinkiyle BİREBİR aynı kalır.
+                var adjustment = LineupImpactCalculator.Compute(
+                    lineupById.GetValueOrDefault(u.Id), ctx.PlayerImpact, u.HomeTeamId, u.AwayTeamId);
+                var applyLineup = ctx.LineupImpactInProduction && adjustment.Applied;
+                var lineupSignature = string.Join(":", LineupImpactVersion.Current, adjustment.LineupSourceStatus,
+                    adjustment.LineupConfidence, applyLineup,
+                    Math.Round(adjustment.HomeLineupDelta, 5), Math.Round(adjustment.AwayLineupDelta, 5));
+
                 if (e.Sufficient)
                 {
-                    var pr = OutcomePredictor.Predict(e, u.LeagueId, ctx.Parameters);
+                    var basePr = OutcomePredictor.Predict(e, u.LeagueId, ctx.Parameters);
+                    var adjustedPr = adjustment.Applied
+                        ? OutcomePredictor.Predict(LineupImpactCalculator.Apply(e, adjustment), u.LeagueId, ctx.Parameters)
+                        : null;
+                    var pr = applyLineup ? adjustedPr! : basePr;
                     outputGates = OutcomePredictor.OutputGates(pr, ctx.Parameters);
                     // İKİNCİ KATMAN: bu maçın çıktı kapıları — yalnız ilgili aileyi kapatır (aşırı 1X2 olasılığı gol dağılımını bozmaz).
                     var publication = marketRows.Count == 0
@@ -352,8 +415,15 @@ namespace Formax.Infrastructure.Outcomes
                     dto = OutcomeSnapshotBuilder.Build(u.Id, pr, home, away, publication);
                     foreach (var m in dto.Markets)
                         m.SampleSize = marketRows.FirstOrDefault(x => x.Family == m.Family)?.Matches ?? 0;
+                    dto.Lineup = OutcomeLineupDto.Build(adjustment, basePr.Calibrated, adjustedPr?.Calibrated, applyLineup);
                 }
-                else dto = OutcomeSnapshotBuilder.Insufficient(u.Id, e, home, away);
+                else
+                {
+                    dto = OutcomeSnapshotBuilder.Insufficient(u.Id, e, home, away);
+                    // Tahmin üretilemese bile kadro KAYNAK DURUMU dürüstçe taşınır (yüzde taşımaz).
+                    dto.Lineup = OutcomeSnapshotBuilder.StripLineupProbabilities(
+                        OutcomeLineupDto.Build(adjustment, ScoreDistribution.Poisson(1, 1), null, false));
+                }
 
                 var (eligibility, reasons) = OutcomeSnapshotBuilder.Finalize(dto, matchGates, outputGates);
                 dto.PredictionEligibility = eligibility;
@@ -370,7 +440,9 @@ namespace Formax.Infrastructure.Outcomes
                 };
                 AnalysisConsistencyValidator.ValidateCardReasons(dto);
 
-                var hash = InputHash(ctx.Run?.RunId, e, home, away, eligibility, fpHash);
+                // Kadro imzası girdi özetine girer: aynı kadro ikinci kez snapshot ÜRETMEZ, kadro
+                // düzeltilirse (içerik özeti değişir) ya da katman üretime açılırsa yeni satır yazılır.
+                var hash = InputHash(ctx.Run?.RunId, e, home, away, eligibility, fpHash + "|" + lineupSignature);
                 var existing = current.Where(c => c.MatchId == u.Id).ToList();
                 if (existing.Any(c => c.InputHash == hash)) { results.Add(new(u.Id, "Unchanged", existing.First(c => c.InputHash == hash).SnapshotId)); continue; }
                 if (await _db.MatchPredictionSnapshots.AnyAsync(s => s.MatchId == u.Id && s.InputHash == hash && s.PublicationStatus == "NeedsReview", ct).ConfigureAwait(false))

@@ -338,6 +338,9 @@ public static class DependencyInjection
         // Üretim yalnız arka plan işinde (OutcomeModelJob); kullanıcı yolu yalnız okuyucuyu çözer (salt DB).
         services.AddScoped<Formax.Infrastructure.Outcomes.OutcomeHistoryLoader>();
         services.AddScoped<Formax.Infrastructure.Outcomes.OutcomeModelTrainingService>();
+        // Kadro/oyuncu etki katmanı — yalnız DB okur (dış istek YOK), snapshot yolunda çözülür.
+        services.AddScoped<Formax.Infrastructure.Lineups.LineupHistoryLoader>();
+        services.AddScoped<Formax.Infrastructure.Lineups.LineupImpactBacktestService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.MatchPredictionSnapshotService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.PredictionRecomputeWorker>();
         services.AddScoped<Formax.Application.Interfaces.IMatchOutcomeSnapshotReader, Formax.Infrastructure.Outcomes.MatchOutcomeSnapshotReader>();
