@@ -117,7 +117,10 @@ namespace Formax.Application.Services.OfficialSources
         bool IsCaptain,
         string? OfficialPlayerId = null,
         // Saha konumu "hat:sıra" — YALNIZ kaynağın kendi hat/koordinat verisinden; yoksa null.
-        string? Grid = null);
+        string? Grid = null,
+        // Oyuncunun çıktığı/girdiği dakika — YALNIZ kaynak gerçekten yayımladığında. Kaynak
+        // değişiklik vermiyorsa null kalır; "ilk 11 → 90 dakika" varsayımı HİÇBİR YERDE yapılmaz.
+        int? SubstitutionMinute = null);
 
     /// <summary>Tek takımın resmî kadrosu.</summary>
     public sealed record OfficialLineupSide(

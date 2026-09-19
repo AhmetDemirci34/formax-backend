@@ -18,7 +18,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// EKONOMİ: sezon listesi kickoff'a göre sıralı 100'lük sayfalardır; pencerenin sonunu
     /// geçen ilk sayfada durulur (sezon başında tek istek). Kadro maç başına okunur.
     /// </summary>
-    public sealed class PremierLeagueSdpSource : IOfficialCompetitionSource, IOfficialPostMatchSource
+    public sealed class PremierLeagueSdpSource
+        : IOfficialCompetitionSource, IOfficialPostMatchSource, IOfficialHistoricalLineupSource, IOfficialParticipationSource
     {
         public const string ProviderName = "PremierLeagueSdp";
         public const string Root = "https://sdp-prem-prod.premier-league-prod.pulselive.com/api";
@@ -72,6 +73,95 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                 cursor = parsed.Next;
             }
             return new(records, OfficialReadOutcomes.Ok, null, last);
+        }
+
+        // ══ GEÇMİŞ KADRO (19.09.2026 · ölçüldü) ══════════════════════════════════════════
+        // Sezon parametresi geçmişe açık: v2/matches?season=2024|2025|2026 üçü de 200 döndü ve
+        // v3/matches/{id}/lineups üç sezonun maçlarında da ilk 11 + yedek + diziliş + mevki +
+        // forma numarası + kaynak oyuncu kimliği verdi (Man Utd–Fulham 16.08.2024 dâhil).
+        // Daha eskisi ÖLÇÜLMEDİ; ölçülmemiş sezon döndürülmez.
+
+        /// <summary>Geçmiş kadro için ölçülmüş sezon sayısı (içinde bulunulan sezon dâhil).</summary>
+        public const int MeasuredHistoricalSeasons = 3;
+
+        public Task<OfficialRead<IReadOnlyList<OfficialSeason>>> ReadSeasonsAsync(
+            OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var current = SeasonYear(round.UtcNow);
+            var seasons = Enumerable.Range(0, MeasuredHistoricalSeasons)
+                .Select(i => current - i)
+                .Select(y => new OfficialSeason(y.ToString(CultureInfo.InvariantCulture), $"{y}/{y + 1}", y))
+                .ToList();
+            return Task.FromResult(new OfficialRead<IReadOnlyList<OfficialSeason>>(
+                seasons, OfficialReadOutcomes.Ok, null, null));
+        }
+
+        /// <summary>
+        /// Sezonun BÜTÜN maçları — canlı turun tarih penceresi UYGULANMAZ. Sayfalar imleçle
+        /// sonuna kadar okunur; sayfa başına 100 kayıt (bir sezon ≈ 4 istek).
+        /// </summary>
+        public async Task<OfficialRead<IReadOnlyList<OfficialMatchRecord>>> ReadSeasonMatchesAsync(
+            OfficialSeason season, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var records = new List<OfficialMatchRecord>();
+            string? cursor = null;
+            OfficialFetchResult? last = null;
+            // Bir sezon 380 maçtır; 100'lük sayfada 4 istek yeter. Tavan kaçak döngüye karşıdır.
+            for (var page = 0; page < 12; page++)
+            {
+                var url = $"{Root}/v2/matches?competition={CompetitionId}&season={season.SeasonId}&_limit=100"
+                          + (cursor == null ? string.Empty : "&_next=" + Uri.EscapeDataString(cursor));
+                var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                    SourceKey, ProviderName, url, round.Purpose, round.RoundKey, Accept: "application/json"), ct);
+                last = f;
+                if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+
+                (IReadOnlyList<OfficialMatchRecord> Records, string? Next) parsed;
+                try { parsed = ParseMatchesPage(f.Body!); }
+                catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+
+                records.AddRange(parsed.Records);
+                if (parsed.Next == null || parsed.Records.Count == 0) break;
+                cursor = parsed.Next;
+            }
+            return new(records, OfficialReadOutcomes.Ok, null, last);
+        }
+
+        /// <summary>
+        /// GERÇEK DEĞİŞİKLİKLER — <c>v1/matches/{id}/events</c>. Kaynak her takım için
+        /// <c>subs</c> dizisini giren/çıkan oyuncu kimliği ve dakikayla yayımlar. Dizi boşsa
+        /// değişiklik yoktur ve dakika ÜRETİLMEZ.
+        /// </summary>
+        public async Task<OfficialRead<OfficialParticipationDocument>> ReadParticipationAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var url = $"{Root}/v1/matches/{Uri.EscapeDataString(match.OfficialMatchId)}/events";
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, url, OfficialPurposes.Events, round.RoundKey, round.MatchId,
+                Accept: "application/json"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            try { return new(ParseParticipation(f.Body!, match, f.Url, f.ContentHash!), OfficialReadOutcomes.Ok, null, f); }
+            catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+        }
+
+        public static OfficialParticipationDocument? ParseParticipation(
+            string json, OfficialMatchRecord match, string url, string hash)
+        {
+            using var doc = JsonDocument.Parse(json);
+            var subs = new List<OfficialSubstitution>();
+            foreach (var (key, side) in new[] { ("homeTeam", "Home"), ("awayTeam", "Away") })
+            {
+                if (doc.RootElement.Prop(key)?.Prop("subs") is not { ValueKind: JsonValueKind.Array } arr) continue;
+                foreach (var s in arr.EnumerateArray())
+                {
+                    var minute = s.Int("time");
+                    if (minute == null) continue; // dakika yoksa kayıt YAZILMAZ
+                    subs.Add(new OfficialSubstitution(side, s.Str("playerOnId"), s.Str("playerOffId"), minute.Value));
+                }
+            }
+            return subs.Count == 0 ? null
+                : new OfficialParticipationDocument(OfficialSourceRegistry.PremierLeagueSdp,
+                    match.OfficialMatchId, url, hash, subs);
         }
 
         public async Task<OfficialRead<OfficialLineupDocument>> ReadLineupAsync(

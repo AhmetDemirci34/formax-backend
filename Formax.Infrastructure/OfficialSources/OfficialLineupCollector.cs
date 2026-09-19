@@ -315,8 +315,28 @@ namespace Formax.Infrastructure.OfficialSources
         /// bir resmî kaynaktan gelmiş olabilir → iki kulübün açıklaması güvenle birleşir). Aynı
         /// taraf yeniden yazılırken eski oyuncu satırları silinip yenisi eklenir: tekrar yok.
         /// </summary>
+        /// <summary>
+        /// GEÇMİŞ DOLDURMA YAZIM KAPISI — canlı turla AYNI doğrulama ve yazma yolunu kullanır.
+        /// Tek farkı: takipçi bildirimi GÖNDERİLMEZ (maç çoktan oynandı) ve satır geçmiş damgası
+        /// taşır. Doğrulama geçilmezse hiçbir şey yazılmaz.
+        /// </summary>
+        public async Task<LineupMatchOutcome> WriteHistoricalAsync(
+            int matchId, string homeName, string awayName, OfficialLineupDocument doc,
+            IReadOnlyList<OfficialSubstitution>? substitutions, DateTime utcNow, CancellationToken ct = default)
+        {
+            var verdict = OfficialContentVerificationService.VerifyLineup(doc, homeName, awayName);
+            if (!verdict.AnySideAccepted)
+                return new LineupMatchOutcome(matchId, doc.SourceKey, LineupOutcomes.Rejected,
+                    verdict.SourceOfficial ? $"home={verdict.Home.Reason};away={verdict.Away.Reason}" : $"source={verdict.SourceRejectReason}");
+
+            var (_, isComplete) = await ApplyAsync(matchId, doc, verdict, utcNow, ct, substitutions, backfill: true);
+            return new LineupMatchOutcome(matchId, doc.SourceKey,
+                isComplete ? LineupOutcomes.Released : LineupOutcomes.PartiallyReleased, null);
+        }
+
         private async Task<(bool WasComplete, bool IsComplete)> ApplyAsync(
-            int matchId, OfficialLineupDocument doc, LineupVerification verdict, DateTime utcNow, CancellationToken ct)
+            int matchId, OfficialLineupDocument doc, LineupVerification verdict, DateTime utcNow, CancellationToken ct,
+            IReadOnlyList<OfficialSubstitution>? substitutions = null, bool backfill = false)
         {
             await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
 
@@ -330,8 +350,9 @@ namespace Formax.Infrastructure.OfficialSources
             void WriteSide(string side, OfficialLineupSide s)
             {
                 _db.MatchLineupPlayers.RemoveRange(existing.Where(p => p.Side == side));
-                _db.MatchLineupPlayers.AddRange(Map(matchId, side, "Starter", s.Starters));
-                _db.MatchLineupPlayers.AddRange(Map(matchId, side, "Bench", s.Bench));
+                var subs = substitutions?.Where(x => string.Equals(x.Side, side, StringComparison.OrdinalIgnoreCase)).ToList();
+                _db.MatchLineupPlayers.AddRange(Map(matchId, side, "Starter", s.Starters, subs));
+                _db.MatchLineupPlayers.AddRange(Map(matchId, side, "Bench", s.Bench, subs));
             }
 
             // Önceki resmî olmayan (eski sağlayıcı) kadro satırları resmî veriyle karışmaz.
@@ -375,11 +396,16 @@ namespace Formax.Infrastructure.OfficialSources
             header.LastCheckedAtUtc = utcNow;
             var isComplete = header.HomeLineupsReleased && header.AwayLineupsReleased;
             header.VerificationStatus = isComplete ? "Verified" : "PartiallyVerified";
+            header.DataQuality = DataQualityOf(doc, substitutions);
+            if (backfill) header.BackfilledAtUtc = utcNow;
 
             if (isNew) _db.MatchLineups.Add(header);
             // Doğrulanmış resmî kadro → tahmin yenileme isteği AYNI işlemde (aynı içerik ikinci kez istek üretmez).
-            await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, matchId, "OfficialLineup", ProviderPrefix + doc.SourceKey,
-                $"lineup:{matchId}:{doc.SourceKey}:{header.HomeLineupsReleased}:{header.AwayLineupsReleased}:{doc.ContentHash}", utcNow, ct);
+            // GEÇMİŞ DOLDURMADA İSTEK ÜRETİLMEZ: maç çoktan oynandı, yeniden hesaplama zaten
+            // "KickoffPassed" ile atlanırdı; binlerce boş kuyruk satırı yazılmaz.
+            if (!backfill)
+                await Formax.Infrastructure.Outcomes.PredictionRecomputeQueue.EnqueueAsync(_db, matchId, "OfficialLineup", ProviderPrefix + doc.SourceKey,
+                    $"lineup:{matchId}:{doc.SourceKey}:{header.HomeLineupsReleased}:{header.AwayLineupsReleased}:{doc.ContentHash}", utcNow, ct);
             await _db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
 
@@ -388,19 +414,55 @@ namespace Formax.Infrastructure.OfficialSources
             return (wasComplete, isComplete);
         }
 
-        private static IEnumerable<MatchLineupPlayer> Map(int matchId, string side, string role, IEnumerable<OfficialLineupPlayer> players)
-            => players.Select(p => new MatchLineupPlayer
+        /// <summary>
+        /// Kaynak satırını canonical satıra çevirir.
+        ///
+        /// DAKİKA POLİTİKASI: <c>SubstitutionMinute</c> yalnız kaynağın GERÇEKTEN yayımladığı
+        /// değişiklik dakikasıdır (oyuncunun kendi olay listesinden ya da maçın değişiklik
+        /// listesinden). <c>MinutesPlayed</c> yalnız İLK 11'de başlayıp çıkarılan oyuncu için
+        /// yazılır — o zaman sahada geçirdiği süre yayımlanmış dakikaya EŞİTTİR. Çıkarılmayan
+        /// oyuncuya 90 YAZILMAZ (maç süresi kaynakta yayımlanmıyor) ve oyuna giren oyuncuya da
+        /// süre üretilmez.
+        /// </summary>
+        private static IEnumerable<MatchLineupPlayer> Map(
+            int matchId, string side, string role, IEnumerable<OfficialLineupPlayer> players,
+            IReadOnlyList<OfficialSubstitution>? substitutions = null)
+            => players.Select(p =>
             {
-                Id = Guid.NewGuid(),
-                MatchId = matchId,
-                Side = side,
-                Role = role,
-                ShirtNumber = p.ShirtNumber ?? 0,
-                PlayerName = p.Name.Length > 120 ? p.Name[..120] : p.Name,
-                Position = p.Position ?? string.Empty,
-                Grid = role == "Starter" ? p.Grid : null,
-                IsCaptain = p.IsCaptain
+                var minute = p.SubstitutionMinute;
+                if (minute == null && p.OfficialPlayerId is { Length: > 0 } pid && substitutions != null)
+                    minute = substitutions.FirstOrDefault(s => s.PlayerOffOfficialId == pid || s.PlayerOnOfficialId == pid)?.Minute;
+                var startedAndReplaced = role == "Starter" && minute.HasValue;
+                return new MatchLineupPlayer
+                {
+                    Id = Guid.NewGuid(),
+                    MatchId = matchId,
+                    Side = side,
+                    Role = role,
+                    ShirtNumber = p.ShirtNumber ?? 0,
+                    PlayerName = p.Name.Length > 120 ? p.Name[..120] : p.Name,
+                    Position = p.Position ?? string.Empty,
+                    Grid = role == "Starter" ? p.Grid : null,
+                    IsCaptain = p.IsCaptain,
+                    OfficialPlayerId = p.OfficialPlayerId is { Length: > 80 } long80 ? long80[..80] : p.OfficialPlayerId,
+                    SubstitutionMinute = minute,
+                    MinutesPlayed = startedAndReplaced ? minute : null
+                };
             });
+
+        /// <summary>
+        /// VERİ KALİTESİ SEVİYESİ — kadronun GERÇEKTEN taşıdığı alanlara göre. Eksik alan
+        /// doldurulmuş gibi gösterilmez; seviye kullanıcıya ve ölçüme dürüstçe söylenir.
+        /// </summary>
+        public static string DataQualityOf(OfficialLineupDocument doc, IReadOnlyList<OfficialSubstitution>? substitutions)
+        {
+            var sides = new[] { doc.Home, doc.Away }.Where(s => s != null).Cast<OfficialLineupSide>().ToList();
+            if (sides.Count == 0) return "StartersOnly";
+            var hasMinutes = (substitutions?.Count ?? 0) > 0
+                             || sides.Any(s => s.Starters.Concat(s.Bench).Any(p => p.SubstitutionMinute.HasValue));
+            if (hasMinutes) return "WithMinutes";
+            return sides.Any(s => s.Bench.Count > 0) ? "WithBench" : "StartersOnly";
+        }
 
         private async Task<int> NotifyFollowersAsync(Match match, DateTime utcNow, CancellationToken ct)
         {
@@ -435,6 +497,8 @@ namespace Formax.Infrastructure.OfficialSources
                 .Where(h => h.HomeLineupsReleased && h.AwayLineupsReleased
                             && h.Provider != null && h.Provider.StartsWith(ProviderPrefix)
                             && h.FollowersNotifiedAtUtc == null
+                            // GEÇMİŞ DOLDURMA BİLDİRİM ÜRETMEZ: oynanmış maçın kadrosu haber değildir.
+                            && h.BackfilledAtUtc == null
                             && h.VerifiedAtUtc != null && h.VerifiedAtUtc >= since)
                 .Select(h => h.MatchId)
                 .ToListAsync(ct);

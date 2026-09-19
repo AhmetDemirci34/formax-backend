@@ -118,6 +118,10 @@ namespace Formax.Infrastructure.Data
         // ── Sprint 1: Lineup engine ──────────────────────────────────────────
         public DbSet<MatchLineup> MatchLineups { get; set; } = null!;
         public DbSet<MatchLineupPlayer> MatchLineupPlayers { get; set; } = null!;
+        /// <summary>Geçmiş kadro doldurma — kaynak × sezon ilerleme defteri (restart-safe).</summary>
+        public DbSet<LineupBackfillCheckpoint> LineupBackfillCheckpoints { get; set; } = null!;
+        /// <summary>Geçmiş kadro doldurma — maç başına deneme/sonuç defteri (idempotens + başarısız kuyruğu).</summary>
+        public DbSet<LineupBackfillAttempt> LineupBackfillAttempts { get; set; } = null!;
         public DbSet<MatchPlayerStatus> MatchPlayerStatuses { get; set; } = null!;
 
         // ── Sprint 2: Standings & competition context ─────────────────────────
@@ -1062,6 +1066,8 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.SourceUrl).HasMaxLength(1000);
                 entity.Property(x => x.RawContentHash).HasMaxLength(64);
                 entity.Property(x => x.VerificationStatus).HasMaxLength(32);
+                // Geçmiş doldurma (additive).
+                entity.Property(x => x.DataQuality).HasMaxLength(24);
             });
 
             // ── RESMÎ KAYNAK ALTYAPISI ───────────────────────────────────────
@@ -1479,7 +1485,41 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.Role).HasMaxLength(10).IsRequired();
                 entity.Property(x => x.Position).HasMaxLength(5);
                 entity.Property(x => x.PlayerName).HasMaxLength(120).IsRequired();
+                // Kaynak oyuncu kimliği — eşleme metin benzerliğinden ÖNCE bunun üzerinden yapılır.
+                entity.Property(x => x.OfficialPlayerId).HasMaxLength(80);
                 entity.HasIndex(x => x.MatchId);
+                entity.HasIndex(x => x.OfficialPlayerId).HasDatabaseName("IX_MatchLineupPlayers_OfficialPlayerId");
+            });
+
+            // ── GEÇMİŞ KADRO DOLDURMA (19.09.2026) ───────────────────────────
+            modelBuilder.Entity<LineupBackfillCheckpoint>(entity =>
+            {
+                entity.ToTable("LineupBackfillCheckpoints");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.SeasonId).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.SeasonLabel).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.LastOfficialMatchId).HasMaxLength(200);
+                entity.Property(x => x.LastError).HasMaxLength(500);
+                entity.HasIndex(x => new { x.SourceKey, x.SeasonId }).IsUnique()
+                      .HasDatabaseName("UX_LineupBackfillCheckpoints_Source_Season");
+            });
+
+            modelBuilder.Entity<LineupBackfillAttempt>(entity =>
+            {
+                entity.ToTable("LineupBackfillAttempts");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceKey).HasMaxLength(80).IsRequired();
+                entity.Property(x => x.OfficialMatchId).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.SeasonId).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Outcome).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ContentHash).HasMaxLength(64);
+                entity.Property(x => x.LastError).HasMaxLength(500);
+                entity.HasIndex(x => new { x.SourceKey, x.OfficialMatchId }).IsUnique()
+                      .HasDatabaseName("UX_LineupBackfillAttempts_Source_Match");
+                entity.HasIndex(x => new { x.SourceKey, x.SeasonId, x.Outcome })
+                      .HasDatabaseName("IX_LineupBackfillAttempts_Season_Outcome");
             });
 
             // MatchPlayerStatus — Guid PK, index on MatchId

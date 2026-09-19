@@ -76,6 +76,18 @@ namespace Formax.Domain.Entities
         /// <summary>"Verified" | "PartiallyVerified" (yalnız bir taraf) | "Pending".</summary>
         public string? VerificationStatus { get; set; }
 
+        // ── GEÇMİŞ DOLDURMA (19.09.2026 · additive) ────────────────────────────────
+
+        /// <summary>
+        /// VERİ KALİTESİ SEVİYESİ — kadronun hangi alanları GERÇEKTEN taşıdığı:
+        /// "StartersOnly" (yalnız ilk 11) | "WithBench" (+ yedekler) | "WithMinutes"
+        /// (+ gerçek değişiklik dakikaları). Eksik alan doldurulmuş gibi gösterilmez.
+        /// </summary>
+        public string? DataQuality { get; set; }
+
+        /// <summary>Kayıt canlı turda değil geçmiş doldurma turunda yazıldıysa o anın damgası.</summary>
+        public DateTime? BackfilledAtUtc { get; set; }
+
         /// <summary>
         /// Takipçilere "Kadrolar açıklandı" dağıtımının tamamlandığı an. Kadro yazıldıktan sonra
         /// süreç çökerse bir sonraki tur dağıtımı bu alan boş olduğu için tamamlar; kullanıcı

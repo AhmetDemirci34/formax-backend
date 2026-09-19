@@ -341,6 +341,8 @@ public static class DependencyInjection
         // Kadro/oyuncu etki katmanı — yalnız DB okur (dış istek YOK), snapshot yolunda çözülür.
         services.AddScoped<Formax.Infrastructure.Lineups.LineupHistoryLoader>();
         services.AddScoped<Formax.Infrastructure.Lineups.LineupImpactBacktestService>();
+        // Geçmiş kadro doldurma — YALNIZ açıkça tetiklenir (arka planda kendiliğinden başlamaz).
+        services.AddScoped<Formax.Infrastructure.Lineups.LineupBackfillService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.MatchPredictionSnapshotService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.PredictionRecomputeWorker>();
         services.AddScoped<Formax.Application.Interfaces.IMatchOutcomeSnapshotReader, Formax.Infrastructure.Outcomes.MatchOutcomeSnapshotReader>();

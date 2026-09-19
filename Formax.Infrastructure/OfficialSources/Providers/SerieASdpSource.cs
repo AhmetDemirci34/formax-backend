@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -18,10 +19,16 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// EKONOMİ: tur başına 1 hafta listesi (~3 KB) + pencereye düşen hafta başına 1 maç listesi
     /// (~35 KB, 10 maç). Sezonun tamamı (1,2 MB) indirilmez. Kadro maç başına okunur.
     /// </summary>
-    public sealed class SerieASdpSource : IOfficialCompetitionSource, IOfficialPostMatchSource
+    public sealed class SerieASdpSource : IOfficialCompetitionSource, IOfficialPostMatchSource, IOfficialHistoricalLineupSource
     {
         public const string ProviderName = "SerieASdp";
         public const string Root = "https://api-sdp.legaseriea.it/v1/serie-a/football/seasons/";
+
+        /// <summary>Sezon listesinin okunduğu kök (19.09.2026: anahtarsız 200, 2024/25'e kadar ölçüldü).</summary>
+        public const string CompetitionsRoot = "https://api-sdp.legaseriea.it/v1/serie-a/football/competitions/";
+
+        /// <summary>Serie A müsabaka kimliği — competitions listesinden ölçüldü.</summary>
+        public const string CompetitionId = "serie-a::Football_Competition::ec93b94f74294dc98ab5bcfd67fc0d88";
 
         /// <summary>2026/27 sezon kimliği — legaseriea.it/serie-a sayfasının seasonIds alanından ölçüldü.</summary>
         public const string DefaultSeasonId = "serie-a::Football_Season::ed7fdc2a3e7b408b942ec177b7b956b5";
@@ -179,6 +186,93 @@ namespace Formax.Infrastructure.OfficialSources.Providers
 
         // ── Saf ayrıştırıcılar (testte gerçek cevaplarla sınanır) ─────────────────
 
+        // ══ GEÇMİŞ KADRO (19.09.2026 · ölçüldü) ══════════════════════════════════════════
+        // competitions/{id}/seasons anahtarsız 200 döndü ve 2026/27, 2025/26, 2024/25 sezon
+        // kimliklerini verdi; 2024/25 birinci haftanın kadrosu (Parma) ilk 11 + yedek + mevki +
+        // grid + kaynak oyuncu kimliği + GERÇEK değişiklik dakikalarıyla okundu.
+
+        /// <summary>Geçmiş kadro için kullanılacak en fazla sezon (en yeniden eskiye).</summary>
+        public const int MaxHistoricalSeasons = 3;
+
+        public async Task<OfficialRead<IReadOnlyList<OfficialSeason>>> ReadSeasonsAsync(
+            OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var url = $"{CompetitionsRoot}{Uri.EscapeDataString(CompetitionId)}/seasons?locale=it-IT";
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, url, OfficialPurposes.Schedule, round.RoundKey, Accept: "application/json"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            try
+            {
+                return new(ParseSeasons(f.Body!).Take(MaxHistoricalSeasons).ToList(), OfficialReadOutcomes.Ok, null, f);
+            }
+            catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+        }
+
+        /// <summary>Sezon adı "2025/2026" biçimindedir; başlangıç yılı sıralamayı verir.</summary>
+        public static IReadOnlyList<OfficialSeason> ParseSeasons(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            var list = new List<OfficialSeason>();
+            if (doc.RootElement.Prop("seasons") is not { ValueKind: JsonValueKind.Array } arr) return list;
+            foreach (var s in arr.EnumerateArray())
+            {
+                var id = s.Str("seasonId");
+                var name = s.Str("seasonName");
+                if (id == null || name == null) continue;
+                var yearText = name.Split('/', '-')[0].Trim();
+                if (!int.TryParse(yearText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var year)) continue;
+                list.Add(new OfficialSeason(id, name, year));
+            }
+            return list.OrderByDescending(s => s.StartYear).ToList();
+        }
+
+        /// <summary>Sezonun BÜTÜN maçları — hafta hafta, tarih penceresi UYGULANMADAN (38 istek).</summary>
+        public async Task<OfficialRead<IReadOnlyList<OfficialMatchRecord>>> ReadSeasonMatchesAsync(
+            OfficialSeason season, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var seasonRoot = Root + season.SeasonId;
+            var mdFetch = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, $"{seasonRoot}/matchdays?locale=it-IT",
+                OfficialPurposes.Schedule, round.RoundKey, Accept: "application/json"), ct);
+            if (!mdFetch.Ok) return new(null, OfficialReadOutcomes.FetchFailed, mdFetch.Outcome, mdFetch);
+
+            IReadOnlyList<(string Id, DateTime Start, DateTime End)> matchdays;
+            try { matchdays = ParseMatchdays(mdFetch.Body!); }
+            catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, mdFetch); }
+
+            var records = new List<OfficialMatchRecord>();
+            OfficialFetchResult? last = mdFetch;
+            foreach (var md in matchdays)
+            {
+                ct.ThrowIfCancellationRequested();
+                var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                    SourceKey, ProviderName,
+                    $"{seasonRoot}/matches?matchDayId={Uri.EscapeDataString(md.Id)}&locale=it-IT",
+                    round.Purpose, round.RoundKey, Accept: "application/json"), ct);
+                last = f;
+                if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+                try { records.AddRange(ParseMatches(f.Body!)); }
+                catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+            }
+            return new(records, OfficialReadOutcomes.Ok, null, last);
+        }
+
+        /// <summary>
+        /// GEÇMİŞ KADRO OKUMASI — sezon kökü maçın kendi sezonundan gelir (canlı yol varsayılan
+        /// sezonu kullanır; geçmiş maç başka sezondadır).
+        /// </summary>
+        public async Task<OfficialRead<OfficialLineupDocument>> ReadLineupForSeasonAsync(
+            OfficialMatchRecord match, string seasonId, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var url = $"{Root}{seasonId}/matches/{Uri.EscapeDataString(match.OfficialMatchId)}/lineups?locale=it-IT";
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, url, OfficialPurposes.Lineup, round.RoundKey, round.MatchId,
+                Accept: "application/json"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            try { return new(ParseLineup(f.Body!, match, f.Url, f.ContentHash!), OfficialReadOutcomes.Ok, null, f); }
+            catch (JsonException ex) { return new(null, OfficialReadOutcomes.ParseFailed, ex.Message, f); }
+        }
+
         public static IReadOnlyList<(string Id, DateTime Start, DateTime End)> ParseMatchdays(string json)
         {
             using var doc = JsonDocument.Parse(json);
@@ -316,6 +410,22 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             }).ToList();
         }
 
+        /// <summary>
+        /// GERÇEK DEĞİŞİKLİK DAKİKASI — kaynağın oyuncu satırındaki <c>events</c> dizisinden.
+        /// "substitution-out" ya da "substitution-in" olayı yoksa null döner: dakika UYDURULMAZ.
+        /// </summary>
+        private static int? SubstitutionMinute(JsonElement player)
+        {
+            if (player.Prop("events") is not { ValueKind: JsonValueKind.Array } events) return null;
+            foreach (var e in events.EnumerateArray())
+            {
+                var type = e.Str("type");
+                if (type is not ("substitution-out" or "substitution-in")) continue;
+                if (e.Int("time") is { } minute) return minute;
+            }
+            return null;
+        }
+
         private static List<OfficialLineupPlayer> Players(JsonElement? arr)
         {
             var list = new List<OfficialLineupPlayer>();
@@ -325,7 +435,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
                 var name = p.Str("shortName") ?? p.Str("shirtName") ?? p.Str("displayName");
                 if (name == null) continue;
                 list.Add(new OfficialLineupPlayer(name, p.Int("bibNumber"),
-                    OfficialJson.Position(p.Str("roleLabel")), p.Bool("isCaptain"), p.Str("playerId")));
+                    OfficialJson.Position(p.Str("roleLabel")), p.Bool("isCaptain"), p.Str("playerId"),
+                    SubstitutionMinute: SubstitutionMinute(p)));
             }
             return list;
         }

@@ -28,5 +28,27 @@ namespace Formax.Domain.Entities
         public string? Grid { get; set; }
 
         public bool IsCaptain { get; set; }
+
+        // ── KİMLİK VE KATILIM (19.09.2026 · additive, hepsi null olabilir) ──────────
+        // Geçmiş kadro backfill'i oyuncu kimliğini METİNDEN kurmaz: resmî kaynağın kendi
+        // oyuncu kimliği burada saklanır ve eşleme önce bunun üzerinden yapılır.
+
+        /// <summary>
+        /// Resmî kaynağın oyuncu kimliği (ör. "154561", "serie-a::Football_Player::…", "tff:12345").
+        /// Kaynak vermiyorsa null — UYDURULMAZ.
+        /// </summary>
+        public string? OfficialPlayerId { get; set; }
+
+        /// <summary>
+        /// Oyuncunun oyundan çıktığı ya da oyuna girdiği dakika — YALNIZ kaynak gerçekten
+        /// yayımladığında. Kaynak değişiklik verisi vermiyorsa null kalır (90 yazılmaz).
+        /// </summary>
+        public int? SubstitutionMinute { get; set; }
+
+        /// <summary>
+        /// Sahada geçirilen dakika — yalnız kaynağın gerçek değişiklik verisinden HESAPLANABİLDİĞİNDE.
+        /// Değişiklik verisi olmayan kaynakta (ör. TFF) null kalır; ilk 11 oynadı diye 90 YAZILMAZ.
+        /// </summary>
+        public int? MinutesPlayed { get; set; }
     }
 }

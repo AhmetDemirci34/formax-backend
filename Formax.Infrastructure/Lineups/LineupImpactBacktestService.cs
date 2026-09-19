@@ -51,11 +51,15 @@ namespace Formax.Infrastructure.Lineups
             var lineups = await _lineups.LoadAsync(null, officialOnly, ct).ConfigureAwait(false);
             var (_, parameters) = await _training.LatestAcceptedAsync(ct).ConfigureAwait(false);
 
-            // Test penceresi: kadro gözlemlerinin başladığı gün (ya da verilen pencere) — hangisi daha erkense.
-            var firstLineup = lineups.Count == 0 ? nowUtc : lineups.Min(l => l.KickoffUtc);
-            var testStart = testWindow.HasValue
-                ? nowUtc - testWindow.Value
-                : new DateTime(Math.Min(firstLineup.Ticks, (nowUtc - DefaultTestWindow).Ticks), DateTimeKind.Utc);
+            // TEST PENCERESİ — kadro geçmişinin bir kısmı ÖĞRENMEYE ayrılmalı. Gözlemlerin ilk
+            // yarısı yalnız eğitim (oyuncu örneklemi birikir), ikinci yarısı test olur. Pencere
+            // elle verilirse o kullanılır. Bu bölme sonuca değil YALNIZ tarihe bakar: sızıntı yok.
+            var verified = lineups.Where(l => LineupVerificationRule.Check(l).Accepted)
+                .OrderBy(l => l.KickoffUtc).ToList();
+            DateTime testStart;
+            if (testWindow.HasValue) testStart = nowUtc - testWindow.Value;
+            else if (verified.Count >= 4) testStart = verified[verified.Count / 2].KickoffUtc;
+            else testStart = nowUtc - DefaultTestWindow;
 
             var report = await Task.Run(() =>
             {

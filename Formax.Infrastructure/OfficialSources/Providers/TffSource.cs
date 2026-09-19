@@ -22,7 +22,8 @@ namespace Formax.Infrastructure.OfficialSources.Providers
     /// sonra VE maç sayfasındaki skorla aynıysa kesin sonuç sayılır; daha erken görülen skor
     /// "Unknown" kalır (canlı skor olabilir — yazılmaz).
     /// </summary>
-    public sealed class TffSource : IOfficialCompetitionSource, IOfficialResultConfirmation, IOfficialMatchPageSource
+    public sealed class TffSource
+        : IOfficialCompetitionSource, IOfficialResultConfirmation, IOfficialMatchPageSource, IOfficialHistoricalLineupSource
     {
         public const string ProviderName = "TffSite";
         public const string FixturePageUrl = "https://www.tff.org/default.aspx?pageID=198";
@@ -55,6 +56,70 @@ namespace Formax.Infrastructure.OfficialSources.Providers
             return rows.Count == 0
                 ? new(null, OfficialReadOutcomes.ParseFailed, "Haftanın Maçları bölümü bulunamadı", f)
                 : new(rows, OfficialReadOutcomes.Ok, null, f);
+        }
+
+        // ══ GEÇMİŞ KADRO — TEK SEZON ═════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Kaynağın yayımladığı sezon(lar). TFF fikstür sayfası yalnız İÇİNDE BULUNULAN sezonu
+        /// yayımlar; hafta/sezon parametreleri yok sayılır (19.09.2026 ölçüldü). Bu yüzden liste
+        /// tek elemanlıdır — eski sezon macId'leri TAHMİN EDİLMEZ.
+        /// </summary>
+        public async Task<OfficialRead<IReadOnlyList<OfficialSeason>>> ReadSeasonsAsync(
+            OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, FixturePageUrl, OfficialPurposes.Schedule, round.RoundKey,
+                Accept: "text/html", Encoding: "windows-1254"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            var season = ParseSeason(f.Body!);
+            return season == null
+                ? new(null, OfficialReadOutcomes.ParseFailed, "sezon etiketi bulunamadı", f)
+                : new(new[] { season }, OfficialReadOutcomes.Ok, null, f);
+        }
+
+        /// <summary>Sezonun tamamı — fikstür tablosundaki 306 satır (tek istek).</summary>
+        public async Task<OfficialRead<IReadOnlyList<OfficialMatchRecord>>> ReadSeasonMatchesAsync(
+            OfficialSeason season, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, FixturePageUrl, OfficialPurposes.Schedule, round.RoundKey,
+                Accept: "text/html", Encoding: "windows-1254"), ct);
+            if (!f.Ok) return new(null, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+            var rows = ParseSeasonFixtures(f.Body!);
+            return rows.Count == 0
+                ? new(null, OfficialReadOutcomes.ParseFailed, "sezon fikstür tablosu bulunamadı", f)
+                : new(rows, OfficialReadOutcomes.Ok, null, f);
+        }
+
+        /// <summary>
+        /// MAÇ SAYFASI — kadro VE başlama saati aynı sayfadadır. Geçmiş doldurma bunu kullanır:
+        /// fikstür tablosu tarih vermediği için kimlik eşlemesi bu sayfanın saatiyle kurulur.
+        /// </summary>
+        public async Task<OfficialRead<(OfficialMatchRecord Record, OfficialLineupDocument? Lineup)>> ReadMatchWithLineupAsync(
+            OfficialMatchRecord match, OfficialRoundContext round, CancellationToken ct = default)
+        {
+            var f = await _fetcher.FetchAsync(new OfficialFetchRequest(
+                SourceKey, ProviderName, MatchPageUrl(match.OfficialMatchId), OfficialPurposes.Lineup,
+                round.RoundKey, round.MatchId, Accept: "text/html", Encoding: "windows-1254"), ct);
+            if (!f.Ok) return new(default, OfficialReadOutcomes.FetchFailed, f.Outcome, f);
+
+            var page = ParseMatchPage(f.Body!);
+            if (page == null) return new(default, OfficialReadOutcomes.ParseFailed, "maç sayfası biçimi tanınmadı", f);
+
+            var record = match with
+            {
+                HomeName = page.HomeName,
+                AwayName = page.AwayName,
+                KickoffUtc = page.KickoffUtc,
+                HomeScore = page.HomeScore,
+                AwayScore = page.AwayScore
+            };
+            var doc = page.Home == null && page.Away == null
+                ? null
+                : new OfficialLineupDocument(SourceKey, match.OfficialMatchId, f.Url, f.ContentHash!, null,
+                    page.Home, page.Away);
+            return new((record, doc), OfficialReadOutcomes.Ok, null, f);
         }
 
         public async Task<OfficialRead<OfficialLineupDocument>> ReadLineupAsync(
@@ -150,6 +215,63 @@ namespace Formax.Infrastructure.OfficialSources.Providers
 
                 list.Add(new OfficialMatchRecord(OfficialSourceRegistry.TffSite, macId, MatchPageUrl(macId),
                     home, away, kickoff, status, hs, aws,
+                    RawStatus: hs.HasValue ? "ScorePublished" : "NoScore"));
+            }
+            return list;
+        }
+
+        // ══ GEÇMİŞ KADRO (19.09.2026 · ölçüldü) ══════════════════════════════════════════
+        // pageID=198 sayfası "Haftanın Maçları" bloğunun yanında SEZONUN TAMAMINI da yayımlıyor
+        // (fiksturListesiTable, 306 maç). Bu tabloda tarih/saat YOKTUR; yalnız hafta, takım adları,
+        // skor ve macId vardır. Başlama saati maçın kendi sayfasından (pageId=29&macId=) gelir ve
+        // kadro da aynı sayfadadır → maç başına TEK istek.
+        //
+        // GEÇMİŞ SEZON: sayfa yalnız İÇİNDE BULUNULAN sezonu yayımlıyor; hafta/sezon parametreleri
+        // (hafta=, sezon=, ftId=) yok sayılıyor (aynı içerik döndü). Eski sezonlar için resmî bir
+        // liste bulunamadı; macId TAHMİN EDİLMEZ. Bu yüzden Süper Lig geçmişi TEK SEZONDUR.
+
+        private static readonly Regex SeasonLabelRx = new(@"Sezon\s*([0-9]{4})\s*-\s*([0-9]{4})", RegexOptions.Compiled);
+        private static readonly Regex FixtureRowRx = new(
+            @"pageID=28&kulupId=\d+"">([^<]*)</a>.*?pageID=29&macId=(\d+)"">([^<]*)</a>.*?pageID=28&kulupId=\d+"">([^<]*)</a>",
+            RegexOptions.Compiled | RegexOptions.Singleline);
+
+        /// <summary>Sayfanın ilan ettiği sezon etiketi ("2026-2027"); bulunamazsa null.</summary>
+        public static OfficialSeason? ParseSeason(string html)
+        {
+            var m = SeasonLabelRx.Match(html);
+            if (!m.Success) return null;
+            var start = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            return new OfficialSeason(start.ToString(CultureInfo.InvariantCulture),
+                $"{m.Groups[1].Value}/{m.Groups[2].Value}", start);
+        }
+
+        /// <summary>
+        /// SEZONUN TAMAMI — fikstür tablosundaki her satır. Tarih bu tabloda yayımlanmadığı için
+        /// <see cref="OfficialMatchRecord.KickoffUtc"/> NULL kalır (uydurulmaz); skor yayımlandıysa
+        /// taşınır ama durum kararı maç sayfasına bırakılır.
+        /// </summary>
+        public static IReadOnlyList<OfficialMatchRecord> ParseSeasonFixtures(string html)
+        {
+            var list = new List<OfficialMatchRecord>();
+            var start = html.IndexOf("fiksturListesiTable", StringComparison.Ordinal);
+            if (start < 0) return list;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (Match m in FixtureRowRx.Matches(html[start..]))
+            {
+                var home = Clean(m.Groups[1].Value);
+                var macId = m.Groups[2].Value;
+                var scoreText = Clean(m.Groups[3].Value);
+                var away = Clean(m.Groups[4].Value);
+                if (macId.Length == 0 || home.Length == 0 || away.Length == 0) continue;
+                if (!seen.Add(macId)) continue;
+
+                int? hs = null, aws = null;
+                var parts = scoreText.Split('-', StringSplitOptions.TrimEntries);
+                if (parts.Length == 2) { hs = ParseScore(parts[0]); aws = ParseScore(parts[1]); }
+
+                list.Add(new OfficialMatchRecord(OfficialSourceRegistry.TffSite, macId, MatchPageUrl(macId),
+                    home, away, null, OfficialMatchStatuses.Unknown, hs, aws,
                     RawStatus: hs.HasValue ? "ScorePublished" : "NoScore"));
             }
             return list;
