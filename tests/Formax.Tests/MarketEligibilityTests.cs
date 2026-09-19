@@ -155,7 +155,7 @@ public class MarketEligibilityTests
         Assert.Equal(1, one.PublishedCardCount);
         Assert.Equal(OutcomeOverallStatuses.Partial, one.OverallStatus);
 
-        var two = Snap(1.5, 1.2, Pub(new[] { MarketFamilies.MatchResult, MarketFamilies.DoubleChance, MarketFamilies.BothTeamsToScore }));
+        var two = Snap(1.5, 1.2, Pub(new[] { MarketFamilies.MatchResult, MarketFamilies.BothTeamsToScore }));
         Assert.Equal(2, two.PublishedCardCount);
         Assert.Equal(OutcomeOverallStatuses.Partial, two.OverallStatus);
 
@@ -163,6 +163,9 @@ public class MarketEligibilityTests
         Assert.Equal(3, three.PublishedCardCount);
         Assert.Equal(OutcomeOverallStatuses.Full, three.OverallStatus);
         Assert.Equal(3, three.MainCards.Select(c => c.Family).Distinct().Count());
+        // Kart sayısı ne olursa olsun BİRİNCİ kart 1X2'nin en olası sonucudur.
+        foreach (var s in new[] { two, three })
+            Assert.False(OutcomeFamilies.IsCompound(s.MainCards[0].MarketKey!));
     }
 
     [Fact]
@@ -195,11 +198,14 @@ public class MarketEligibilityTests
     {
         // Model beraberliği ve deplasmanı BİRLİKTE yukarı çekiyor, ev sahibini aşağı: tek bir sonuç ayrışmıyor.
         // Böyle bir maçta çifte şans kartı seçilir — yani yasak değildir, seçim skoru karar verir.
-        var chosen = FindCompoundCase();
+        var (cards, chosen) = FindCompoundCase();
         Assert.NotNull(chosen);
         Assert.True(OutcomeFamilies.IsCompound(chosen!.MarketKey!), $"seçilen {chosen.Market}");
-        Assert.Equal(OutcomeFamilies.Result, chosen.Family);            // sonuç yuvasında görünür
         Assert.NotNull(chosen.Reason);
+        // selection-4: çifte şans ANA KART OLAMAZ ve TEK KART OLAMAZ — yalnız ek karttır.
+        Assert.True(cards.Count >= 2, "çifte şans tek kart olarak gösterilemez");
+        Assert.NotSame(cards[0], chosen);
+        Assert.False(OutcomeFamilies.IsCompound(cards[0].MarketKey!));
     }
 
     [Fact]
@@ -326,12 +332,12 @@ public class MarketEligibilityTests
     }
 
     [Fact]
-    public void T14_KartlarSadeceYayimlananAilelerden_DusukBilgiliKartSecilmez()
+    public void T14_EkKartlar_BilgiTasimayanAdayiSecmez_AnaKartMuaf()
     {
-        // Bilgi değeri sıfır ya da negatif olan aday kart OLARAK seçilmez (taban neyse onu tekrar etmez).
+        // Ana kart modelin en olası maç sonucudur (bilgi kapısına tabi değildir); EK kartlar taban neyse onu tekrar etmez.
         var pub = Pub(MarketFamilies.All);
         var s = Snap(1.45, 1.15, pub);       // tam lig ortalaması: hiçbir yön bilgi taşımaz
-        Assert.All(s.MainCards, c => Assert.True(c.InformationLift > 0, $"{c.Market} bilgi farkı {c.InformationLift}"));
+        Assert.All(s.MainCards.Skip(1), c => Assert.True(c.InformationLift > 0, $"{c.Market} bilgi farkı {c.InformationLift}"));
     }
 
     // ═══ yardımcılar ════════════════════════════════════════════════════════════════════════════════
@@ -341,8 +347,8 @@ public class MarketEligibilityTests
         MarketKey = key, CalibratedProbability = p, BaselineProbability = b, InformationLift = Math.Round(p - b, 4)
     };
 
-    /// <summary>Çifte şansın seçildiği gerçek bir dağılım arar (yoksa null).</summary>
-    private static OutcomeCandidateDto? FindCompoundCase()
+    /// <summary>Çifte şansın seçildiği gerçek bir dağılım arar (yoksa boş).</summary>
+    private static (List<OutcomeCandidateDto> Cards, OutcomeCandidateDto? Compound) FindCompoundCase()
     {
         var pub = Pub(new[] { MarketFamilies.MatchResult, MarketFamilies.DoubleChance });
         for (var lh = 0.4; lh <= 2.6; lh += 0.05)
@@ -350,9 +356,9 @@ public class MarketEligibilityTests
             {
                 var s = Snap(lh, la, pub);
                 var card = s.MainCards.FirstOrDefault(c => OutcomeFamilies.IsCompound(c.MarketKey ?? ""));
-                if (card != null) return card;
+                if (card != null) return (s.MainCards, card);
             }
-        return null;
+        return (new List<OutcomeCandidateDto>(), null);
     }
 
     /// <summary>Sentetik değerlendirme örnekleri — gerçek dağılımdan üretilmiş sonuçlar.</summary>

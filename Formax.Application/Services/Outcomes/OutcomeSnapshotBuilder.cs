@@ -448,26 +448,17 @@ namespace Formax.Application.Services.Outcomes
             foreach (var c in result.Concat(goals).Concat(btts).Concat(other.Take(3))) c.SelectionScore = Math.Round(Score(c, e.Coverage), 4);
 
             var mainCards = new List<OutcomeCandidateDto>();
-            // 1) Maç sonucu yuvası: tek sonuçlar; hiçbiri lig ortalamasının üstünde bilgi taşımıyorsa çifte şans adayları.
+            var extras = new List<OutcomeCandidateDto>();
+            // 1) ANA KART — 1X2 uygunsa modelin EN OLASI maç sonucu. Bu yuvada bilgi değeri sıralama ölçütü DEĞİLDİR:
+            //    kullanıcı tek kartı FORMAX'ın ana tahmini olarak okur, daha düşük olasılıklı bir sonuç "bilgi değeri yüksek"
+            //    diye ana kart yapılamaz (ölçüm 19.09.2026: 104149'da %45 ev sahibi varken %29 beraberlik tek kart oluyordu,
+            //    99159'da %38'lik ev sahibi beklentisi X2'nin arkasında saklanıyordu). Eşitlikte market anahtarı: deterministik.
+            OutcomeCandidateDto? headline = null;
             if (pub.IsPublished(MarketFamilies.MatchResult))
             {
-                // Tek sonuçlar ve çifte şans AYNI yarışa girer; kazanan bilgi değeridir. Çifte şans yasak DEĞİLDİR ama
-                // BİLEŞENLERİNİN İKİSİ DE lig ortalamasının üstünde olmalıdır: bileşik kartın anlamı "model bu iki sonucun
-                // İKİSİNİ de olağandan olası buluyor"dur. Yalnız bir bileşen yükseliyorsa birleşim o bileşenin bilgisini
-                // yüksek bir yüzdenin arkasına gizler — o zaman tek sonuç kartı daha çok şey söyler.
-                // Ölçüm 19.09.2026: kural olmadan çifte şans yayımlanan kartların %30,2'sini alıyordu ve seçildiği maçlarda
-                // ortalama bilgi değeri en iyi tek sonuçla AYNIYDI (0,0181 / 0,0181) — yani yalnız berabere kalarak kazanıyordu.
-                var candidates = result.Where(c => c.InformationLift > 0).ToList();
-                if (pub.IsPublished(MarketFamilies.DoubleChance))
-                    candidates.AddRange(other.Take(3).Where(c => c.InformationLift > 0 && BothComponentsLifted(c.MarketKey, result)));
-                if (candidates.Count > 0)
-                {
-                    var pick = Best(candidates);
-                    if (OutcomeFamilies.IsCompound(pick.MarketKey ?? string.Empty))
-                    { pick.Family = OutcomeFamilies.Result; pick.FamilyTitle = OutcomeFamilies.Title(OutcomeFamilies.Result); }
-                    pick.Reason = ResultReason(pick, e, cal, homeName, awayName);
-                    mainCards.Add(pick);
-                }
+                headline = result.OrderByDescending(c => c.CalibratedProbability).ThenBy(c => c.MarketKey, StringComparer.Ordinal).First();
+                headline.Reason = ResultReason(headline, e, cal, homeName, awayName);
+                mainCards.Add(headline);
             }
             // 2) Gol yuvası: yalnız UYGUN gol çizgilerinin adayları yarışır (2.5 zayıfsa 1.5/3.5 otomatik kapanmaz).
             // İKİLİ MARKET KURALI: kart, modelin olması DAHA OLASI gördüğü tarafı söyler (p ≥ 0,5) VE lig ortalamasına göre
@@ -481,7 +472,7 @@ namespace Formax.Application.Services.Outcomes
             {
                 var pick = Best(goalCandidates);
                 pick.Reason = GoalsReason(pick, e, cal, homeName, awayName);
-                mainCards.Add(pick);
+                extras.Add(pick);
             }
             // 3) KG yuvası.
             if (pub.IsPublished(MarketFamilies.BothTeamsToScore))
@@ -491,12 +482,27 @@ namespace Formax.Application.Services.Outcomes
                 {
                     var b = Best(pick);
                     b.Reason = BttsReason(b, cal, homeName, awayName);
-                    mainCards.Add(b);
+                    extras.Add(b);
                 }
             }
-            // SEÇİM bilgi değerine göredir; GÖSTERİM sırası sabit aile sırasıdır (Maç Sonucu → Gol → KG). Ekran düzeni
-            // kart sayısına göre değişmez, yalnız eksik yuvalar çıkarılır.
-            mainCards = mainCards.OrderBy(c => FamilyRank(c.Family)).ThenBy(c => c.MarketKey, StringComparer.Ordinal).ToList();
+            // 4) ÇİFTE ŞANS — yasak değil ama ANA KARTIN YERİNE GEÇEMEZ ve TEK KART OLAMAZ: yalnız ana 1X2 kartı varken
+            //    ikinci/üçüncü ek kart olabilir. Bilgi kapısı aynen korunur (iki bileşeni de tabanın üstünde + zincir kuralı),
+            //    bu yüzden bütün maçlara otomatik gelmez.
+            if (headline != null && pub.IsPublished(MarketFamilies.DoubleChance))
+            {
+                var dc = other.Take(3).Where(c => c.InformationLift > 0 && BothComponentsLifted(c.MarketKey, result)).ToList();
+                if (dc.Count > 0)
+                {
+                    var pick = Best(dc);
+                    pick.FamilyTitle = "Çifte Şans";          // görsel aile "Diğer" kalır: kart anahtarı ana kartla çakışmaz
+                    pick.Reason = ResultReason(pick, e, cal, homeName, awayName);
+                    extras.Add(pick);
+                }
+            }
+            // SIRA: ana kart her zaman birinci; kalanlar bilgi değerine göre, eşitlikte market anahtarıyla. En fazla üç kart,
+            // eksik yuva zayıf marketle DOLDURULMAZ.
+            mainCards.AddRange(extras.OrderByDescending(c => c.SelectionScore).ThenBy(c => c.MarketKey, StringComparer.Ordinal));
+            if (mainCards.Count > 3) mainCards = mainCards.Take(3).ToList();
 
             var checks = new OutcomeChecksDto
             {
@@ -616,15 +622,6 @@ namespace Formax.Application.Services.Outcomes
         /// <summary>1X2 dağılımının lig tabanına göre toplam KL ayrışması.</summary>
         private static double PartSum(IReadOnlyList<OutcomeCandidateDto> result)
             => result.Take(3).Sum(c => Part(c.CalibratedProbability, c.BaselineProbability));
-
-        /// <summary>Sabit gösterim sırası — kart sayısı 0–3 arasında değişse de ekran düzeni aynı kalır.</summary>
-        private static int FamilyRank(string family) => family switch
-        {
-            OutcomeFamilies.Result => 0,
-            OutcomeFamilies.Goals => 1,
-            OutcomeFamilies.Btts => 2,
-            _ => 3
-        };
 
         private static int Pct(double p) => (int)Math.Round(Math.Clamp(p, 0, 1) * 100, MidpointRounding.AwayFromZero);
 

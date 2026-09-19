@@ -58,12 +58,16 @@ public class OutcomeModelTests
     [InlineData(0.7, 0.6)]
     [InlineData(2.3, 2.1)]
     [InlineData(0.5, 2.2)]
-    public void AnaKartlar_UcFarkliAile_BilesikKartSonucYuvasinda_OranGirdisiYok(double lh, double la)
+    public void AnaKartlar_IlkKart1X2Argmax_BilesikKartAsla_BirinciDegil_OranGirdisiYok(double lh, double la)
     {
         var s = Snap(lh, la);
-        Assert.Equal(3, s.MainCards.Count);
-        Assert.Equal(new[] { OutcomeFamilies.Result, OutcomeFamilies.Goals, OutcomeFamilies.Btts }, s.MainCards.Select(c => c.Family).ToArray());
-        // selection-3: çifte şans artık YASAK DEĞİL; seçilirse maç sonucu yuvasında ve tek karttır (aynı bilgi iki kez gösterilmez).
+        Assert.InRange(s.MainCards.Count, 1, 3);
+        // selection-4: BİRİNCİ kart her zaman 1X2'nin en olası sonucu; çifte şans en fazla ek karttır.
+        var res = s.Families.Single(f => f.Family == OutcomeFamilies.Result).Items;
+        var argmax = res.OrderByDescending(c => c.CalibratedProbability).ThenBy(c => c.MarketKey, StringComparer.Ordinal).First();
+        Assert.Equal(argmax.MarketKey, s.MainCards[0].MarketKey);
+        Assert.False(OutcomeFamilies.IsCompound(s.MainCards[0].MarketKey!));
+        Assert.Equal(s.MainCards.Count, s.MainCards.Select(c => c.Family).Distinct().Count());
         Assert.True(s.MainCards.Count(c => c.MarketKey != null && OutcomeFamilies.IsCompound(c.MarketKey)) <= 1);
         Assert.All(s.MainCards, c => Assert.False(string.IsNullOrWhiteSpace(c.Reason)));
         Assert.All(s.MainCards, c => Assert.NotEmpty(c.ReasonCodes));
