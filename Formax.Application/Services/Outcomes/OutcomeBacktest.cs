@@ -201,6 +201,44 @@ namespace Formax.Application.Services.Outcomes
         public const double MinUncertaintyMix = 0.2;
         public const double LeagueShrinkageK = 200;
         public const double MinimumCalibrationGain = 0.0005;
+
+        /// <summary>
+        /// LİG BAZLI BERABERLİK/İÇ SAHA KALİBRASYONU — aday katman (5.0 araştırması, 19.09.2026).
+        ///
+        /// TEŞHİS: kapalı 7 organizasyonun 6'sında 1X2 modeli tabanı ANLAMLI geçiyor (CI üst ucu &lt; 0)
+        /// ama hücre CALIBRATION_ERROR ve SEGMENT_BIAS ile kapanıyor. 4.0'da lig başına öğrenilen
+        /// TEK kalibrasyon parametresi <see cref="OutcomeModelParameters.LeagueGoalScale"/>'dir;
+        /// <see cref="OutcomeModelParameters.LeagueDrawInflation"/> ve
+        /// <see cref="OutcomeModelParameters.LeagueHomeTilt"/> tanımlı ve okunuyor ama HİÇBİR YERDE
+        /// DOLDURULMUYOR. Yani modelin lig başına toplam gol ayarı var, beraberlik ve iç saha ayarı YOK —
+        /// tam da kapanmaya yol açan iki eksen.
+        ///
+        /// Bu bayrak açıkken ikisi de kalibrasyon penceresinde lig başına aranır ve global değere
+        /// aynı <see cref="LeagueShrinkageK"/> ile daraltılır. Eşikler DEĞİŞMEZ.
+        /// </summary>
+        private static readonly double[] HomeTilts = { -0.10, -0.05, -0.025, 0.0, 0.025, 0.05, 0.10 };
+
+        /// <summary>
+        /// Dixon–Coles düşük skor düzeltmesi ρ için arama ızgarası. 0 nötrdür (bağımsız Poisson).
+        /// Aynı sözleşme: <see cref="OutcomeModelParameters.LeagueLowScoreRho"/> tanımlı ve okunuyordu
+        /// ama HİÇBİR YERDE doldurulmuyordu. Ölçüldü (25.09.2026): basit Dixon–Coles referansı Serie A'da
+        /// Base 4.0'ı geçiyor (0,98692 &lt; 0,98999) — bu eksenin lig başına aranması gerekçelidir.
+        /// </summary>
+        private static readonly double[] LowScoreRhos = { -0.15, -0.10, -0.05, 0.0, 0.05 };
+
+        /// <summary>Lig bazlı kalibrasyon adayının hangi eksenleri açtığı (ablasyon için ayrı ayrı kapatılabilir).</summary>
+        [Flags]
+        public enum LeagueCalibrationAxes
+        {
+            None = 0,
+            /// <summary>Lig başına beraberlik şişirmesi.</summary>
+            Draw = 1,
+            /// <summary>Lig başına iç saha eğimi.</summary>
+            HomeTilt = 2,
+            /// <summary>Lig başına Dixon–Coles düşük skor düzeltmesi.</summary>
+            LowScoreRho = 4,
+            All = Draw | HomeTilt | LowScoreRho
+        }
         public const double BaselinePriorWeight = 20;
 
         private sealed record Collected(List<EvalSample> Samples, Dictionary<int, int> NotPredictedByLeague, Dictionary<string, int> GateReasons);
@@ -212,7 +250,7 @@ namespace Formax.Application.Services.Outcomes
 
         public static OutcomeBacktestReport Run(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog, ISet<int> evalLeagues,
             DateTime evalStart, DateTime calStart, DateTime testStart, DateTime testEnd, DateTime nowUtc, bool compareLegacy = true,
-            bool candidate = false)
+            bool candidate = false, LeagueCalibrationAxes leagueCalibration = LeagueCalibrationAxes.None)
         {
             var report = new OutcomeBacktestReport
             {
@@ -226,7 +264,7 @@ namespace Formax.Application.Services.Outcomes
             var space = catalog.LeagueCount > 0
                 ? (from lr in LearningRates from c in SeasonCarries select (lr, 0.02, c)).ToList()
                 : LearningRates.Select(lr => (lr, 0.0, 1.0)).ToList();
-            var current = Fit(ordered, catalog, InEval, InCross, space, evalStart, calStart, testStart, testEnd, crossAware: catalog.LeagueCount > 0, report, candidate);
+            var current = Fit(ordered, catalog, InEval, InCross, space, evalStart, calStart, testStart, testEnd, crossAware: catalog.LeagueCount > 0, report, candidate, leagueCalibration);
 
             report.Parameters = current.Chosen;
             report.ChosenLearningRate = current.Chosen.LearningRate;
@@ -324,7 +362,7 @@ namespace Formax.Application.Services.Outcomes
         private static FitResult Fit(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog, Func<HistoricalMatch, bool> inEval,
             Func<HistoricalMatch, bool> inCross, List<(double Lr, double Slr, double Carry)> space,
             DateTime evalStart, DateTime calStart, DateTime testStart, DateTime testEnd, bool crossAware, OutcomeBacktestReport? report,
-            bool candidate = false)
+            bool candidate = false, LeagueCalibrationAxes leagueCalibration = LeagueCalibrationAxes.None)
         {
             var identity = new OutcomeModelParameters { GoalScale = 1, DrawInflation = 1, BaselineMix = 0, UncertaintyMix = 0, CrossLeagueAware = crossAware };
 
@@ -461,6 +499,50 @@ namespace Formax.Application.Services.Outcomes
                             if (loss < lb) { lb = loss; lScale = gs; }
                         }
                         chosen.LeagueGoalScale[g.Key] = Math.Round((n * lScale + LeagueShrinkageK * chosen.GoalScale) / (n + LeagueShrinkageK), 4);
+
+                        // ── ADAY: lig bazlı BERABERLİK ve İÇ SAHA kalibrasyonu ────────────────
+                        // Arama koordinat sırasıyla yapılır (beraberlik → iç saha) ve her biri global
+                        // değere aynı daraltmayla çekilir. Kalibrasyon penceresi dışına BAKILMAZ.
+                        if (leagueCalibration == LeagueCalibrationAxes.None) continue;
+
+                        if (leagueCalibration.HasFlag(LeagueCalibrationAxes.Draw))
+                        {
+                            double db = double.MaxValue, lDraw = chosen.DrawInflation;
+                            foreach (var d in DrawInflations)
+                            {
+                                var p = chosen.Clone(); p.LeagueDrawInflation.Clear(); p.LeagueDrawInflation[g.Key] = d;
+                                var loss = g.Average(s => Combined(OutcomePredictor.Predict(s.E, s.LeagueId, p).Calibrated, s));
+                                if (loss < db) { db = loss; lDraw = d; }
+                            }
+                            chosen.LeagueDrawInflation[g.Key] =
+                                Math.Round((n * lDraw + LeagueShrinkageK * chosen.DrawInflation) / (n + LeagueShrinkageK), 4);
+                        }
+
+                        if (leagueCalibration.HasFlag(LeagueCalibrationAxes.HomeTilt))
+                        {
+                            double tb = double.MaxValue, lTilt = chosen.HomeTilt;
+                            foreach (var t in HomeTilts)
+                            {
+                                var p = chosen.Clone(); p.LeagueHomeTilt.Clear(); p.LeagueHomeTilt[g.Key] = t;
+                                var loss = g.Average(s => Combined(OutcomePredictor.Predict(s.E, s.LeagueId, p).Calibrated, s));
+                                if (loss < tb) { tb = loss; lTilt = t; }
+                            }
+                            chosen.LeagueHomeTilt[g.Key] =
+                                Math.Round((n * lTilt + LeagueShrinkageK * chosen.HomeTilt) / (n + LeagueShrinkageK), 4);
+                        }
+
+                        if (leagueCalibration.HasFlag(LeagueCalibrationAxes.LowScoreRho))
+                        {
+                            double rb = double.MaxValue, lRho = chosen.LowScoreRho;
+                            foreach (var rho in LowScoreRhos)
+                            {
+                                var p = chosen.Clone(); p.LeagueLowScoreRho.Clear(); p.LeagueLowScoreRho[g.Key] = rho;
+                                var loss = g.Average(s => Combined(OutcomePredictor.Predict(s.E, s.LeagueId, p).Calibrated, s));
+                                if (loss < rb) { rb = loss; lRho = rho; }
+                            }
+                            chosen.LeagueLowScoreRho[g.Key] =
+                                Math.Round((n * lRho + LeagueShrinkageK * chosen.LowScoreRho) / (n + LeagueShrinkageK), 4);
+                        }
                     }
                 }
             }
