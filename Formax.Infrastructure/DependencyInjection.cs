@@ -345,6 +345,10 @@ public static class DependencyInjection
         services.AddScoped<Formax.Infrastructure.Lineups.LineupBackfillService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.MatchPredictionSnapshotService>();
         services.AddScoped<Formax.Infrastructure.Outcomes.PredictionRecomputeWorker>();
+        // Kalıcı yayın politikası (eligibility-publication-1): yalnız DB + mevcut backtest; kullanıcı yolu bunları çözmez.
+        services.AddScoped<Formax.Infrastructure.Outcomes.BacktestEligibilityEvaluationSource>();
+        services.AddScoped<Formax.Infrastructure.Outcomes.IEligibilityEvaluationSource>(sp => sp.GetRequiredService<Formax.Infrastructure.Outcomes.BacktestEligibilityEvaluationSource>());
+        services.AddScoped<Formax.Infrastructure.Outcomes.EligibilityPublicationService>();
         services.AddScoped<Formax.Application.Interfaces.IMatchOutcomeSnapshotReader, Formax.Infrastructure.Outcomes.MatchOutcomeSnapshotReader>();
         // Maç bildirimi — mevcut UserNotification + INotificationService üzerinden, tekil anahtarlı.
         services.AddScoped<IMatchNotificationDispatcher, Formax.Infrastructure.Notifications.MatchNotificationDispatcher>();

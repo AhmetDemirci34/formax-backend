@@ -69,6 +69,10 @@ namespace Formax.Infrastructure.Data
         public DbSet<PredictionModelRun> PredictionModelRuns { get; set; } = null!;
         public DbSet<LeaguePredictionEligibility> LeaguePredictionEligibilities { get; set; } = null!;
         public DbSet<LeagueMarketEligibility> LeagueMarketEligibilities { get; set; } = null!;
+        public DbSet<MarketEligibilityEvaluation> MarketEligibilityEvaluations { get; set; } = null!;
+        public DbSet<MarketEligibilityState> MarketEligibilityStates { get; set; } = null!;
+        public DbSet<MarketEligibilityStateTransition> MarketEligibilityStateTransitions { get; set; } = null!;
+        public DbSet<MarketEligibilityPublicationRun> MarketEligibilityPublicationRuns { get; set; } = null!;
         public DbSet<PredictionRecomputeRequest> PredictionRecomputeRequests { get; set; } = null!;
         public DbSet<PredictionScorecard> PredictionScorecards { get; set; } = null!;
         public DbSet<PredictionDiagnostic> PredictionDiagnostics { get; set; } = null!;
@@ -1355,6 +1359,69 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.ReasonsJson).IsRequired();
                 entity.Property(x => x.MetricsJson).IsRequired();
                 entity.HasIndex(x => new { x.RunId, x.LeagueId, x.Family }).IsUnique().HasDatabaseName("UX_LeagueMarketEligibilities_Run_League_Family");
+            });
+            // ── YAYIN POLİTİKASI (eligibility-publication-1) — eklemeli tablolar ──
+            modelBuilder.Entity<MarketEligibilityEvaluation>(entity =>
+            {
+                entity.ToTable("MarketEligibilityEvaluations");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.MarketFamily).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelRunId).HasMaxLength(48).IsRequired();
+                entity.Property(x => x.ConfigHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.PolicyVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.GatePolicyVersion).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.Mode).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.Source).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.GateStatus).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.RawGateStatus).HasMaxLength(12).IsRequired();
+                entity.Property(x => x.RawGateReasonsJson).IsRequired();
+                entity.Property(x => x.PublishedStateBefore).HasMaxLength(16);
+                entity.Property(x => x.PublishedStateAfter).HasMaxLength(16);
+                entity.Property(x => x.TransitionReason).HasMaxLength(200);
+                entity.Property(x => x.PublicationRunKey).HasMaxLength(200);
+                entity.HasIndex(x => new { x.OrganizationId, x.MarketFamily, x.EvaluationCutoffUtc, x.ModelVersion, x.ConfigHash, x.PolicyVersion, x.Mode })
+                    .IsUnique().HasDatabaseName("UX_MarketEligibilityEvaluations_Cell_Cutoff_Lineage_Mode");
+            });
+            modelBuilder.Entity<MarketEligibilityState>(entity =>
+            {
+                entity.ToTable("MarketEligibilityStates");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.MarketFamily).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.PublishedState).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.PolicyVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ModelVersion).HasMaxLength(40);
+                entity.Property(x => x.ConfigHash).HasMaxLength(64);
+                entity.Property(x => x.LastRawGateStatus).HasMaxLength(12);
+                entity.Property(x => x.LastTransitionReason).HasMaxLength(200);
+                entity.Property(x => x.LastPublicationRunKey).HasMaxLength(200);
+                entity.HasIndex(x => new { x.OrganizationId, x.MarketFamily }).IsUnique().HasDatabaseName("UX_MarketEligibilityStates_Cell");
+            });
+            modelBuilder.Entity<MarketEligibilityStateTransition>(entity =>
+            {
+                entity.ToTable("MarketEligibilityStateTransitions");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.MarketFamily).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.FromState).HasMaxLength(16);
+                entity.Property(x => x.ToState).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.ReasonCode).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.PublicationRunKey).HasMaxLength(200).IsRequired();
+                entity.HasIndex(x => new { x.OrganizationId, x.MarketFamily, x.StateVersion }).HasDatabaseName("IX_MarketEligibilityStateTransitions_Cell_Version");
+            });
+            modelBuilder.Entity<MarketEligibilityPublicationRun>(entity =>
+            {
+                entity.ToTable("MarketEligibilityPublicationRuns");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.RunKey).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Mode).HasMaxLength(16).IsRequired();
+                entity.Property(x => x.Source).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.WeekKey).HasMaxLength(10);
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ConfigHash).HasMaxLength(64);
+                entity.Property(x => x.PolicyVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.SourceModelRunId).HasMaxLength(48);
+                entity.Property(x => x.SummaryJson).IsRequired();
+                entity.HasIndex(x => x.RunKey).IsUnique().HasDatabaseName("UX_MarketEligibilityPublicationRuns_RunKey");
             });
             modelBuilder.Entity<PredictionRecomputeRequest>(entity =>
             {

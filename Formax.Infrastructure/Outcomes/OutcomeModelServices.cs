@@ -164,18 +164,34 @@ namespace Formax.Infrastructure.Outcomes
             return rows.ToDictionary(r => r.LeagueId, r => (r.Status, JsonSerializer.Deserialize<List<string>>(r.ReasonsJson) ?? new List<string>()));
         }
 
-        /// <summary>Organizasyon × market ailesi matrisi (yayın kararının birinci katmanı) — koşuyla birlikte saklanır.</summary>
+        /// <summary>
+        /// Organizasyon × market ailesi matrisi (yayın kararının birinci katmanı). 25.09.2026'dan itibaren KARAR kalıcı yayın
+        /// durumundan (<see cref="EligibilityPublicationOverlay"/>) gelir: koşunun ham satırları yalnız örneklem sayısı için okunur.
+        /// Böylece günlük model koşusunun tek tarihli ham matrisi kullanıcı kartını değiştiremez. Durum tablosu boşsa eski davranış.
+        /// </summary>
         public async Task<Dictionary<int, List<MarketFamilyMetrics>>> MarketEligibilityAsync(string? runId, CancellationToken ct = default)
         {
-            if (runId == null) return new();
-            var rows = await _db.LeagueMarketEligibilities.AsNoTracking().Where(e => e.RunId == runId)
-                .Select(e => new { e.LeagueId, e.Family, e.Status, e.ReasonsJson, e.TestMatches }).ToListAsync(ct).ConfigureAwait(false);
-            return rows.GroupBy(r => r.LeagueId).ToDictionary(g => g.Key, g => g.Select(r => new MarketFamilyMetrics
+            var raw = new Dictionary<int, List<MarketFamilyMetrics>>();
+            if (runId != null)
             {
-                LeagueId = g.Key, Family = r.Family, Status = r.Status, Matches = r.TestMatches,
-                ReasonCodes = JsonSerializer.Deserialize<List<string>>(r.ReasonsJson) ?? new List<string>()
-            }).ToList());
+                var rows = await _db.LeagueMarketEligibilities.AsNoTracking().Where(e => e.RunId == runId)
+                    .Select(e => new { e.LeagueId, e.Family, e.Status, e.ReasonsJson, e.TestMatches }).ToListAsync(ct).ConfigureAwait(false);
+                raw = rows.GroupBy(r => r.LeagueId).ToDictionary(g => g.Key, g => g.Select(r => new MarketFamilyMetrics
+                {
+                    LeagueId = g.Key, Family = r.Family, Status = r.Status, Matches = r.TestMatches,
+                    ReasonCodes = JsonSerializer.Deserialize<List<string>>(r.ReasonsJson) ?? new List<string>()
+                }).ToList());
+            }
+            var states = await PublishedStatesAsync(ct).ConfigureAwait(false);
+            if (states.Count == 0) return runId == null ? new() : raw;
+            return EligibilityPublicationOverlay.Apply(raw, states);
         }
+
+        /// <summary>Kalıcı yayın durumları (hücre → Closed/PendingOpen/Open/PendingClose). Boş = politika başlatılmamış.</summary>
+        public async Task<Dictionary<(int, string), string>> PublishedStatesAsync(CancellationToken ct = default)
+            => (await _db.MarketEligibilityStates.AsNoTracking().Select(s => new { s.OrganizationId, s.MarketFamily, s.PublishedState })
+                    .ToListAsync(ct).ConfigureAwait(false))
+                .ToDictionary(s => (s.OrganizationId, s.MarketFamily), s => s.PublishedState);
     }
 
     public sealed record SnapshotCycleReport(int Upcoming, int Written, int Unchanged, int Insufficient, string? RunId)
@@ -234,6 +250,8 @@ namespace Formax.Infrastructure.Outcomes
             public PlayerImpactModel PlayerImpact = PlayerImpactModel.Empty();
             /// <summary>Kadro deltası YAYIMLANAN olasılığa uygulansın mı? (kabul kapısı + ayar)</summary>
             public bool LineupImpactInProduction;
+            /// <summary>Kalıcı yayın politikası etkin mi? (durum tablosu dolu) — etkinse yayın imzası girdi özetine girer.</summary>
+            public bool PublicationActive;
         }
 
         /// <summary>
@@ -250,6 +268,7 @@ namespace Formax.Infrastructure.Outcomes
             (ctx.Run, ctx.Parameters) = await _training.LatestAcceptedAsync(ct).ConfigureAwait(false);
             ctx.Eligibility = await _training.EligibilityAsync(ctx.Run?.RunId, ct).ConfigureAwait(false);
             ctx.MarketEligibility = await _training.MarketEligibilityAsync(ctx.Run?.RunId, ct).ConfigureAwait(false);
+            ctx.PublicationActive = await _db.MarketEligibilityStates.AsNoTracking().AnyAsync(ct).ConfigureAwait(false);
             var history = await _history.LoadAsync(nowUtc, ct).ConfigureAwait(false);
             var names = await _history.LoadCompetitionNamesAsync(ct).ConfigureAwait(false);
             // Kadro gözlemleri — YALNIZ resmî kaynaktan doğrulanmış olanlar öğrenmeye girer.
@@ -442,7 +461,10 @@ namespace Formax.Infrastructure.Outcomes
 
                 // Kadro imzası girdi özetine girer: aynı kadro ikinci kez snapshot ÜRETMEZ, kadro
                 // düzeltilirse (içerik özeti değişir) ya da katman üretime açılırsa yeni satır yazılır.
-                var hash = InputHash(ctx.Run?.RunId, e, home, away, eligibility, fpHash + "|" + lineupSignature);
+                // Yayın imzası (politika etkinse): hücre açılır/kapanırsa yalnız o ligin snapshot'ı yeniden yazılır; model koşusu
+                // değişmeden de kart görünürlüğü doğru olur. Politika etkin değilse girdi özeti eskisiyle birebir aynıdır.
+                var publicationSignature = ctx.PublicationActive ? "|" + EligibilityPublicationOverlay.Signature(marketRows) : "";
+                var hash = InputHash(ctx.Run?.RunId, e, home, away, eligibility, fpHash + "|" + lineupSignature + publicationSignature);
                 var existing = current.Where(c => c.MatchId == u.Id).ToList();
                 if (existing.Any(c => c.InputHash == hash)) { results.Add(new(u.Id, "Unchanged", existing.First(c => c.InputHash == hash).SnapshotId)); continue; }
                 if (await _db.MatchPredictionSnapshots.AnyAsync(s => s.MatchId == u.Id && s.InputHash == hash && s.PublicationStatus == "NeedsReview", ct).ConfigureAwait(false))

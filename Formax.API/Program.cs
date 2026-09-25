@@ -977,6 +977,9 @@ internal class Program
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OutcomeModelJob>());
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.PredictionRecomputeJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.PredictionRecomputeJob>());
+        // Haftalık uygunluk yayını — Pazartesi 05:00 Europe/Istanbul; yalnız DB.
+        builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.EligibilityPublicationJob>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.EligibilityPublicationJob>());
         builder.Services.AddSingleton<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Formax.Infrastructure.BackgroundJobs.OfficialMatchCentreJob>());
         // AI MAÇ ANALİZİ — yaklaşan maçlar için arka planda kanıttan üretim (admin tetiği aynı örnek).

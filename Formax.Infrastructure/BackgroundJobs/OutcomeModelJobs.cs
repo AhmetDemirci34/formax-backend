@@ -38,6 +38,9 @@ namespace Formax.Infrastructure.BackgroundJobs
             {
                 try
                 {
+                    // Yayın politikası, günlük koşu yeni ham matris üretmeden ÖNCE başlatılır: bootstrap şu an yayında olan
+                    // snapshot'ların koşusunu sabitler, yeni koşunun tek tarihli matrisi yayına sızamaz.
+                    await EnsurePublicationBootstrappedAsync(stoppingToken);
                     await EnsureTrainedAsync(stoppingToken);
                     await RunSnapshotsAsync(stoppingToken);
                 }
@@ -45,6 +48,13 @@ namespace Formax.Infrastructure.BackgroundJobs
                 catch (Exception ex) { _log.LogError(ex, "[OUTCOME JOB] tur başarısız"); }
                 try { await Task.Delay(SnapshotInterval, stoppingToken); } catch (OperationCanceledException) { break; }
             }
+        }
+
+        public async Task EnsurePublicationBootstrappedAsync(CancellationToken ct)
+        {
+            if (!_config.GetValue("EligibilityPublication:Enabled", true)) return;
+            using var scope = _scopes.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<EligibilityPublicationService>().EnsureBootstrappedAsync(DateTime.UtcNow, ct);
         }
 
         public async Task EnsureTrainedAsync(CancellationToken ct)
@@ -102,6 +112,69 @@ namespace Formax.Infrastructure.BackgroundJobs
         {
             using var scope = _scopes.CreateScope();
             return await scope.ServiceProvider.GetRequiredService<PredictionRecomputeWorker>().RunOnceAsync(DateTime.UtcNow, ct);
+        }
+    }
+}
+
+namespace Formax.Infrastructure.BackgroundJobs
+{
+    /// <summary>
+    /// HAFTALIK UYGUNLUK YAYINI — Pazartesi 05:00 Europe/Istanbul (hafta sonu sonuç yazımı bitmiş olur). Kesim tarihi planlı anın
+    /// kendisidir (deterministik): süreç o saatte kapalıysa açıldığında KAÇIRILAN SON planlı an aynı kesimle çalışır. Aynı hafta ikinci
+    /// yayın yazılmaz (tekil RunKey). Yalnız bootstrap'tan SONRAKİ planlı anlar işlenir. Kullanıcı isteği bu işi tetiklemez; dış
+    /// istek yok (yalnız DB + mevcut backtest).
+    /// </summary>
+    public sealed class EligibilityPublicationJob : BackgroundService
+    {
+        private readonly IServiceScopeFactory _scopes;
+        private readonly IConfiguration _config;
+        private readonly ILogger<EligibilityPublicationJob> _log;
+
+        public EligibilityPublicationJob(IServiceScopeFactory scopes, IConfiguration config, ILogger<EligibilityPublicationJob> log)
+        {
+            _scopes = scopes; _config = config; _log = log;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            if (!_config.GetValue("EligibilityPublication:Enabled", true)) return;
+            try { await Task.Delay(TimeSpan.FromSeconds(_config.GetValue("EligibilityPublication:StartupDelaySeconds", 5)), stoppingToken); }
+            catch (OperationCanceledException) { return; }
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try { await RunDueAsync(DateTime.UtcNow, stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception ex) { _log.LogError(ex, "[ELIGIBILITY PUBLICATION JOB] tur başarısız"); }
+                var now = DateTime.UtcNow;
+                var wait = Application.Services.Outcomes.EligibilityEvaluationSchedule.NextSlotAfter(now) - now + TimeSpan.FromSeconds(30);
+                if (wait > TimeSpan.FromHours(6)) wait = TimeSpan.FromHours(6);
+                if (wait < TimeSpan.FromMinutes(1)) wait = TimeSpan.FromMinutes(1);
+                try { await Task.Delay(wait, stoppingToken); } catch (OperationCanceledException) { break; }
+            }
+        }
+
+        /// <summary>Planlı an geldiyse ve henüz yayımlanmadıysa yayın turunu çalıştırır; aksi hâlde hiçbir şey yapmaz.</summary>
+        public async Task<string> RunDueAsync(DateTime nowUtc, CancellationToken ct)
+        {
+            using var scope = _scopes.CreateScope();
+            var svc = scope.ServiceProvider.GetRequiredService<EligibilityPublicationService>();
+            var db = scope.ServiceProvider.GetRequiredService<FormaxDbContext>();
+            await svc.EnsureBootstrappedAsync(nowUtc, ct);
+            var bootstrapAt = await db.MarketEligibilityPublicationRuns.AsNoTracking()
+                .Where(r => r.RunKey == EligibilityPublicationService.BootstrapRunKey).Select(r => (DateTime?)r.StartedAtUtc).FirstOrDefaultAsync(ct);
+            var slot = Application.Services.Outcomes.EligibilityEvaluationSchedule.LatestSlotAtOrBefore(nowUtc);
+            if (bootstrapAt == null || slot <= bootstrapAt.Value) return "NOT_DUE";
+            if (!await EligibilityPublicationService.Gate.WaitAsync(TimeSpan.Zero, ct)) return "BUSY";
+            try
+            {
+                var report = await svc.RunAsync(new[] { slot }, EligibilityPublicationMode.Publish, EligibilityPublicationSources.Scheduled, nowUtc, ct);
+                var result = report.Cutoffs.FirstOrDefault()?.Result ?? "NONE";
+                if (result == "PUBLISHED")
+                    _log.LogInformation("[ELIGIBILITY PUBLICATION JOB] haftalık yayın: kesim={Slot:O} süre={Ms}ms geçiş={Changes}", slot, report.TotalMs,
+                        report.Cutoffs.Sum(c => c.Transitions.Count(t => t.Changed)));
+                return result;
+            }
+            finally { EligibilityPublicationService.Gate.Release(); }
         }
     }
 }

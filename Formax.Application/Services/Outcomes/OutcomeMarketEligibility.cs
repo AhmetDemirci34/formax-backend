@@ -112,6 +112,12 @@ namespace Formax.Application.Services.Outcomes
         public double OverconfidentWrongRate { get; set; }
         public List<ReliabilityBand> Bands { get; set; } = new();
         public int FinishedLast60Days { get; set; }
+        /// <summary>
+        /// Lojistik kalibrasyon eğimi/kesişimi (y ~ a + b·logit(p)); 1/0 = kusursuz. YALNIZ BİLGİ: <see cref="MarketEligibilityPolicy.Decide"/>
+        /// bu alanları OKUMAZ, kapı eşikleri değişmez. Yayın geçmişine (eligibility-publication) kayıt için ölçülür.
+        /// </summary>
+        public double? CalibrationSlope { get; set; }
+        public double? CalibrationIntercept { get; set; }
         public string Status { get; set; } = MarketEligibilityStatuses.DataQualityFailed;
         public List<string> ReasonCodes { get; set; } = new();
 
@@ -270,6 +276,9 @@ namespace Formax.Application.Services.Outcomes
             var cnt = (double)samples.Count;
             m.LogLoss = R(ll / cnt); m.BaselineLogLoss = R(bll / cnt);
             m.CalibrationError = R(OutcomeBacktest.Ece(pooled, 10));
+            var (slope, intercept) = CalibrationFit(pooled);
+            m.CalibrationSlope = slope is double sv ? R(sv) : null;
+            m.CalibrationIntercept = intercept is double iv ? R(iv) : null;
             m.Bias = bias;
             m.MaxBias = bias.Count == 0 ? 0 : bias.Values.OrderByDescending(Math.Abs).First();
             m.Bands = OutcomeBacktest.Bands(pooled);
@@ -303,6 +312,38 @@ namespace Formax.Application.Services.Outcomes
             }
             if (result != null) list.Insert(1, MarketEligibilityPolicy.InheritDoubleChance(result));
             return list;
+        }
+
+        /// <summary>
+        /// Lojistik kalibrasyon doğrusu — y ~ a + b·logit(p), Newton–Raphson (deterministik, sabit iterasyon). Tekil ya da
+        /// yakınsamayan durumda (null, null) döner; karar kapısı bu değeri kullanmaz.
+        /// </summary>
+        public static (double? Slope, double? Intercept) CalibrationFit(IReadOnlyList<(double P, bool Y)> xs)
+        {
+            if (xs.Count < 20) return (null, null);
+            double a = 0, b = 1;
+            for (var it = 0; it < 50; it++)
+            {
+                double ga = 0, gb = 0, haa = 0, hab = 0, hbb = 0;
+                foreach (var (p, y) in xs)
+                {
+                    var pc = Math.Clamp(p, 1e-6, 1 - 1e-6);
+                    var x = Math.Log(pc / (1 - pc));
+                    var q = 1 / (1 + Math.Exp(-(a + b * x)));
+                    var r = (y ? 1.0 : 0.0) - q;
+                    var w = q * (1 - q);
+                    ga += r; gb += r * x;
+                    haa += w; hab += w * x; hbb += w * x * x;
+                }
+                var det = haa * hbb - hab * hab;
+                if (!(Math.Abs(det) > 1e-12)) return (null, null);
+                var da = (hbb * ga - hab * gb) / det;
+                var db = (haa * gb - hab * ga) / det;
+                a += da; b += db;
+                if (!double.IsFinite(a) || !double.IsFinite(b)) return (null, null);
+                if (Math.Abs(da) < 1e-10 && Math.Abs(db) < 1e-10) break;
+            }
+            return (b, a);
         }
 
         private static double B(bool v) => v ? 1 : 0;
