@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { computeMatchClock, kickoffMsOf, type MatchClockState } from "@/lib/matchClock";
+import {
+  absoluteTime,
+  computeMatchClock,
+  kickoffMsOf,
+  type MatchClockState,
+} from "@/lib/matchClock";
 
 /**
  * FORMAX · MatchClock — tüm maç kartları için ortak zaman/geri sayım sistemi.
@@ -13,6 +18,7 @@ import { computeMatchClock, kickoffMsOf, type MatchClockState } from "@/lib/matc
  *  • kickoff'a > 6 saat            → normal saat (Bugün/Yarın/tarih · HH:MM)
  *  • kickoff'a ≤ 6 saat            → saniyeli geri sayım (HH:MM:SS)
  *  • kickoff geçmiş & backend canlı DEMEDİ → yine planlanan saat (asla "Bitti"/"CANLI")
+ *  • alwaysAbsolute                → her zaman gün + saat (Keşfet kartı)
  *
  * Kaynak: backend kickoff ISO tarihi (matchDate/kickoffTime) + backend isLive/liveMinute.
  * Veri yoksa hiçbir şey uydurulmaz → null döner.
@@ -28,10 +34,16 @@ interface MatchClockProps {
   isLive?: boolean;
   /** Backend canlı dakika (ör. 67 → "67'"). Yalnız backend gönderirse gösterilir. */
   liveMinute?: number | null;
+  /**
+   * Her zaman planlanan GÜN + SAAT göster ("Bugün 20:00"), geri sayıma geçme.
+   * Keşfet kartı bunu kullanır (ürün kararı: kartta başlama günü ve saati).
+   * Hesap yine ortak modüldedir (lib/matchClock.absoluteTime) — ikinci hesap yok.
+   */
+  alwaysAbsolute?: boolean;
 }
 
 /** Sadece geri sayım/canlı durumda saniyelik tik gerekir; diğer hâllerde interval kurulmaz. */
-export function MatchClock({ kickoff, isLive, liveMinute }: MatchClockProps) {
+export function MatchClock({ kickoff, isLive, liveMinute, alwaysAbsolute }: MatchClockProps) {
   const kickoffMs = kickoffMsOf(kickoff);
   const valid = Number.isFinite(kickoffMs);
 
@@ -41,7 +53,7 @@ export function MatchClock({ kickoff, isLive, liveMinute }: MatchClockProps) {
   // Canlı durum YALNIZ backend'in gerçek isLive alanından gelir — saat CANLI/BİTTİ ÜRETMEZ.
   const live = isLive === true;
   // Canlı dakika backend'den gelir → tik gerekmez; yalnız geri sayımda saniyelik tik.
-  const ticking = !live && derived?.mode === "countdown";
+  const ticking = !live && !alwaysAbsolute && derived?.mode === "countdown";
 
   useEffect(() => {
     if (!ticking) return;
@@ -65,10 +77,11 @@ export function MatchClock({ kickoff, isLive, liveMinute }: MatchClockProps) {
   }
 
   if (!derived) return null;
-  const state = derived;
+  const state: MatchClockState = alwaysAbsolute
+    ? { mode: "time", label: absoluteTime(new Date(kickoffMs)) }
+    : derived;
 
-  const tone =
-    state.mode === "countdown" ? "text-neon" : "text-text-secondary";
+  const tone = state.mode === "countdown" ? "text-neon" : "text-text-secondary";
   return (
     <span className={`text-[13px] font-semibold tabular-nums tracking-wide ${tone}`}>
       {state.label}

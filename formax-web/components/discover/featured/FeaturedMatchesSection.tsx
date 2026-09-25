@@ -5,7 +5,7 @@ import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { LoadingCard } from "@/components/ui/LoadingState";
-import { HeartIcon, InfoIcon, ArrowRightIcon, ChevronRightIcon } from "@/components/discover/icons";
+import { HeartIcon, ArrowRightIcon, ChevronRightIcon } from "@/components/discover/icons";
 import { FeaturedMatchCard } from "./FeaturedMatchCard";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { trackInterest } from "@/lib/api/interests";
@@ -65,12 +65,6 @@ export function FeaturedMatchesSection({ compact = false }: { compact?: boolean 
         accent="purple"
         title="Sana Özel Maçlar"
         subtitle="İlgi alanlarına göre senin için seçtik"
-        right={
-          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-text-muted">
-            Neden bu maçlar?
-            <InfoIcon size={13} />
-          </span>
-        }
       />
 
       <div className="relative -mx-4 mt-1">

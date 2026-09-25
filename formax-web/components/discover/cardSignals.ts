@@ -195,37 +195,44 @@ export function matchTime(card: RecommendationCardDto): MatchTimeVM | null {
   return { text: "Bitti", live: false };
 }
 
-// Discovery'ye uygun OLMAYAN maç durumları (ürün anayasası).
-const NON_DISCOVERABLE_STATUSES = new Set([
-  "finished",
-  "fulltime",
-  "afterextratime",
-  "afterpenalties",
-  "cancelled",
-  "canceled",
-  "postponed",
-  "suspended",
-  "abandoned",
-  "walkover",
-  "awarded",
-  "ended",
+// ── Keşfet kapsamı: YALNIZ BAŞLAMAMIŞ MAÇ (kilitli ürün kararı) ───────────────
+// Keşfet ekranında canlı, devre arası, uzatma, penaltı, bitmiş, ertelenmiş veya
+// iptal edilmiş maç GÖRÜNMEZ. Kural sade ve iki koşulludur:
+//   1) başlama zamanı gelecekte (kickoffUtc > nowUtc), ve
+//   2) backend durumu "başlamadı" ailesinde (Scheduled / NotStarted / Upcoming …),
+//      ayrıca backend isLive dememiş olmalı.
+// Frontend maç DURUMU ÜRETMEZ: yalnız backend'in gönderdiği status/isLive/kickoff
+// alanlarını okur. Durum alanı hiç gelmezse tek ölçüt gerçek kickoff zamanıdır.
+const NOT_STARTED_STATUSES = new Set([
+  "notstarted",
+  "ns",
+  "scheduled",
+  "upcoming",
+  "pending",
+  "tbd",
+  "timetobedefined",
 ]);
 
+/** Backend kickoff'u (kickoffTime öncelikli, yoksa matchDate) → ms; yoksa NaN. */
+function kickoffMsOfCard(card: RecommendationCardDto): number {
+  const iso = card.kickoffTime ?? card.matchDate;
+  return iso ? new Date(iso).getTime() : NaN;
+}
+
 /**
- * GEÇİCİ GÜVENLİK KATMANI (ürün anayasası) — Hero/Discovery'de BİTMİŞ maç asla görünmesin.
- * Öncelik: backend `Status` alanı; yoksa gerçek `matchDate` (canlı penceresi dışında geçmiş = bitmiş).
- * Bu FRONTEND filtresi geçicidir: backend Recommendation Engine yalnız Upcoming/Live döndürünce
- * kaldırılabilir. Sıralama/AI hesabı YAPMAZ; yalnız güvenlik amaçlı durum elemesidir.
+ * Keşfet/öneri yüzeylerinin TEK kapsam kapısı: maç henüz başlamamış mı?
+ * (Eski adı isDiscoverable — davranışı daraltıldı: canlı maç artık geçmez.)
  */
 export function isDiscoverable(card: RecommendationCardDto): boolean {
-  const s = card.status?.toString().toLowerCase().replace(/\s+|_/g, "");
-  if (s) return !NON_DISCOVERABLE_STATUSES.has(s);
-  const iso = card.matchDate;
-  if (!iso) return false;
-  const ts = new Date(iso).getTime();
-  if (isNaN(ts)) return false;
-  const diffMin = (ts - Date.now()) / 60000;
-  return diffMin > 0 || -diffMin <= LIVE_WINDOW_MIN;
+  if (card.isLive === true) return false;
+
+  const ts = kickoffMsOfCard(card);
+  if (!Number.isFinite(ts) || ts <= Date.now()) return false;
+
+  const s = card.status?.toString().toLowerCase().replace(/\s+|_|-/g, "");
+  if (s && !NOT_STARTED_STATUSES.has(s)) return false;
+
+  return true;
 }
 
 // ── Kısa AI etiketi — trending kartı için tek kelime, intel temasından (gerçek veriye bağlı).

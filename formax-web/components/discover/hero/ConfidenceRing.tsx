@@ -6,7 +6,12 @@ import { animate, motion, useMotionValue, useReducedMotion } from "framer-motion
 interface Props {
   /** 0–100 */
   value: number;
-  label: string;
+  /**
+   * Seviye etiketi (YÜKSEK/ORTA/DÜŞÜK) — OPSİYONEL.
+   * Keşfet kartı göstergeyi ETİKETSİZ kullanır: ürün kararı gereği sayının yanında
+   * veya altında hiçbir açıklama/yorum bulunmaz.
+   */
+  label?: string;
   size?: number;
 }
 
@@ -22,7 +27,7 @@ function toneVar(value: number): string {
 
 /**
  * FORMAX · ConfidenceRing (05)
- * PNG'deki "AI BEKLENTİSİ / 92 / ÇOK YÜKSEK" dairesel göstergesi — SVG, glow'lu, dolum animasyonlu.
+ * "AI BEKLENTİSİ / 73" dairesel SAYISAL göstergesi — SVG, glow'lu, dolum animasyonlu.
  * Premium motion: halka çok hafif "nefes alır" (scale 1.00↔1.02, ~2.6s) ve maç değişince
  * sayı önceki değerden yeni değere yumuşak sayar (~420 ms). prefers-reduced-motion saygılı.
  */
@@ -35,8 +40,15 @@ export function ConfidenceRing({ value, label, size = 132 }: Props) {
   // onUpdate bir callback'tir (effect gövdesinde senkron setState yok).
   const count = useMotionValue(value);
   const [display, setDisplay] = useState(value);
+
+  // Sayaç YALNIZ animasyon gerçekten çalışabiliyorken kullanılır:
+  //  • prefers-reduced-motion açıksa animasyon istenmez,
+  //  • sekme arka plandayken tarayıcı rAF'i durdurur → sayaç ilerlemez ve ekranda
+  //    ÖNCEKİ maçın sayısı asılı kalırdı. Bu iki durumda backend değeri DOĞRUDAN yazılır.
+  const canAnimate = !reduce && typeof document !== "undefined" && !document.hidden;
+
   useEffect(() => {
-    if (reduce) return; // reduced-motion: sayaç animasyonu yok, değer doğrudan gösterilir
+    if (!canAnimate) return;
     const controls = animate(count, value, {
       duration: 0.42,
       ease: "easeOut",
@@ -44,8 +56,9 @@ export function ConfidenceRing({ value, label, size = 132 }: Props) {
     });
     return () => controls.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, reduce]);
-  const shown = reduce ? value : display;
+  }, [value, canAnimate]);
+
+  const shown = canAnimate ? display : value;
 
   return (
     <motion.div
@@ -66,7 +79,9 @@ export function ConfidenceRing({ value, label, size = 132 }: Props) {
           strokeLinecap="round"
           strokeDasharray={CIRC}
           className="fx-ring-glow-green"
-          initial={{ strokeDashoffset: CIRC }}
+          // Animasyon çalışamıyorsa (reduced-motion / arka plan sekmesi) halka BOŞ kalmasın:
+          // başlangıç durumu atlanır ve yay doğrudan gerçek değerde çizilir.
+          initial={canAnimate ? { strokeDashoffset: CIRC } : false}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 0.9, ease: "easeOut", delay: 0.15 }}
         />
@@ -79,7 +94,9 @@ export function ConfidenceRing({ value, label, size = 132 }: Props) {
         <span className="text-[34px] font-black leading-none tabular-nums text-text-primary">
           {shown}
         </span>
-        <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-neon">{label}</span>
+        {label ? (
+          <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-neon">{label}</span>
+        ) : null}
       </div>
     </motion.div>
   );

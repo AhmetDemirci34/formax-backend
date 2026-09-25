@@ -5,39 +5,49 @@ import { motion, useTransform, type MotionValue } from "framer-motion";
 interface Props {
   /** Kartın yatay sürüklenme değeri — oklar sürükleme yönünde belirginleşir. */
   x: MotionValue<number>;
+  /** Sol ok — bir önceki/sonraki karta geçiş (kart değiştirir, BAŞKA hiçbir şey yapmaz). */
+  onLeft: () => void;
+  /** Sağ ok — kart değiştirir. */
+  onRight: () => void;
 }
 
 /**
- * FORMAX · SwipeArrows — kartın SOLUNDA ve SAĞINDA duran kaydırma yönü göstergesi.
+ * FORMAX · SwipeArrows — kartın SOLUNDA ve SAĞINDA duran KART GEÇİŞ okları.
  *
- * Amaç tek: "bu kart sağa/sola kaydırılabilir" mesajını vermek. Yeni tasarım dili
- * kurulmaz — mevcut renk değişkenleri (text-muted / text-secondary) ve mevcut radius
- * kullanılır. Kart üzerine binmez, kenarda durur ve tıklamayı engellemez.
- *
- * Hareket: sürekli dikkat dağıtan animasyon YOK. Yalnız çok yavaş, düşük genlikli bir
- * nefes; kullanıcı kartı sürüklerken o yöndeki ok belirginleşir (yönü doğrular).
+ * Artık dekor değil GERÇEK BUTONDUR: tıklama kartı değiştirir (swipe ile aynı akış).
+ * Maç Detayı AÇMAZ, takip etmez — tek işi kart geçişidir. Kartın üzerine binmez,
+ * kenarda durur; kartın boş alanı tıklanabilir değildir.
  */
-export function SwipeArrows({ x }: Props) {
-  const leftOpacity = useTransform(x, [-120, -20, 0], [0.85, 0.4, 0.22]);
-  const rightOpacity = useTransform(x, [0, 20, 120], [0.22, 0.4, 0.85]);
+export function SwipeArrows({ x, onLeft, onRight }: Props) {
+  const leftOpacity = useTransform(x, [-120, -20, 0], [0.95, 0.55, 0.35]);
+  const rightOpacity = useTransform(x, [0, 20, 120], [0.35, 0.55, 0.95]);
 
   return (
     <>
-      <Arrow side="left" opacity={leftOpacity} />
-      <Arrow side="right" opacity={rightOpacity} />
+      <Arrow side="left" opacity={leftOpacity} onClick={onLeft} />
+      <Arrow side="right" opacity={rightOpacity} onClick={onRight} />
     </>
   );
 }
 
-function Arrow({ side, opacity }: { side: "left" | "right"; opacity: MotionValue<number> }) {
+function Arrow({
+  side,
+  opacity,
+  onClick,
+}: {
+  side: "left" | "right";
+  opacity: MotionValue<number>;
+  onClick: () => void;
+}) {
   const isLeft = side === "left";
   return (
-    <motion.span
-      aria-hidden
+    <motion.button
+      type="button"
+      aria-label={isLeft ? "Önceki kart" : "Sonraki kart"}
+      onClick={onClick}
       style={{ opacity }}
-      animate={{ x: isLeft ? [0, -2.5, 0] : [0, 2.5, 0] }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-      className={`pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 text-text-secondary ${
+      whileTap={{ scale: 0.88 }}
+      className={`absolute top-1/2 z-20 grid h-10 w-8 -translate-y-1/2 place-items-center text-text-secondary transition-colors hover:text-text-primary ${
         isLeft ? "left-0" : "right-0"
       }`}
     >
@@ -50,6 +60,6 @@ function Arrow({ side, opacity }: { side: "left" | "right"; opacity: MotionValue
           strokeLinejoin="round"
         />
       </svg>
-    </motion.span>
+    </motion.button>
   );
 }

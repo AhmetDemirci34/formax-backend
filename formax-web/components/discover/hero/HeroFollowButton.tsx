@@ -20,7 +20,11 @@ export function HeroFollowButton({ matchId }: { matchId: number }) {
   return (
     <motion.button
       type="button"
-      onClick={toggleFollow}
+      onClick={(e) => {
+        // Takip SADECE takip eder: kart/geçiş katmanlarına sızmaz, Maç Detayı AÇMAZ.
+        e.stopPropagation();
+        toggleFollow();
+      }}
       disabled={isPending}
       aria-pressed={followed}
       aria-label={followed ? "Takibi bırak" : "Maçı takip et"}
