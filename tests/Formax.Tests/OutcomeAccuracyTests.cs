@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,7 +29,7 @@ public class OutcomeAccuracyTests
                 for (var a = 0; a < teams; a++)
                 {
                     if (h == a || (h + a + round) % teams != 0) continue;
-                    var kick = Day0.AddDays(7 * r++ / Math.Max(1, teams / 2));
+                    var kick = Day0.AddDays(7 * (r++ / Math.Max(1, teams / 2))); // her 5 maç aynı başlama saatinde
                     list.Add(new HistoricalMatch(++id, kick, leagueId, leagueId * 1000 + h, leagueId * 1000 + a, rng.Next(0, 4), rng.Next(0, 3)));
                 }
         return list.OrderBy(m => m.KickoffUtc).ThenBy(m => m.MatchId).ToList();
