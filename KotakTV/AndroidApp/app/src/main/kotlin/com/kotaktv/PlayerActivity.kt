@@ -17,6 +17,8 @@ import com.kotaktv.data.ChannelRepository
 import com.kotaktv.data.Stream
 import com.kotaktv.failover.FailoverEngine
 import com.kotaktv.failover.FailoverState
+import com.kotaktvapp.BuildConfig
+import com.kotaktvapp.R
 import kotlinx.coroutines.launch
 
 /**

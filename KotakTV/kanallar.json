@@ -1,19 +1,2885 @@
 {
   "_meta": {
     "schema_version": "1.0.0",
-    "generated_at": "2026-09-26T21:00:00Z",
+    "generated_at": "2026-09-26T21:49:19.808Z",
     "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
     "ttl_seconds": 3600,
-    "total_channels": 3
+    "total_channels": 163
   },
   "channels": [
     {
-      "id": "trt1",
-      "name": "TRT 1",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt1.png",
+      "id": "360_tv_720p_not_24_7",
+      "name": "360 TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/360_tv_720p_not_24_7.png",
       "category": "Genel",
-      "tags": ["yerli", "dizi", "haber"],
-      "epg_id": "TRT1.tr",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "360.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://turkmedya-live.ercdn.net/tv360/tv360.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "4u_tv_720p",
+      "name": "4U TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/4u_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "4UTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://hls.4utv.live/hls/stream.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "a_haber_1080p",
+      "name": "A Haber (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/a_haber_1080p.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "AHaber.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/ahaber/ahaber.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "a_spor_1080p",
+      "name": "A Spor (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/a_spor_1080p.png",
+      "category": "Spor",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ASpor.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/aspor/aspor.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "a2tv_1080p",
+      "name": "A2TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/a2tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "A2TV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/a2tv/a2tv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "afroturk_tv_1080p",
+      "name": "Afroturk TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/afroturk_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "AfroturkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge.socialsmart.tv/naturaltv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "aksu_tv_720p",
+      "name": "Aksu TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/aksu_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "AksuTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_aksutv/aksutv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "al_zahra_tv_turkic_720p_not_24_7",
+      "name": "Al-Zahra TV Turkic (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/al_zahra_tv_turkic_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "AlZahraTVTurkic.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.al-zahratv.com/live/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "alanya_posta_tv_1080p",
+      "name": "Alanya Posta TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/alanya_posta_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "AlanyaPostaTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://api-tv3.yayin.com.tr/postatv/postatv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "almahriah_tv_576p",
+      "name": "Almahriah TV (576p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/almahriah_tv_576p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "AlmahriahTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://starmenajo.com/hls/almahriah/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "altas_tv_1080p",
+      "name": "Altas TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/altas_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "AltasTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/altastv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "anadolu_net_tv_1080p",
+      "name": "Anadolu Net TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/anadolu_net_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "AnadoluNetTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_anadolunet/anadolunet/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "aras_tv_576p_not_24_7",
+      "name": "ARAS TV (576p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/aras_tv_576p_not_24_7.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "ArasTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://1.rtmp.org/tv217/yayin.stream/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "atv_1080p",
+      "name": "ATV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/atv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ATV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv_1080p.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "atv_360p",
+      "name": "ATV (360p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/atv_360p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "ATV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv_360p.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "atv_alanya_1080p",
+      "name": "ATV Alanya (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/atv_alanya_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ATVAlanya.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://cdn-alanyatv.yayin.com.tr/alanyatv/alanyatv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "benguturk_tv_720p_not_24_7",
+      "name": "BENGÜTÜRK TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/benguturk_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "BenguturkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv.ensonhaber.com/benguturk/benguturk.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bir_tv_720p",
+      "name": "Bir TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/bir_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "BirTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge.taksimbilisim.com/birtv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bloomberg_ht",
+      "name": "Bloomberg HT",
+      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "BloombergHT.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://193.123.61.120:3000/kanal/bloomberght",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bloomberg_ht_720p",
+      "name": "Bloomberg HT (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht_720p.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "BloombergHT.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://mumbai-edge.smartplaytv.in/BloombergHT/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bloomberg_ht_720p_not_24_7",
+      "name": "Bloomberg HT (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht_720p_not_24_7.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "BloombergHT.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv.ensonhaber.com/bloomberght/bloomberght.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "brtv_720p_geo_blocked",
+      "name": "BRTV (720p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/brtv_720p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "BRTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_brtv/brtv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bursa_as_tv_900p",
+      "name": "Bursa AS TV (900p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/bursa_as_tv_900p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "ASTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_astv/astv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "cay_tv_720p",
+      "name": "Cay TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/cay_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "CayTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/caytv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "cnbc_e",
+      "name": "CNBC-e",
+      "logo_url": "https://cdn.kotaktv.com/logos/cnbc_e.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "CNBCe.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://hnpsechtsc.turknet.ercdn.net/xpnvudnlsv/cnbc-e/cnbc-e.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "ciftci_tv_720p_not_24_7",
+      "name": "Çiftçi TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/ciftci_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "CiftciTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_ciftcitv/ciftcitv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "deniz_postasi_tv_720p_not_24_7",
+      "name": "Deniz Postası TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/deniz_postasi_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "DenizPostasiTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_denizpostasi/denizpostasi/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "dha_720p_not_24_7",
+      "name": "DHA (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/dha_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "DHA.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://603c568fccdf5.streamlock.net/live/dhaweb1_C5efC/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "disney_jr_1080p_geo_blocked",
+      "name": "Disney Jr. (1080p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/disney_jr_1080p_geo_blocked.png",
+      "category": "Çocuk",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "DisneyJr.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://saran-live.ercdn.net/disneyjunior/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "diyanet_tv_1080p",
+      "name": "Diyanet TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/diyanet_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "DiyanetTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://eustr73.mediatriple.net/videoonlylive/mtikoimxnztxlive/broadcast_5e3bf95a47e07.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "diyar_tv_720p",
+      "name": "Diyar TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/diyar_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "DiyarTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_diyartv/diyartv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "dost_tv_576p",
+      "name": "Dost TV (576p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/dost_tv_576p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "DostTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://dost.stream.emsal.im/tv/live.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "dream_turk_720p",
+      "name": "Dream Türk (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/dream_turk_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "DreamTurk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.duhnet.tv/S2/HLS_LIVE/dreamturknp/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "edessa_tv_1080p",
+      "name": "Edessa TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/edessa_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "EdessaTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://canli.edessatv.com/hls/stream.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "ekoturk_720p",
+      "name": "Ekoturk (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/ekoturk_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "Ekoturk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://cdn.ekoturk.net/hls/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "er_tv_1080p_geo_blocked",
+      "name": "Er TV (1080p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/er_tv_1080p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ERTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_ertv_new/ertv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "erzurum_web_tv_720p",
+      "name": "Erzurum Web TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/erzurum_web_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ErzurumWebTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://win29.yayin.com.tr/erzurumwebtv/erzurumwebtv/iptvdelisi.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "es_tv_720p",
+      "name": "ES TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/es_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ESTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_estv/estv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "etv_kayseri_720p",
+      "name": "ETV Kayseri (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/etv_kayseri_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ETVKayseri.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_etv/etv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "etv_manisa_1080p_not_24_7",
+      "name": "ETV Manisa (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/etv_manisa_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ETVManisa.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/manisaetv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "euro_d_720p",
+      "name": "Euro D (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/euro_d_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "EuroD.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.duhnet.tv/S2/HLS_LIVE/eurodnp/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "fb_tv",
+      "name": "FB TV",
+      "logo_url": "https://cdn.kotaktv.com/logos/fb_tv.png",
+      "category": "Spor",
+      "tags": [],
+      "epg_id": "FBTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://1hskrdto.rocketcdn.com/fenerbahcetv.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "finans_turk_tv_720p",
+      "name": "Finans Turk TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/finans_turk_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "FinansTurkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://yayin30.haber100.com/live/finansturk/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "flash_haber_tv",
+      "name": "Flash Haber TV",
+      "logo_url": "https://cdn.kotaktv.com/logos/flash_haber_tv.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "FlashHaberTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtyycglqauzjhlive/broadcast_67c053c48829f.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "fortuna_tv_1080p",
+      "name": "Fortuna TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/fortuna_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "FortunaTV.tr@HD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge.taksimbilisim.com/ftvturk/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "fortuna_tv_720p",
+      "name": "Fortuna TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/fortuna_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "FortunaTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/ftvturk/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "guneydogu_tv_720p",
+      "name": "Guneydogu TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/guneydogu_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "GuneydoguTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/gtv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "gzt_1080p",
+      "name": "GZT (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/gzt_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "GZT.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://gzttv-live.lg.mncdn.com/gzttv/gzttv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "haber_global_720p_not_24_7",
+      "name": "Haber Global (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/haber_global_720p_not_24_7.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "HaberGlobal.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv.ensonhaber.com/haberglobal/haberglobal.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "haber61_tv_720p_not_24_7",
+      "name": "Haber61 TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/haber61_tv_720p_not_24_7.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Haber61TV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://cdn-haber61tv.yayin.com.tr/haber61tv/smil:haber61tv.smil/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "https://win8.yayin.com.tr/haber61tv/smil:haber61tv.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "haberturk_tv_720p_not_24_7",
+      "name": "Habertürk TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/haberturk_tv_720p_not_24_7.png",
+      "category": "Haber",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "HaberturkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv.ensonhaber.com/haberturk/haberturk.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "halk_tv_1080p",
+      "name": "Halk TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/halk_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "HalkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://halktv-live.daioncdn.net/halktv/halktv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "htspor_tv_1080p",
+      "name": "HTSpor TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/htspor_tv_1080p.png",
+      "category": "Spor",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "HTSporTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://ciner.daioncdn.net/ht-spor/ht-spor.m3u8?app=web",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "hunat_tv_720p_geo_blocked",
+      "name": "Hunat TV (720p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/hunat_tv_720p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "HunatTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_hunattv/hunattv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "icel_tv_720p_not_24_7",
+      "name": "Icel TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/icel_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "IcelTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/iceltv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "ilke_tv_1080p",
+      "name": "Ilke TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/ilke_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "IlkeTV.tr@HD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://stream.ilketv.com.tr/hls/ilkecanli.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_12_720p",
+      "name": "Kanal 12 (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_12_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal12.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanal12/kanal12/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_15_720p_not_24_7",
+      "name": "Kanal 15 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_15_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal15.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanal15/kanal15/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_23_1080p",
+      "name": "Kanal 23 (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_23_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal23.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://cdn-kanal23.yayin.com.tr/kanal23/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_23_720p_not_24_7",
+      "name": "Kanal 23 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_23_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal23.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanal23/kanal23/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_26_720p_not_24_7",
+      "name": "Kanal 26 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_26_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal26.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanal26/kanal26/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_3_1080p_not_24_7",
+      "name": "Kanal 3 (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_3_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal3.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanal3/kanal3/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_32_720p_not_24_7",
+      "name": "Kanal 32 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_32_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal32.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/kanal32/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_33_720p_not_24_7",
+      "name": "Kanal 33 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_33_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal33.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/kanal33/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_58_720p_not_24_7",
+      "name": "KANAL 58 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_58_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal58.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanal58/kanal58/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_7_1080p_not_24_7",
+      "name": "Kanal 7 (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_7_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal7.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://kanal7-live.daioncdn.net/kanal7/kanal7.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_7_avrupa_720p_not_24_7",
+      "name": "Kanal 7 Avrupa (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_7_avrupa_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal7Avrupa.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.radyotvonline.net/kanal7live/kanal7avr/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_d_1080p",
+      "name": "Kanal D (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_d_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KanalD.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://demiroren.daioncdn.net/kanald/kanald.m3u8?app=kanald_web&ce=3",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_d_drama_1080p",
+      "name": "Kanal D Drama (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_d_drama_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KanalDDrama.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "http://190.93.224.42/KANAL-D-DRAMA/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 3,
+          "label": "backup-cdn-2",
+          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD.stream/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 4,
+          "label": "backup-cdn-3",
+          "url": "https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01602-themahqfrance-vivekanald-samsungspain/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_firat_720p_not_24_7",
+      "name": "Kanal Firat (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_firat_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KanalFirat.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanalfirat/kanalfirat/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_hayat_1080p",
+      "name": "Kanal Hayat (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_hayat_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KanalHayat.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tbn02a.ltnschedule.com/hls/nx21i.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_v_720p_not_24_7",
+      "name": "Kanal V (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_v_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KanalV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kanalv/kanalv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kay_tv_576p_geo_blocked",
+      "name": "Kay TV (576p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kay_tv_576p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "KayTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kaytv/kaytv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kent_turk_tv_1080p_not_24_7",
+      "name": "Kent Türk TV (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kent_turk_tv_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "KentTurk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_kentturktv/kentturktv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kocaeli_tv_1080p",
+      "name": "Kocaeli TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kocaeli_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KocaeliTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge.taksimbilisim.com/kocaelitv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "konya_olay_tv_720p",
+      "name": "Konya Olay TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/konya_olay_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KonyaOlayTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_konyaolaytv/konyaolaytv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kral_pop_tv_720p",
+      "name": "KRAL Pop TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/kral_pop_tv_720p.png",
+      "category": "Müzik",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "KralPopTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://dogus-live.daioncdn.net/kralpoptv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "lalegul_tv_1080p",
+      "name": "Lalegul TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/lalegul_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "LalegulTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://lbl.netmedya.net/hls/lalegultv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "life_tv_720p_not_24_7",
+      "name": "Life TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/life_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "LifeTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_lifetv/lifetv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "line_tv_720p_not_24_7",
+      "name": "Line TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/line_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "LineTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/linetv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "luys_tv_1080p",
+      "name": "Luys TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/luys_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "LuysTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtpayqrfkgirxelive/broadcast_5e91c5ac96898.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "mavikaradeniz_1080p_not_24_7",
+      "name": "MaviKaradeniz (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/mavikaradeniz_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MaviKaradenizTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_mavikaradeniz/mavikaradeniz/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "med_muzik_1080p",
+      "name": "Med Muzik (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/med_muzik_1080p.png",
+      "category": "Müzik",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MedMuzik.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://54.36.110.140/live3/live3.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "mekameleen_tv_1080p",
+      "name": "Mekameleen TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/mekameleen_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MekameleenTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://mn-nl.mncdn.com/mekameleen/smil:mekameleentv.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "meltem_tv_1080p",
+      "name": "Meltem TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/meltem_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MeltemTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://vhxyrsly.rocketcdn.com/meltemtv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "mercan_tv_576p_not_24_7",
+      "name": "Mercan TV (576p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/mercan_tv_576p_not_24_7.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "MercanTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_mercantv/mercantv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "minika_cocuk_576p",
+      "name": "Minika Cocuk (576p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/minika_cocuk_576p.png",
+      "category": "Çocuk",
+      "tags": [],
+      "epg_id": "MinikaCocuk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago_cocuk/minikago_cocuk.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "minika_cocuk_720p",
+      "name": "Minika Cocuk (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/minika_cocuk_720p.png",
+      "category": "Çocuk",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MinikaCocuk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago_cocuk/minikago_cocuk.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "minika_go_576p",
+      "name": "Minika Go (576p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/minika_go_576p.png",
+      "category": "Çocuk",
+      "tags": [],
+      "epg_id": "MinikaGo.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago/minikago.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "minika_go_720p",
+      "name": "Minika Go (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/minika_go_720p.png",
+      "category": "Çocuk",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MinikaGo.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago/minikago.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "mturk_tv_1080p",
+      "name": "MTürk TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/mturk_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "MTurkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/muglaturk/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "national_geographic_1080p_geo_blocked",
+      "name": "National Geographic (1080p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/national_geographic_1080p_geo_blocked.png",
+      "category": "Belgesel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "NationalGeographic.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://saran-live.ercdn.net/natgeohd/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "national_geographic_wild_1080p_geo_blocked",
+      "name": "National Geographic Wild (1080p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/national_geographic_wild_1080p_geo_blocked.png",
+      "category": "Belgesel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "NationalGeographicWild.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://saran-live.ercdn.net/natgeowild/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "natural_tv_720p_not_24_7",
+      "name": "Natural TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/natural_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "NaturalTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/naturaltv/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "now_tv_720p",
+      "name": "NOW TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/now_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "NOWTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://uycyyuuzyh.turknet.ercdn.net/nphindgytw/nowtv/nowtv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "ntv",
+      "name": "NTV",
+      "logo_url": "https://cdn.kotaktv.com/logos/ntv.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "NTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://dogus.daioncdn.net/ntv/ntv.m3u8?app=ntv_web",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "number_1_ask_720p",
+      "name": "Number 1 Ask (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/number_1_ask_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Number1Ask.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/u_stream_5c9e18f9cea15_1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "number_1_damar_720p",
+      "name": "Number 1 Damar (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/number_1_damar_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Number1Damar.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/u_stream_5c9e198784bdc_1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "number_1_dance_720p",
+      "name": "Number 1 Dance (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/number_1_dance_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Number1Dance.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/u_stream_5c9e2aa8acf44_1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "number_1_tv_720p",
+      "name": "Number 1 TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/number_1_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Number1TV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/broadcast_5c9e17cd59e8b.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "olay_turk_tv_kayseri_720p_geo_blocked",
+      "name": "Olay Türk TV Kayseri (720p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/olay_turk_tv_kayseri_720p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "OlayTurkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_olayturk/olayturk/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_dance_1080p",
+      "name": "Power Dance (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_dance_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "PowerDance.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/dance/dance.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_love_1080p",
+      "name": "Power Love (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_love_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "PowerLove.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/plove/love.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_turk_1080p_not_24_7",
+      "name": "Power Turk (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_turk_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "PowerTurkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/powerturkTV/powerturkhd.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_turk_akustik_1080p",
+      "name": "Power Türk Akustik (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_turk_akustik_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "PowerTurkAkustik.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/pturkakustik/akustik.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_turk_slow_1080p",
+      "name": "Power Türk Slow (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_turk_slow_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "PowerTurkSlow.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/pturkslow/slow.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_turk_taptaze_1080p",
+      "name": "Power Türk Taptaze (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_turk_taptaze_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "PowerTurkTaptaze.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/pturktaptaze/taptaze.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_tv_1080p",
+      "name": "Power TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "PowerTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.powerapp.com.tr/powerTV/powerhd.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "power_tv_720p",
+      "name": "Power TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/power_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "PowerTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_powertv/powertv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "powerturk_tv_720p",
+      "name": "PowerTürk TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/powerturk_tv_720p.png",
+      "category": "Müzik",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "PowerTurkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_powerturktv/powerturktv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "qaf_tv_1080p",
+      "name": "Qaf TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/qaf_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "QafTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://customer-9vqui33qma2rownb.cloudflarestream.com/7792e558fe54e23bdd4b462ec275cdba/manifest/video.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "sat7_turk_1080p",
+      "name": "Sat7 Türk (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/sat7_turk_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "Sat7Turk.cy@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_sat7turk/sat7turk/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "https://svs.itworkscdn.net/sat7turklive/sat7turk.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "satranc_tv_480p_not_24_7",
+      "name": "Satranç TV (480p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/satranc_tv_480p_not_24_7.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "BricveSatrancTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://139.162.182.79/live/test/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "semerkand_tv_1080p_not_24_7",
+      "name": "Semerkand TV (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/semerkand_tv_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "SemerkandTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtisvwurbfcyslive/broadcast_58d915bd40efc.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "sercem_tv_1080p",
+      "name": "Sercem TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/sercem_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "SercemTV.tr@HD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://canli.sercemtv.com.tr/hls/0/stream.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "spacetoon_turkey_720p_not_24_7",
+      "name": "Spacetoon Turkey (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/spacetoon_turkey_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "SpacetoonTurkey.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live-tr-next.spacetoongo.com/ST_TR_NEXT/hls/h7qefeiwfbjn1.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "star_tv_720p",
+      "name": "Star TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/star_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "StarTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://dogus.daioncdn.net/startv/startv_720p.m3u8?app=a20ac41e-bdc3-4aa1-934d-26b484480ac9&ce=3&sid=8l4w3lst4co5",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "sun_rtv_720p_not_24_7",
+      "name": "Sun RTV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/sun_rtv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "SunRTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_sunrtv/sunrtv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tbmm_tv_720p",
+      "name": "TBMM TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tbmm_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TBMMTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tele_1_1080p",
+      "name": "Tele 1 (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tele_1_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Tele1.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tele1-live.ercdn.net/tele1/tele1.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tempo_tv_720p",
+      "name": "Tempo TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tempo_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TempoTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_tempotv/tempotv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tgrt_belgesel_tv_576p_not_24_7",
+      "name": "TGRT Belgesel TV (576p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tgrt_belgesel_tv_576p_not_24_7.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "TGRTBelgesel.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtsxxkzwwuqtglive/broadcast_5fe462afc6a0e.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tgrt_haber_360p_not_24_7",
+      "name": "TGRT Haber (360p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tgrt_haber_360p_not_24_7.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "TGRTHaber.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtsxxkzwwuqtglive/broadcast_5fe4598be8e5d.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tgrt_haber_720p",
+      "name": "TGRT Haber (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tgrt_haber_720p.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TGRTHaber.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://canli.tgrthaber.com/tgrt.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tivi_6_720p",
+      "name": "Tivi 6 (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tivi_6_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Tivi6.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_tivi6/tivi6/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tjk_tv_1080p",
+      "name": "TJK TV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tjk_tv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TJKTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tjktv-live.tjk.org/tjktv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tjk_tv_2_1080p_not_24_7",
+      "name": "TJK TV 2 (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tjk_tv_2_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TJKTV2.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tjktv-live.tjk.org/tjktv2/tjktv2.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "ton_tv_720p_not_24_7",
+      "name": "Ton TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/ton_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TonTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_tontv/tontv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tr24_tv_720p_not_24_7",
+      "name": "TR24 TV (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tr24_tv_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "24TV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv.ensonhaber.com/tv24/tv24.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_1_1440p",
+      "name": "TRT 1 (1440p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_1_1440p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "TRT1.tr@SD",
       "is_active": true,
       "streams": [
         {
@@ -21,156 +2887,720 @@
           "label": "primary-cdn",
           "url": "https://tv-trt1.medya.trt.com.tr/master.m3u8",
           "drm": null,
-          "resolution": "1080p",
-          "bitrate_kbps": 4500,
-          "headers": {}
-        },
-        {
-          "priority": 2,
-          "label": "backup-cdn-1",
-          "url": "https://backup1.kotaktv.com/trt1/master.m3u8",
-          "drm": null,
-          "resolution": "720p",
-          "bitrate_kbps": 2500,
-          "headers": {}
-        },
-        {
-          "priority": 3,
-          "label": "backup-cdn-2",
-          "url": "https://backup2.kotaktv.com/trt1/stream.m3u8",
-          "drm": null,
-          "resolution": "720p",
-          "bitrate_kbps": 2500,
-          "headers": {}
-        },
-        {
-          "priority": 4,
-          "label": "backup-cdn-3",
-          "url": "https://backup3.kotaktv.com/trt1/live.m3u8",
-          "drm": null,
-          "resolution": "480p",
-          "bitrate_kbps": 1200,
-          "headers": {}
-        },
-        {
-          "priority": 5,
-          "label": "emergency-low",
-          "url": "https://emergency.kotaktv.com/trt1/low.m3u8",
-          "drm": null,
-          "resolution": "360p",
-          "bitrate_kbps": 600,
+          "resolution": "auto",
+          "bitrate_kbps": null,
           "headers": {}
         }
       ]
     },
     {
-      "id": "bein_sports_1",
-      "name": "beIN Sports 1",
-      "logo_url": "https://cdn.kotaktv.com/logos/bein_sports_1.png",
-      "category": "Spor",
-      "tags": ["futbol", "spor", "canlı"],
-      "epg_id": "beINSports1.tr",
+      "id": "trt_2_1440p_geo_blocked",
+      "name": "TRT 2 (1440p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_2_1440p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "TRT2.tr@SD",
       "is_active": true,
       "streams": [
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "https://primary.kotaktv.com/bein1/master.m3u8",
-          "drm": {
-            "type": "widevine",
-            "license_url": "https://drm.kotaktv.com/widevine/bein1",
-            "headers": {
-              "X-DRM-Token": "__INJECTED_BY_BOT__"
-            }
-          },
-          "resolution": "1080p",
-          "bitrate_kbps": 5000,
-          "headers": {
-            "Referer": "https://kotaktv.com",
-            "Origin": "https://kotaktv.com"
-          }
-        },
-        {
-          "priority": 2,
-          "label": "backup-cdn-1",
-          "url": "https://backup1.kotaktv.com/bein1/master.m3u8",
-          "drm": {
-            "type": "widevine",
-            "license_url": "https://drm.kotaktv.com/widevine/bein1",
-            "headers": {
-              "X-DRM-Token": "__INJECTED_BY_BOT__"
-            }
-          },
-          "resolution": "720p",
-          "bitrate_kbps": 3000,
-          "headers": {
-            "Referer": "https://kotaktv.com",
-            "Origin": "https://kotaktv.com"
-          }
-        },
-        {
-          "priority": 3,
-          "label": "backup-cdn-2",
-          "url": "https://backup2.kotaktv.com/bein1/stream.m3u8",
+          "url": "https://tv-trt2.medya.trt.com.tr/master.m3u8",
           "drm": null,
-          "resolution": "720p",
-          "bitrate_kbps": 2500,
-          "headers": {}
-        },
-        {
-          "priority": 4,
-          "label": "backup-cdn-3",
-          "url": "https://backup3.kotaktv.com/bein1/live.m3u8",
-          "drm": null,
-          "resolution": "480p",
-          "bitrate_kbps": 1200,
+          "resolution": "auto",
+          "bitrate_kbps": null,
           "headers": {}
         }
       ]
     },
     {
-      "id": "cnn_turk",
-      "name": "CNN Türk",
-      "logo_url": "https://cdn.kotaktv.com/logos/cnn_turk.png",
+      "id": "trt_3_720p",
+      "name": "TRT 3 (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_3_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRT3.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trt3.live.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_arabi_1080p_not_24_7",
+      "name": "TRT Arabi (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_arabi_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTArabi.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtarabi.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_avaz_720p",
+      "name": "TRT Avaz (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_avaz_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTAvaz.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtavaz.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_belgesel_720p",
+      "name": "TRT Belgesel (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_belgesel_720p.png",
+      "category": "Belgesel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTBelgesel.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtbelgesel.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_cocuk_1440p",
+      "name": "TRT Cocuk (1440p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_cocuk_1440p.png",
+      "category": "Çocuk",
+      "tags": [],
+      "epg_id": "TRTCocuk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtcocuk.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_diyanet_cocuk_720p",
+      "name": "TRT Diyanet Çocuk (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_diyanet_cocuk_720p.png",
+      "category": "Çocuk",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTDiyanetCocuk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtdiyanetcocuk.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_eba_ilkokul_720p",
+      "name": "TRT EBA Ilkokul (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_eba_ilkokul_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTEBAIlkokul.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-e-okul00.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_eba_lise_720p",
+      "name": "TRT EBA Lise (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_eba_lise_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTEBALise.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-e-okul02.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_eba_ortaokul_720p",
+      "name": "TRT EBA Ortaokul (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_eba_ortaokul_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTEBA.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-e-okul01.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_genc_1440p_geo_blocked",
+      "name": "TRT Genc (1440p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_genc_1440p_geo_blocked.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "TRTGenc.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtgenc.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_haber_720p",
+      "name": "TRT Haber (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_haber_720p.png",
       "category": "Haber",
-      "tags": ["haber", "gündem", "canlı"],
-      "epg_id": "CNNTurk.tr",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTHaber.tr@SD",
       "is_active": true,
       "streams": [
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "https://cnnturk-live.daioncdn.net/cnnturk/cnnturk.m3u8",
+          "url": "https://tv-trthaber.medya.trt.com.tr/master.m3u8",
           "drm": null,
-          "resolution": "1080p",
-          "bitrate_kbps": 4000,
+          "resolution": "auto",
+          "bitrate_kbps": null,
           "headers": {}
-        },
+        }
+      ]
+    },
+    {
+      "id": "trt_kurd_720p",
+      "name": "TRT Kurdî (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_kurd_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTKurdi.tr@SD",
+      "is_active": true,
+      "streams": [
         {
-          "priority": 2,
-          "label": "backup-cdn-1",
-          "url": "https://backup1.kotaktv.com/cnnturk/master.m3u8",
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtkurdi.medya.trt.com.tr/master.m3u8",
           "drm": null,
-          "resolution": "720p",
-          "bitrate_kbps": 2500,
+          "resolution": "auto",
+          "bitrate_kbps": null,
           "headers": {}
-        },
+        }
+      ]
+    },
+    {
+      "id": "trt_muzik",
+      "name": "TRT Muzik",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_muzik.png",
+      "category": "Müzik",
+      "tags": [],
+      "epg_id": "TRTMuzik.tr@SD",
+      "is_active": true,
+      "streams": [
         {
-          "priority": 3,
-          "label": "backup-cdn-2",
-          "url": "https://backup2.kotaktv.com/cnnturk/stream.m3u8",
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://stream8.cinerama.uz/1208/tracks-v1a1/mono.m3u8",
           "drm": null,
-          "resolution": "720p",
-          "bitrate_kbps": 2000,
+          "resolution": "auto",
+          "bitrate_kbps": null,
           "headers": {}
-        },
+        }
+      ]
+    },
+    {
+      "id": "trt_muzik_720p",
+      "name": "TRT Müzik (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_muzik_720p.png",
+      "category": "Müzik",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTMuzik.tr@SD",
+      "is_active": true,
+      "streams": [
         {
-          "priority": 4,
-          "label": "backup-cdn-3",
-          "url": "https://backup3.kotaktv.com/cnnturk/live.m3u8",
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtmuzik.medya.trt.com.tr/master.m3u8",
           "drm": null,
-          "resolution": "480p",
-          "bitrate_kbps": 1000,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_spor_yildiz_1440p_geo_blocked",
+      "name": "TRT Spor Yildiz (1440p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_spor_yildiz_1440p_geo_blocked.png",
+      "category": "Spor",
+      "tags": [],
+      "epg_id": "TRTSporYildiz.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://trt.daioncdn.net/trtspor-yildiz/master.m3u8?app=web&platform=trtspor",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_turk_720p",
+      "name": "TRT Türk (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_turk_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "TRTTurk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtturk.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_world_1080p_not_24_7",
+      "name": "TRT World (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_world_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTWorld.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtworld.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_world_720p",
+      "name": "TRT World (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_world_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TRTWorld.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://mumbai-edge.smartplaytv.in/TRTWorld/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "turkhaber_720p",
+      "name": "TürkHaber (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/turkhaber_720p.png",
+      "category": "Haber",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "TurkHaberTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/turkhaber/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_1_720p",
+      "name": "TV 1 (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_1_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TV1.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/tv1/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_24_720p",
+      "name": "TV 24 (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_24_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "24TV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://turkmedya-live.ercdn.net/tv24/tv24.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_264_1080p",
+      "name": "TV 264 (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_264_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TV264.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtdxkkitgbrckilive/broadcast_5ee244263fd6d.smil/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_41_720p_not_24_7",
+      "name": "TV 41 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_41_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TV41.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_tv41/tv41/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_52_720p_not_24_7",
+      "name": "TV 52 (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_52_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TV52.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://edge1.socialsmart.tv/tv52/bant1/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_8_1080p",
+      "name": "TV 8 (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_8_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TV8.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv8.daioncdn.net/tv8/tv8.m3u8?app=7ddc255a-ef47-4e81-ab14-c0e5f2949788&ce=3",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv_den_576p_not_24_7",
+      "name": "TV Den (576p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv_den_576p_not_24_7.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "TVDen.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://canli.tvden.com.tr/hls/live.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tv4_720p",
+      "name": "TV4 (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tv4_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TV4.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://turkmedya-live.ercdn.net/tv4/tv4.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tvnet_1080p",
+      "name": "TVNET (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tvnet_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "TVNET.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tvnet-live.lg.mncdn.com/tvnet/tvnet/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "urfa_natik_tv_720p",
+      "name": "Urfa Natik TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/urfa_natik_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "UrfaNatikTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_urfanatiktv/urfanatiktv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "van_65_tv",
+      "name": "Van 65 TV",
+      "logo_url": "https://cdn.kotaktv.com/logos/van_65_tv.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "Van65TV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_van65/van65/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "vav_tv",
+      "name": "Vav TV",
+      "logo_url": "https://cdn.kotaktv.com/logos/vav_tv.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "VavTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://playlist.fasttvcdn.com/pl/rfrk9821hdy9dayo8wfyha/kltr-sanat-tv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "zarok_tv_720p",
+      "name": "Zarok TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/zarok_tv_720p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ZarokTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://zindikurmanci.zaroktv.com.tr/hls/stream.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
           "headers": {}
         }
       ]

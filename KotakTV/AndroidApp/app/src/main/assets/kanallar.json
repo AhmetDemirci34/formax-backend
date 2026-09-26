@@ -1,0 +1,179 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "generated_at": "2026-09-26T21:00:00Z",
+    "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
+    "ttl_seconds": 3600,
+    "total_channels": 3
+  },
+  "channels": [
+    {
+      "id": "trt1",
+      "name": "TRT 1",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt1.png",
+      "category": "Genel",
+      "tags": ["yerli", "dizi", "haber"],
+      "epg_id": "TRT1.tr",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trt1.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "1080p",
+          "bitrate_kbps": 4500,
+          "headers": {}
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "https://backup1.kotaktv.com/trt1/master.m3u8",
+          "drm": null,
+          "resolution": "720p",
+          "bitrate_kbps": 2500,
+          "headers": {}
+        },
+        {
+          "priority": 3,
+          "label": "backup-cdn-2",
+          "url": "https://backup2.kotaktv.com/trt1/stream.m3u8",
+          "drm": null,
+          "resolution": "720p",
+          "bitrate_kbps": 2500,
+          "headers": {}
+        },
+        {
+          "priority": 4,
+          "label": "backup-cdn-3",
+          "url": "https://backup3.kotaktv.com/trt1/live.m3u8",
+          "drm": null,
+          "resolution": "480p",
+          "bitrate_kbps": 1200,
+          "headers": {}
+        },
+        {
+          "priority": 5,
+          "label": "emergency-low",
+          "url": "https://emergency.kotaktv.com/trt1/low.m3u8",
+          "drm": null,
+          "resolution": "360p",
+          "bitrate_kbps": 600,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bein_sports_1",
+      "name": "beIN Sports 1",
+      "logo_url": "https://cdn.kotaktv.com/logos/bein_sports_1.png",
+      "category": "Spor",
+      "tags": ["futbol", "spor", "canlı"],
+      "epg_id": "beINSports1.tr",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://primary.kotaktv.com/bein1/master.m3u8",
+          "drm": {
+            "type": "widevine",
+            "license_url": "https://drm.kotaktv.com/widevine/bein1",
+            "headers": {
+              "X-DRM-Token": "__INJECTED_BY_BOT__"
+            }
+          },
+          "resolution": "1080p",
+          "bitrate_kbps": 5000,
+          "headers": {
+            "Referer": "https://kotaktv.com",
+            "Origin": "https://kotaktv.com"
+          }
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "https://backup1.kotaktv.com/bein1/master.m3u8",
+          "drm": {
+            "type": "widevine",
+            "license_url": "https://drm.kotaktv.com/widevine/bein1",
+            "headers": {
+              "X-DRM-Token": "__INJECTED_BY_BOT__"
+            }
+          },
+          "resolution": "720p",
+          "bitrate_kbps": 3000,
+          "headers": {
+            "Referer": "https://kotaktv.com",
+            "Origin": "https://kotaktv.com"
+          }
+        },
+        {
+          "priority": 3,
+          "label": "backup-cdn-2",
+          "url": "https://backup2.kotaktv.com/bein1/stream.m3u8",
+          "drm": null,
+          "resolution": "720p",
+          "bitrate_kbps": 2500,
+          "headers": {}
+        },
+        {
+          "priority": 4,
+          "label": "backup-cdn-3",
+          "url": "https://backup3.kotaktv.com/bein1/live.m3u8",
+          "drm": null,
+          "resolution": "480p",
+          "bitrate_kbps": 1200,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "cnn_turk",
+      "name": "CNN Türk",
+      "logo_url": "https://cdn.kotaktv.com/logos/cnn_turk.png",
+      "category": "Haber",
+      "tags": ["haber", "gündem", "canlı"],
+      "epg_id": "CNNTurk.tr",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://cnnturk-live.daioncdn.net/cnnturk/cnnturk.m3u8",
+          "drm": null,
+          "resolution": "1080p",
+          "bitrate_kbps": 4000,
+          "headers": {}
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "https://backup1.kotaktv.com/cnnturk/master.m3u8",
+          "drm": null,
+          "resolution": "720p",
+          "bitrate_kbps": 2500,
+          "headers": {}
+        },
+        {
+          "priority": 3,
+          "label": "backup-cdn-2",
+          "url": "https://backup2.kotaktv.com/cnnturk/stream.m3u8",
+          "drm": null,
+          "resolution": "720p",
+          "bitrate_kbps": 2000,
+          "headers": {}
+        },
+        {
+          "priority": 4,
+          "label": "backup-cdn-3",
+          "url": "https://backup3.kotaktv.com/cnnturk/live.m3u8",
+          "drm": null,
+          "resolution": "480p",
+          "bitrate_kbps": 1000,
+          "headers": {}
+        }
+      ]
+    }
+  ]
+}
