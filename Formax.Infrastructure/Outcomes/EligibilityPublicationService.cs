@@ -34,6 +34,7 @@ namespace Formax.Infrastructure.Outcomes
         private List<HistoricalMatch>? _loaded;
         private DateTime _loadedUntil;
         private Dictionary<int, string>? _names;
+        private Dictionary<int, DateTime?>? _resultUpdated;
 
         public BacktestEligibilityEvaluationSource(OutcomeHistoryLoader history) => _history = history;
 
@@ -50,6 +51,7 @@ namespace Formax.Infrastructure.Outcomes
             _loaded = await _history.LoadAsync(maxCutoffUtc, ct).ConfigureAwait(false);
             _loadedUntil = maxCutoffUtc;
             _names ??= await _history.LoadCompetitionNamesAsync(ct).ConfigureAwait(false);
+            _resultUpdated = await _history.LoadResultUpdatedAsync(LockedCompetitions.All, ct).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<CellEvaluation>> EvaluateAsync(DateTime cutoffUtc, DateTime evaluatedAtUtc, CancellationToken ct = default)
@@ -57,12 +59,13 @@ namespace Formax.Infrastructure.Outcomes
             await PreloadAsync(cutoffUtc, ct).ConfigureAwait(false);
             var history = _loaded!.Where(m => m.KickoffUtc < cutoffUtc).ToList();
             var names = _names!;
-            return await Task.Run(() => Evaluate(history, names, cutoffUtc, evaluatedAtUtc, ConfigHash), ct).ConfigureAwait(false);
+            var updated = _resultUpdated;
+            return await Task.Run(() => Evaluate(history, names, cutoffUtc, evaluatedAtUtc, ConfigHash, updated), ct).ConfigureAwait(false);
         }
 
-        /// <summary>Saf hesap (test edilebilir): backtest + organizasyon düzeyi bütünlük kontrolleri + ham kapı sınıflaması.</summary>
+        /// <summary>Saf hesap (test edilebilir): backtest + organizasyon düzeyi bütünlük kontrolleri + ham kapı sınıflaması + kanıt manifestosu.</summary>
         public static IReadOnlyList<CellEvaluation> Evaluate(IReadOnlyList<HistoricalMatch> history, IReadOnlyDictionary<int, string> names,
-            DateTime cutoffUtc, DateTime evaluatedAtUtc, string configHash)
+            DateTime cutoffUtc, DateTime evaluatedAtUtc, string configHash, IReadOnlyDictionary<int, DateTime?>? resultUpdated = null)
         {
             var testStart = cutoffUtc - OutcomeModelTrainingService.TestWindow;
             var calStart = testStart - OutcomeModelTrainingService.CalibrationWindow;
@@ -116,10 +119,31 @@ namespace Formax.Infrastructure.Outcomes
             {
                 var result = league.FirstOrDefault(m => m.Family == MarketFamilies.MatchResult);
                 var integ = integrity.TryGetValue(league.Key, out var ig) ? ig : EvaluationIntegrity.Clean;
+                var manifest = BuildManifest(league.Key, artifacts?.LockedTestSamples, resultUpdated);
                 foreach (var m in league)
-                    list.Add(EligibilityPublicationPolicy.ToEvaluation(m, result, integ, cutoffUtc, runId, configHash, evaluatedAtUtc, report.ModelVersion));
+                {
+                    var e = EligibilityPublicationPolicy.ToEvaluation(m, result, integ, cutoffUtc, runId, configHash, evaluatedAtUtc, report.ModelVersion);
+                    e.Evidence = manifest;
+                    e.EvidenceFingerprint = EvidenceIdentity.Fingerprint(e.MarketFamily, manifest, e.ModelVersion, e.ConfigHash, e.GatePolicyVersion, e.PolicyVersion);
+                    list.Add(e);
+                }
             }
             return list;
+        }
+
+        /// <summary>Organizasyonun test penceresinde kullanılan tamamlanmış maçlar (MatchId → skor) + maks. başlama + maks. sonuç güncelleme.</summary>
+        public static EvidenceManifest BuildManifest(int league, IReadOnlyList<EvalSample>? samples, IReadOnlyDictionary<int, DateTime?>? resultUpdated)
+        {
+            var m = new EvidenceManifest { OrganizationId = league };
+            foreach (var s in (samples ?? Array.Empty<EvalSample>()).Where(s => s.LeagueId == league))
+            {
+                m.Results[s.MatchId] = (s.HomeGoals, s.AwayGoals);
+                var u = resultUpdated != null && resultUpdated.TryGetValue(s.MatchId, out var v) ? v : null;
+                m.UpdatedAt[s.MatchId] = u;
+                if (m.MaxKickoffUtc == null || s.KickoffUtc > m.MaxKickoffUtc) m.MaxKickoffUtc = s.KickoffUtc;
+                if (u != null && (m.MaxResultUpdatedUtc == null || u > m.MaxResultUpdatedUtc)) m.MaxResultUpdatedUtc = DateTime.SpecifyKind(u.Value, DateTimeKind.Utc);
+            }
+            return m;
         }
     }
 
@@ -290,14 +314,22 @@ namespace Formax.Infrastructure.Outcomes
             var report = new EligibilityPublicationReport { Mode = mode.ToString(), ConfigHash = _source.ConfigHash };
             var cutoffs = cutoffsUtc.Select(c => DateTime.SpecifyKind(c, DateTimeKind.Utc)).Distinct().OrderBy(c => c).ToList();
             if (cutoffs.Count == 0) return report;
-            if (cutoffs.Any(c => c > nowUtc)) throw new InvalidOperationException("CUTOFF_IN_FUTURE");
+            // Gelecek kesim yalnız DRY-RUN'da ve en çok 8 gün ileri: planlı bir koşuyu (ör. Pazartesi) bugünkü veriyle önceden
+            // simüle eder. Yalnız bitmiş maçlar okunduğu için sızıntı yoktur; hiçbir şey yazılmaz.
+            var simulatedFuture = cutoffs.Any(c => c > nowUtc);
+            if (simulatedFuture && (mode != EligibilityPublicationMode.DryRun || cutoffs.Any(c => c > nowUtc.AddDays(8))))
+                throw new InvalidOperationException("CUTOFF_IN_FUTURE");
 
             var bootstrapped = await _db.MarketEligibilityPublicationRuns.AsNoTracking().AnyAsync(r => r.RunKey == BootstrapRunKey, ct).ConfigureAwait(false);
             if (mode == EligibilityPublicationMode.Publish && !bootstrapped) throw new InvalidOperationException("NOT_BOOTSTRAPPED");
 
             var (states, history) = await LoadPublishedAsync(ct).ConfigureAwait(false);
             if (_source is BacktestEligibilityEvaluationSource bt) await bt.PreloadAsync(cutoffs[^1], ct).ConfigureAwait(false);
-            var lastPublished = history.Values.SelectMany(h => h).Select(e => (DateTime?)e.EvaluationCutoffUtc).DefaultIfEmpty(null).Max();
+            var lastPublished = await _db.MarketEligibilityEvaluations.AsNoTracking()
+                .Where(e => e.Mode == "Publish" && e.PolicyVersion == EligibilityPublicationPolicy.Version)
+                .Select(e => (DateTime?)e.EvaluationCutoffUtc).MaxAsync(ct).ConfigureAwait(false);
+            // Son SAYILAN pencerenin kanıtı (hücre başına). Koruma öncesi pencerelerin manifestosu yoksa deterministik yeniden üretilir.
+            var counted = await LoadCountedEvidenceAsync(persist: mode != EligibilityPublicationMode.DryRun, nowUtc, ct).ConfigureAwait(false);
 
             foreach (var cutoff in cutoffs)
             {
@@ -326,11 +358,18 @@ namespace Formax.Infrastructure.Outcomes
 
                 var evals = await _source.EvaluateAsync(cutoff, nowUtc, ct).ConfigureAwait(false);
                 outcome.Evaluations = evals.ToList();
+                // YENİ KANIT KORUMASI — aynı veri kümesi sayaçları ilerletmez.
+                foreach (var e in evals)
+                {
+                    var prev = counted.TryGetValue(e.Cell, out var p) ? p : default;
+                    EvidenceIdentity.Classify(e, prev.Fingerprint, prev.Manifest);
+                }
                 if (mode == EligibilityPublicationMode.EvaluateOnly)
                 {
                     // "Olsaydı" geçişi kopya üzerinde — yayın durumu ve geçmiş DEĞİŞMEZ.
                     outcome.Transitions = EligibilityPublicationPolicy.Apply(new Dictionary<(int, string), string>(states), Copy(history), evals);
                     await PersistEvaluationsAsync(evals, "EvaluateOnly", source, null, runKey!, ct).ConfigureAwait(false);
+                    await PersistManifestsAsync(evals, reconstructed: false, nowUtc, ct).ConfigureAwait(false);
                     AddRun(runKey!, "EvaluateOnly", source, cutoff, outcome, evals.Count, 0, 0, sw);
                     await _db.SaveChangesAsync(ct).ConfigureAwait(false);
                     outcome.Result = "EVALUATED";
@@ -340,9 +379,11 @@ namespace Formax.Infrastructure.Outcomes
                     outcome.Transitions = transitionsFromUtc != null && cutoff < transitionsFromUtc.Value
                         ? EligibilityPublicationPolicy.RecordHistory(states, history, evals)
                         : EligibilityPublicationPolicy.Apply(states, history, evals);
+                    foreach (var e in evals.Where(e => e.Counts)) counted[e.Cell] = (e.EvidenceFingerprint, e.Evidence?.Results);
                     if (mode == EligibilityPublicationMode.Publish)
                     {
                         await PersistPublishAsync(evals, outcome.Transitions, source, runKey!, cutoff, nowUtc, ct).ConfigureAwait(false);
+                        await PersistManifestsAsync(evals, reconstructed: false, nowUtc, ct).ConfigureAwait(false);
                         AddRun(runKey!, "Publish", source, cutoff, outcome, evals.Count, outcome.Transitions.Count(t => t.Changed),
                             outcome.Transitions.Count(t => t.VisibilityChanged), sw);
                         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -350,7 +391,7 @@ namespace Formax.Infrastructure.Outcomes
                         lastPublished = cutoff;
                         outcome.Result = "PUBLISHED";
                     }
-                    else outcome.Result = "DRY_RUN";
+                    else outcome.Result = cutoff > nowUtc ? "DRY_RUN_SIMULATED_FUTURE_CUTOFF" : "DRY_RUN";
                 }
                 outcome.DurationMs = sw.ElapsedMilliseconds;
                 _log.LogInformation("[ELIGIBILITY PUBLICATION] {Mode} kesim={Cutoff:O} hücre={Cells} geçiş={Changed} görünürlük={Vis} süre={Ms}ms",
@@ -374,8 +415,84 @@ namespace Formax.Infrastructure.Outcomes
             var rows = await _db.MarketEligibilityEvaluations.AsNoTracking()
                 .Where(e => e.Mode == "Publish" && e.PolicyVersion == EligibilityPublicationPolicy.Version)
                 .OrderBy(e => e.EvaluationCutoffUtc).ToListAsync(ct).ConfigureAwait(false);
-            var history = rows.Select(ToCell).GroupBy(e => e.Cell).ToDictionary(g => g.Key, g => g.ToList());
+            // Kararlılık geçmişi yalnız SAYILAN pencerelerdir (NO_NEW_EVIDENCE kayıtları audit'tir, sayaç ilerletmez).
+            var history = rows.Select(ToCell).Where(e => e.Counts).GroupBy(e => e.Cell).ToDictionary(g => g.Key, g => g.ToList());
             return (states, history);
+        }
+
+        /// <summary>
+        /// Hücre başına son SAYILAN yayın penceresinin kanıtı (parmak izi + manifest). Manifestosu olmayan (koruma öncesi) pencere
+        /// aynı kesimle deterministik yeniden ölçülür; o pencerenin değerlendirme anından SONRA yazılmış sonuçlar manifestten
+        /// çıkarılır (o an bilinmiyordu — aksi hâlde gerçek yeni kanıt gizlenirdi). <paramref name="persist"/> ise Reconstructed=true yazılır.
+        /// </summary>
+        private async Task<Dictionary<(int, string), (string? Fingerprint, SortedDictionary<int, (int, int)>? Manifest)>> LoadCountedEvidenceAsync(
+            bool persist, DateTime nowUtc, CancellationToken ct)
+        {
+            var rows = await _db.MarketEligibilityEvaluations.AsNoTracking()
+                .Where(e => e.Mode == "Publish" && e.PolicyVersion == EligibilityPublicationPolicy.Version
+                            && (e.TransitionStatus == null || e.TransitionStatus != TransitionStatuses.NoNewEvidence))
+                .Select(e => new { e.OrganizationId, e.MarketFamily, e.EvaluationCutoffUtc, e.EvaluatedAtUtc, e.EvidenceFingerprint, e.ModelVersion, e.ConfigHash })
+                .ToListAsync(ct).ConfigureAwait(false);
+            var latest = rows.GroupBy(r => (r.OrganizationId, r.MarketFamily)).Select(g => g.OrderBy(r => r.EvaluationCutoffUtc).Last()).ToList();
+            var result = new Dictionary<(int, string), (string?, SortedDictionary<int, (int, int)>?)>();
+            if (latest.Count == 0) return result;
+            var cutoffs = latest.Select(l => l.EvaluationCutoffUtc).Distinct().ToList();
+            var manifests = (await _db.MarketEligibilityEvidenceManifests.AsNoTracking()
+                    .Where(m => cutoffs.Contains(m.EvaluationCutoffUtc) && m.PolicyVersion == EligibilityPublicationPolicy.Version)
+                    .ToListAsync(ct).ConfigureAwait(false))
+                .ToDictionary(m => (m.OrganizationId, m.EvaluationCutoffUtc, m.ModelVersion, m.ConfigHash), m => EvidenceManifest.Parse(m.Manifest));
+
+            // Eksik manifestoları kesim başına bir kez yeniden üret.
+            foreach (var group in latest.Where(l => !manifests.ContainsKey((l.OrganizationId, l.EvaluationCutoffUtc, l.ModelVersion, l.ConfigHash)))
+                         .GroupBy(l => l.EvaluationCutoffUtc))
+            {
+                var cutoff = DateTime.SpecifyKind(group.Key, DateTimeKind.Utc);
+                var knownAt = DateTime.SpecifyKind(group.Max(g => g.EvaluatedAtUtc), DateTimeKind.Utc);
+                var re = await _source.EvaluateAsync(cutoff, knownAt, ct).ConfigureAwait(false);
+                foreach (var org in re.Where(e => e.Evidence != null).GroupBy(e => e.OrganizationId))
+                {
+                    var src = org.First();
+                    var known = new EvidenceManifest { OrganizationId = org.Key, MaxKickoffUtc = src.Evidence!.MaxKickoffUtc };
+                    foreach (var (id, score) in src.Evidence!.Results)
+                    {
+                        var upd = src.Evidence.UpdatedAt.GetValueOrDefault(id);
+                        if (upd != null && upd > knownAt) continue; // o değerlendirmede bilinmiyordu
+                        known.Results[id] = score;
+                        known.UpdatedAt[id] = upd;
+                        if (upd != null && (known.MaxResultUpdatedUtc == null || upd > known.MaxResultUpdatedUtc)) known.MaxResultUpdatedUtc = upd;
+                    }
+                    manifests[(org.Key, group.Key, src.ModelVersion, src.ConfigHash)] = known.Results;
+                    if (persist && !await _db.MarketEligibilityEvidenceManifests.AnyAsync(m => m.OrganizationId == org.Key && m.EvaluationCutoffUtc == cutoff
+                            && m.ModelVersion == src.ModelVersion && m.ConfigHash == src.ConfigHash && m.PolicyVersion == EligibilityPublicationPolicy.Version, ct).ConfigureAwait(false))
+                        _db.MarketEligibilityEvidenceManifests.Add(ManifestRow(known, cutoff, src, reconstructed: true, nowUtc));
+                }
+                if (persist) await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+                _log.LogInformation("[ELIGIBILITY PUBLICATION] kanıt manifestosu yeniden üretildi: kesim={Cutoff:O} bilinenAn={Known:O}", cutoff, knownAt);
+            }
+            foreach (var l in latest)
+                result[(l.OrganizationId, l.MarketFamily)] = (l.EvidenceFingerprint,
+                    manifests.TryGetValue((l.OrganizationId, l.EvaluationCutoffUtc, l.ModelVersion, l.ConfigHash), out var m) ? m : null);
+            return result;
+        }
+
+        private static MarketEligibilityEvidenceManifest ManifestRow(EvidenceManifest m, DateTime cutoff, CellEvaluation lineage, bool reconstructed, DateTime nowUtc) => new()
+        {
+            OrganizationId = m.OrganizationId, EvaluationCutoffUtc = cutoff, ModelVersion = lineage.ModelVersion, ConfigHash = lineage.ConfigHash,
+            PolicyVersion = EligibilityPublicationPolicy.Version, SampleCount = m.SampleCount,
+            MaxKickoffUtc = m.MaxKickoffUtc, MaxResultUpdatedUtc = m.MaxResultUpdatedUtc,
+            ManifestHash = m.Hash(), Manifest = m.Serialize(), Reconstructed = reconstructed, CreatedAtUtc = nowUtc
+        };
+
+        private async Task PersistManifestsAsync(IReadOnlyList<CellEvaluation> evals, bool reconstructed, DateTime nowUtc, CancellationToken ct)
+        {
+            foreach (var org in evals.Where(e => e.Evidence != null).GroupBy(e => e.OrganizationId))
+            {
+                var e = org.First();
+                if (_db.MarketEligibilityEvidenceManifests.Local.Any(m => m.OrganizationId == org.Key && m.EvaluationCutoffUtc == e.EvaluationCutoffUtc && m.ConfigHash == e.ConfigHash && m.ModelVersion == e.ModelVersion)) continue;
+                if (await _db.MarketEligibilityEvidenceManifests.AnyAsync(m => m.OrganizationId == org.Key && m.EvaluationCutoffUtc == e.EvaluationCutoffUtc
+                        && m.ModelVersion == e.ModelVersion && m.ConfigHash == e.ConfigHash && m.PolicyVersion == EligibilityPublicationPolicy.Version, ct).ConfigureAwait(false)) continue;
+                _db.MarketEligibilityEvidenceManifests.Add(ManifestRow(e.Evidence!, e.EvaluationCutoffUtc, e, reconstructed, nowUtc));
+            }
         }
 
         public static CellEvaluation ToCell(MarketEligibilityEvaluation e) => new()
@@ -387,7 +504,8 @@ namespace Formax.Infrastructure.Outcomes
             DifferenceFromBaseline = e.DifferenceFromBaseline, ConfidenceIntervalLow = e.ConfidenceIntervalLow, ConfidenceIntervalHigh = e.ConfidenceIntervalHigh,
             Bias = e.Bias, Coverage = e.Coverage, GateStatus = e.GateStatus, RawGateStatus = e.RawGateStatus,
             RawGateReasons = JsonSerializer.Deserialize<List<string>>(e.RawGateReasonsJson) ?? new List<string>(),
-            EvaluatedAtUtc = e.EvaluatedAtUtc
+            EvaluatedAtUtc = e.EvaluatedAtUtc, EvidenceFingerprint = e.EvidenceFingerprint, NewEvidenceCount = e.NewEvidenceCount,
+            TransitionStatus = e.TransitionStatus
         };
 
         private static MarketEligibilityEvaluation ToRow(CellEvaluation e, string mode, string source, string runKey) => new()
@@ -400,7 +518,8 @@ namespace Formax.Infrastructure.Outcomes
             ConfidenceIntervalLow = e.ConfidenceIntervalLow, ConfidenceIntervalHigh = e.ConfidenceIntervalHigh,
             Bias = e.Bias, Coverage = e.Coverage, GateStatus = e.GateStatus, RawGateStatus = e.RawGateStatus,
             RawGateReasonsJson = JsonSerializer.Serialize(e.RawGateReasons, Json), EvaluatedAtUtc = e.EvaluatedAtUtc,
-            PublicationRunKey = runKey
+            PublicationRunKey = runKey, EvidenceFingerprint = e.EvidenceFingerprint, NewEvidenceCount = e.NewEvidenceCount,
+            TransitionStatus = e.TransitionStatus
         };
 
         private async Task PersistEvaluationsAsync(IReadOnlyList<CellEvaluation> evals, string mode, string source,

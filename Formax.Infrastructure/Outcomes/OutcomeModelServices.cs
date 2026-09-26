@@ -47,6 +47,16 @@ namespace Formax.Infrastructure.Outcomes
             return list;
         }
 
+        /// <summary>Bitmiş maçların sonuç güncelleme zamanı (kanıt kimliği için; yalnız verilen organizasyonlar).</summary>
+        public async Task<Dictionary<int, DateTime?>> LoadResultUpdatedAsync(IEnumerable<int> leagues, CancellationToken ct = default)
+        {
+            var ids = leagues.ToList();
+            return await _db.Matches.AsNoTracking()
+                .Where(m => m.Status == MatchStatuses.Finished && ids.Contains(m.LeagueId))
+                .Select(m => new { m.Id, m.ResultUpdatedAtUtc })
+                .ToDictionaryAsync(m => m.Id, m => m.ResultUpdatedAtUtc, ct).ConfigureAwait(false);
+        }
+
         /// <summary>Organizasyon adları (yalnız hazırlık maçı organizasyonlarını ayıklamak için).</summary>
         public async Task<Dictionary<int, string>> LoadCompetitionNamesAsync(CancellationToken ct = default)
         {

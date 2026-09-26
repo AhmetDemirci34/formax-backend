@@ -98,12 +98,104 @@ namespace Formax.Application.Services.Outcomes
         public List<string> RawGateReasons { get; set; } = new();
         public DateTime EvaluatedAtUtc { get; set; }
 
+        // ── Kanıt kimliği (no-new-evidence koruması) ──
+        /// <summary>Organizasyonun test örneklemi (maç → skor, başlama, sonuç güncelleme zamanı). Hücreler arası paylaşılır; DB'ye manifest olarak yazılır.</summary>
+        public EvidenceManifest? Evidence { get; set; }
+        /// <summary>Deterministik kanıt parmak izi (hücre bazında).</summary>
+        public string? EvidenceFingerprint { get; set; }
+        /// <summary>Önceki SAYILAN pencereye göre yeni maç + skoru değişen maç sayısı (null = karşılaştırma yok / ilk pencere).</summary>
+        public int? NewEvidenceCount { get; set; }
+        /// <summary>COUNTED | NO_NEW_EVIDENCE_NO_TRANSITION | PRE_BOOTSTRAP_HISTORY | HARD_FAIL_WITHOUT_NEW_EVIDENCE.</summary>
+        public string? TransitionStatus { get; set; }
+
+        /// <summary>Bu pencere kararlılık sayaçlarına (5'li / 3'lü pencere) girer mi?</summary>
+        public bool Counts => TransitionStatus != TransitionStatuses.NoNewEvidence;
+
         public bool IsPass => RawGateStatus == RawGateStatuses.Pass;
         public bool IsHardFail => RawGateStatus == RawGateStatuses.HardFail;
         public (int, string) Cell => (OrganizationId, MarketFamily);
 
         /// <summary>Aynı 5'li pencereye girebilir mi? Model, yapılandırma, kapı ve yayın politikası AYNI olmalı.</summary>
         public string Lineage => string.Join("|", ModelVersion, ConfigHash, GatePolicyVersion, PolicyVersion);
+    }
+
+    public static class TransitionStatuses
+    {
+        public const string Counted = "COUNTED";
+        public const string NoNewEvidence = "NO_NEW_EVIDENCE_NO_TRANSITION";
+        public const string PreBootstrapHistory = "PRE_BOOTSTRAP_HISTORY";
+        /// <summary>Yeni kanıt yok ama pencere hard-fail: güvenlik kuralı beklemez, kapanış uygulanır.</summary>
+        public const string HardFailWithoutNewEvidence = "HARD_FAIL_WITHOUT_NEW_EVIDENCE";
+    }
+
+    /// <summary>
+    /// KANIT MANİFESTOSU — bir organizasyonun test penceresinde KULLANILAN tamamlanmış maçlar. Kanıt kimliği bundan türetilir.
+    /// </summary>
+    public sealed class EvidenceManifest
+    {
+        public int OrganizationId { get; set; }
+        /// <summary>MatchId → (ev golü, deplasman golü), MatchId'ye göre sıralı.</summary>
+        public SortedDictionary<int, (int Home, int Away)> Results { get; set; } = new();
+        /// <summary>MatchId → sonuç güncelleme zamanı (yalnız bellekte; yeniden üretimde "o an bilinmeyen" sonuçları ayıklamak için).</summary>
+        public Dictionary<int, DateTime?> UpdatedAt { get; set; } = new();
+        public DateTime? MaxKickoffUtc { get; set; }
+        public DateTime? MaxResultUpdatedUtc { get; set; }
+        public int SampleCount => Results.Count;
+
+        /// <summary>"id:h-a;" sıralı metin — DB'ye yazılır, karşılaştırmada geri okunur.</summary>
+        public string Serialize() => string.Join(";", Results.Select(r => r.Key.ToString(CultureInfo.InvariantCulture) + ":" + r.Value.Home + "-" + r.Value.Away));
+
+        public static SortedDictionary<int, (int, int)> Parse(string? s)
+        {
+            var d = new SortedDictionary<int, (int, int)>();
+            if (string.IsNullOrEmpty(s)) return d;
+            foreach (var part in s.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var c = part.IndexOf(':'); var m = part.IndexOf('-', c);
+                d[int.Parse(part[..c], CultureInfo.InvariantCulture)] = (int.Parse(part[(c + 1)..m], CultureInfo.InvariantCulture), int.Parse(part[(m + 1)..], CultureInfo.InvariantCulture));
+            }
+            return d;
+        }
+
+        public string Hash() => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Serialize()))).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// YENİ KANIT KORUMASI — aynı veri kümesi yeniden ölçülünce kararlılık sayaçları ilerlemez.
+    ///
+    /// Parmak izi: market ailesi + manifest hash'i (MatchId kümesi + skorlar) + örneklem + maks. sonuç güncelleme zamanı + model +
+    /// config + kapı politikası + yayın politikası. Parmak izi önceki SAYILAN pencereyle aynıysa → NO_NEW_EVIDENCE. Farklıysa
+    /// manifestler karşılaştırılır: YENİ KANIT yalnız (a) önceki sayılan örneklemde olmayan yeni maç ya da (b) skoru değişmiş maçtır.
+    /// Test penceresinin kayması (eski maçların düşmesi) ve skor değişmeden yeniden damgalanan sonuç (FixtureSyncJob her senkronda
+    /// ResultUpdatedAtUtc'yi yeniler) yeni kanıt DEĞİLDİR — aksi hâlde aynı veriyle ikinci PASS sayılırdı.
+    /// </summary>
+    public static class EvidenceIdentity
+    {
+        public static string Fingerprint(string family, EvidenceManifest m, string modelVersion, string configHash, string gatePolicyVersion, string policyVersion)
+            => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("|",
+                family, m.Hash(), m.SampleCount.ToString(CultureInfo.InvariantCulture),
+                m.MaxResultUpdatedUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "-",
+                modelVersion, configHash, gatePolicyVersion, policyVersion)))).ToLowerInvariant()[..40];
+
+        /// <summary>Önceki sayılan manifeste göre yeni maç + skoru değişen maç sayısı.</summary>
+        public static int NewEvidence(IReadOnlyDictionary<int, (int Home, int Away)> previous, IReadOnlyDictionary<int, (int Home, int Away)> current)
+            => current.Count(c => !previous.TryGetValue(c.Key, out var p) || p != c.Value);
+
+        /// <summary>
+        /// Hücreyi sınıflar: önceki sayılan yoksa COUNTED; parmak izi aynıysa ya da yeni maç/skor değişimi yoksa NO_NEW_EVIDENCE;
+        /// yeni kanıt yok ama hard-fail varsa HARD_FAIL_WITHOUT_NEW_EVIDENCE (kapanış beklemez).
+        /// </summary>
+        public static void Classify(CellEvaluation e, string? previousFingerprint, IReadOnlyDictionary<int, (int Home, int Away)>? previousManifest)
+        {
+            if (previousFingerprint == null && previousManifest == null) { e.TransitionStatus = TransitionStatuses.Counted; e.NewEvidenceCount = null; return; }
+            var fresh = e.EvidenceFingerprint != null && e.EvidenceFingerprint == previousFingerprint
+                ? 0
+                : previousManifest == null || e.Evidence == null ? 1 : NewEvidence(previousManifest, e.Evidence.Results);
+            e.NewEvidenceCount = fresh;
+            e.TransitionStatus = fresh > 0 ? TransitionStatuses.Counted
+                : e.IsHardFail ? TransitionStatuses.HardFailWithoutNewEvidence
+                : TransitionStatuses.NoNewEvidence;
+        }
     }
 
     /// <summary>Açılma kuralının madde madde sonucu (admin görünürlüğü ve rapor için).</summary>
@@ -214,7 +306,7 @@ namespace Formax.Application.Services.Outcomes
             var check = new OpeningCheck();
             if (history.Count == 0) return check;
             var latest = history[^1];
-            var lineage = history.Where(h => h.Lineage == latest.Lineage).ToList();
+            var lineage = history.Where(h => h.Lineage == latest.Lineage && (h.Counts || ReferenceEquals(h, latest))).ToList();
             var last5 = lineage.TakeLast(WindowCount).ToList();
             var last3 = lineage.TakeLast(RecentCount).ToList();
             check.LatestPass = latest.IsPass;
@@ -276,7 +368,14 @@ namespace Formax.Application.Services.Outcomes
             {
                 var key = e.Cell;
                 if (!history.TryGetValue(key, out var h)) history[key] = h = new List<CellEvaluation>();
-                var prior = h.Where(x => x.Lineage == e.Lineage).OrderBy(x => x.EvaluationCutoffUtc).ToList();
+                if (e.TransitionStatus == TransitionStatuses.NoNewEvidence)
+                {
+                    // Aynı veri kümesi: ham sonuç kaydedilir ama durum ve kararlılık sayaçları İLERLEMEZ (geçmişe eklenmez).
+                    var cur = states.TryGetValue(key, out var cs) ? cs : PublishedStates.Closed;
+                    list.Add(new StateTransition(e.OrganizationId, e.MarketFamily, cur, cur, TransitionStatuses.NoNewEvidence, null));
+                    continue;
+                }
+                var prior = h.Where(x => x.Lineage == e.Lineage && x.Counts).OrderBy(x => x.EvaluationCutoffUtc).ToList();
                 var t = Decide(states.TryGetValue(key, out var s) ? s : PublishedStates.Closed, prior, e);
                 states[key] = t.After;
                 h.Add(e);
@@ -301,8 +400,14 @@ namespace Formax.Application.Services.Outcomes
             foreach (var e in evaluations.OrderBy(e => e.OrganizationId).ThenBy(e => e.MarketFamily, StringComparer.Ordinal))
             {
                 if (!history.TryGetValue(e.Cell, out var h)) history[e.Cell] = h = new List<CellEvaluation>();
-                h.Add(e);
                 var s = states.TryGetValue(e.Cell, out var v) ? v : PublishedStates.Closed;
+                if (e.TransitionStatus == TransitionStatuses.NoNewEvidence)
+                {
+                    list.Add(new StateTransition(e.OrganizationId, e.MarketFamily, s, s, TransitionStatuses.NoNewEvidence, null));
+                    continue;
+                }
+                e.TransitionStatus ??= TransitionStatuses.PreBootstrapHistory;
+                h.Add(e);
                 var reason = e.IsHardFail && PublishedStates.IsVisible(s)
                     ? PreBootstrapHardFailReason + ":" + string.Join("+", e.RawGateReasons.Where(r => r.StartsWith("HARD_")))
                     : PreBootstrapHistoryReason;

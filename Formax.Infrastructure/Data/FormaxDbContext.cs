@@ -73,6 +73,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<MarketEligibilityState> MarketEligibilityStates { get; set; } = null!;
         public DbSet<MarketEligibilityStateTransition> MarketEligibilityStateTransitions { get; set; } = null!;
         public DbSet<MarketEligibilityPublicationRun> MarketEligibilityPublicationRuns { get; set; } = null!;
+        public DbSet<MarketEligibilityEvidenceManifest> MarketEligibilityEvidenceManifests { get; set; } = null!;
         public DbSet<PredictionRecomputeRequest> PredictionRecomputeRequests { get; set; } = null!;
         public DbSet<PredictionScorecard> PredictionScorecards { get; set; } = null!;
         public DbSet<PredictionDiagnostic> PredictionDiagnostics { get; set; } = null!;
@@ -1380,6 +1381,8 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.PublishedStateAfter).HasMaxLength(16);
                 entity.Property(x => x.TransitionReason).HasMaxLength(200);
                 entity.Property(x => x.PublicationRunKey).HasMaxLength(200);
+                entity.Property(x => x.EvidenceFingerprint).HasMaxLength(64);
+                entity.Property(x => x.TransitionStatus).HasMaxLength(40);
                 entity.HasIndex(x => new { x.OrganizationId, x.MarketFamily, x.EvaluationCutoffUtc, x.ModelVersion, x.ConfigHash, x.PolicyVersion, x.Mode })
                     .IsUnique().HasDatabaseName("UX_MarketEligibilityEvaluations_Cell_Cutoff_Lineage_Mode");
             });
@@ -1422,6 +1425,18 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.SourceModelRunId).HasMaxLength(48);
                 entity.Property(x => x.SummaryJson).IsRequired();
                 entity.HasIndex(x => x.RunKey).IsUnique().HasDatabaseName("UX_MarketEligibilityPublicationRuns_RunKey");
+            });
+            modelBuilder.Entity<MarketEligibilityEvidenceManifest>(entity =>
+            {
+                entity.ToTable("MarketEligibilityEvidenceManifests");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ConfigHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.PolicyVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ManifestHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Manifest).IsRequired();
+                entity.HasIndex(x => new { x.OrganizationId, x.EvaluationCutoffUtc, x.ModelVersion, x.ConfigHash, x.PolicyVersion })
+                    .IsUnique().HasDatabaseName("UX_MarketEligibilityEvidenceManifests_Org_Cutoff_Lineage");
             });
             modelBuilder.Entity<PredictionRecomputeRequest>(entity =>
             {

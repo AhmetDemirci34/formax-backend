@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -209,11 +209,22 @@ public class EligibilityPublicationTests
 
     /// <summary>Bütün kilitli organizasyonlar × aileler; varsayılan FAIL, verilen hücreler özel.</summary>
     private static IReadOnlyList<CellEvaluation> Matrix(DateTime cutoff, Dictionary<(int, string), string>? overrides = null)
-        => LockedCompetitions.All.SelectMany(l => MarketFamilies.All.Select(f =>
+        => LockedCompetitions.All.SelectMany(l =>
         {
-            var raw = overrides != null && overrides.TryGetValue((l, f), out var r) ? r : F;
-            return Ev(l, f, cutoff, raw, reasons: raw == H ? new[] { HardFailCodes.SignificantlyWorse } : Array.Empty<string>());
-        })).ToList();
+            // Her farklı kesim bir yeni tamamlanmış maç getirir (gerçek haftalık akış); aynı kesim aynı kanıtı üretir.
+            var manifest = new EvidenceManifest { OrganizationId = l };
+            for (var k = 1; k <= 3; k++) manifest.Results[l * 1_000_000 + k] = (1, 0);
+            manifest.Results[l * 1_000_000 + 1000 + (int)(cutoff - new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalDays] = (2, 1);
+            manifest.MaxKickoffUtc = cutoff.AddDays(-1);
+            return MarketFamilies.All.Select(f =>
+            {
+                var raw = overrides != null && overrides.TryGetValue((l, f), out var r) ? r : F;
+                var e = Ev(l, f, cutoff, raw, reasons: raw == H ? new[] { HardFailCodes.SignificantlyWorse } : Array.Empty<string>());
+                e.Evidence = manifest;
+                e.EvidenceFingerprint = EvidenceIdentity.Fingerprint(f, manifest, e.ModelVersion, e.ConfigHash, e.GatePolicyVersion, e.PolicyVersion);
+                return e;
+            });
+        }).ToList();
 
     private sealed class Store
     {
@@ -860,6 +871,204 @@ public class EligibilityPublicationTests
         Assert.InRange(slope!.Value, 0.9, 1.1);
         Assert.InRange(intercept!.Value, -0.1, 0.1);
         Assert.Equal((null, null), MarketFamilyEvaluator.CalibrationFit(xs.Take(5).ToList()));
+    }
+
+    // ═══ NO_NEW_EVIDENCE_NO_TRANSITION koruması ═══
+
+    /// <summary>Verilen manifestle bütün matris (her organizasyon aynı ham sonuç kalıbı).</summary>
+    private static FakeSource FixedEvidence(Func<DateTime, int, EvidenceManifest> manifest, Dictionary<(int, string), string>? raw = null) => new()
+    {
+        Fn = c => LockedCompetitions.All.SelectMany(l =>
+        {
+            var m = manifest(c, l);
+            return MarketFamilies.All.Select(f =>
+            {
+                var r = raw != null && raw.TryGetValue((l, f), out var v) ? v : F;
+                var e = Ev(l, f, c, r, reasons: r == H ? new[] { HardFailCodes.SignificantlyWorse } : Array.Empty<string>());
+                e.Evidence = m;
+                e.EvidenceFingerprint = EvidenceIdentity.Fingerprint(f, m, e.ModelVersion, e.ConfigHash, e.GatePolicyVersion, e.PolicyVersion);
+                return e;
+            });
+        }).ToList()
+    };
+
+    private static EvidenceManifest Manifest(int org, DateTime? maxUpdated, params (int Id, int H, int A)[] results)
+    {
+        var m = new EvidenceManifest { OrganizationId = org, MaxResultUpdatedUtc = maxUpdated };
+        foreach (var r in results) { m.Results[org * 1_000_000 + r.Id] = (r.H, r.A); m.UpdatedAt[org * 1_000_000 + r.Id] = maxUpdated; }
+        return m;
+    }
+
+    private static readonly DateTime Sep25 = new(2026, 9, 25, 2, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Sep28 = new(2026, 9, 28, 2, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Oct05 = new(2026, 10, 5, 2, 0, 0, DateTimeKind.Utc);
+    private static readonly Dictionary<(int, string), string> BundesligaPass = new()
+    {
+        [(78, MarketFamilies.MatchResult)] = P, [(78, MarketFamilies.DoubleChance)] = P,
+        [(39, MarketFamilies.MatchResult)] = P, [(39, MarketFamilies.DoubleChance)] = P
+    };
+
+    private static async Task<(MarketEligibilityState Bl, List<MarketEligibilityEvaluation> Rows)> Publish(Store store, FakeSource src, DateTime cutoff, DateTime now)
+    {
+        using (var db = store.Db()) await store.Service(db, src).RunAsync(new[] { cutoff }, EligibilityPublicationMode.Publish, EligibilityPublicationSources.Scheduled, now);
+        using var read = store.Db();
+        return (read.MarketEligibilityStates.Single(s => s.OrganizationId == 78 && s.MarketFamily == MarketFamilies.MatchResult),
+            read.MarketEligibilityEvaluations.Where(e => e.OrganizationId == 78 && e.MarketFamily == MarketFamilies.MatchResult).OrderBy(e => e.EvaluationCutoffUtc).ToList());
+    }
+
+    [Fact]
+    public async Task E01_AyniVeriKumesi_Bundesliga_PendingOpenAyniAsamadaKalir_IkinciPassSayilmaz()
+    {
+        var store = new Store();
+        using (var db = store.Db()) await store.Service(db, new FakeSource()).EnsureBootstrappedAsync(Now);
+        var same = FixedEvidence((_, l) => Manifest(l, Now.AddHours(-2), (1, 1, 0), (2, 0, 0), (3, 2, 2)), BundesligaPass);
+        var (bl25, _) = await Publish(store, same, Sep25, Now);
+        Assert.Equal(PublishedStates.PendingOpen, bl25.PublishedState);
+        var (bl28, rows) = await Publish(store, same, Sep28, Sep28.AddHours(1));
+        Assert.Equal(PublishedStates.PendingOpen, bl28.PublishedState);
+        Assert.Equal(bl25.StateVersion, bl28.StateVersion);                                        // sayaç/durum ilerlemedi
+        var r28 = rows.Single(r => r.EvaluationCutoffUtc == Sep28);
+        Assert.Equal(RawGateStatuses.Pass, r28.RawGateStatus);                                      // ham sonuç hesaplandı
+        Assert.Equal(TransitionStatuses.NoNewEvidence, r28.TransitionStatus);
+        Assert.Equal(0, r28.NewEvidenceCount);
+        Assert.Equal(rows.Single(r => r.EvaluationCutoffUtc == Sep25).EvidenceFingerprint, r28.EvidenceFingerprint);
+        using (var db = store.Db())
+        {
+            var status = JsonSerializer.Serialize(await store.Service(db, new FakeSource()).StatusAsync(Sep28.AddHours(2)));
+            using var doc = JsonDocument.Parse(status);
+            var cell = doc.RootElement.GetProperty("cells").EnumerateArray()
+                .Single(x => x.GetProperty("organizationId").GetInt32() == 78 && x.GetProperty("marketFamily").GetString() == MarketFamilies.MatchResult);
+            Assert.Equal(1, cell.GetProperty("passInLast5").GetInt32());   // 28.09 sayılmadı
+            Assert.Equal(PublishedStates.PendingOpen, cell.GetProperty("publishedState").GetString());
+        }
+        // Yeni sonuç gelince sayılır: 2/5.
+        var fresh = FixedEvidence((_, l) => Manifest(l, Oct05, (1, 1, 0), (2, 0, 0), (3, 2, 2), (4, 1, 1)), BundesligaPass);
+        var (bl05, rows05) = await Publish(store, fresh, Oct05, Oct05.AddHours(1));
+        Assert.Equal(TransitionStatuses.Counted, rows05.Last().TransitionStatus);
+        Assert.Equal(1, rows05.Last().NewEvidenceCount);
+        Assert.StartsWith("PENDING_OPEN_PROGRESS:2/2 PASS (son 5)", bl05.LastTransitionReason); // 28.09 sayılmadı: 3 değil 2 pencere
+    }
+
+    [Fact]
+    public async Task E02_PencereKaymasi_VeYenidenDamgalama_YeniKanitDegildir_SkorDuzeltmesiYeniKanittir()
+    {
+        var prev = Manifest(78, Sep25, (1, 1, 0), (2, 0, 0), (3, 2, 2)).Results;
+        var slide = Manifest(78, Sep25, (2, 0, 0), (3, 2, 2));                    // en eski maç pencereden düştü
+        var restamp = Manifest(78, Sep28, (1, 1, 0), (2, 0, 0), (3, 2, 2));      // aynı skorlar, yeni damga
+        var corrected = Manifest(78, Sep28, (1, 1, 0), (2, 0, 1), (3, 2, 2));    // skor düzeltmesi
+        var added = Manifest(78, Sep28, (1, 1, 0), (2, 0, 0), (3, 2, 2), (9, 3, 0));
+        foreach (var (m, expected) in new[] { (slide, 0), (restamp, 0), (corrected, 1), (added, 1) })
+        {
+            var e = Ev(78, MarketFamilies.MatchResult, Sep28, P);
+            e.Evidence = m;
+            e.EvidenceFingerprint = EvidenceIdentity.Fingerprint(e.MarketFamily, m, e.ModelVersion, e.ConfigHash, e.GatePolicyVersion, e.PolicyVersion);
+            EvidenceIdentity.Classify(e, "önceki-parmak-izi", prev);
+            Assert.Equal(expected, e.NewEvidenceCount);
+            Assert.Equal(expected == 0 ? TransitionStatuses.NoNewEvidence : TransitionStatuses.Counted, e.TransitionStatus);
+        }
+        Assert.NotEqual(EvidenceIdentity.Fingerprint("MatchResult1X2", restamp, "m", "c", "g", "p"),
+            EvidenceIdentity.Fingerprint("MatchResult1X2", Manifest(78, Sep25, (1, 1, 0), (2, 0, 0), (3, 2, 2)), "m", "c", "g", "p"));
+    }
+
+    [Fact]
+    public void E03_ParmakIzi_BelirtilenBilesenlerinHepsine_Bagli_VeDeterministik()
+    {
+        var m = Manifest(78, Sep25, (1, 1, 0), (2, 0, 0));
+        var baseFp = EvidenceIdentity.Fingerprint("MatchResult1X2", m, "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-1");
+        Assert.Equal(baseFp, EvidenceIdentity.Fingerprint("MatchResult1X2", Manifest(78, Sep25, (1, 1, 0), (2, 0, 0)), "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-1"));
+        var variants = new[]
+        {
+            EvidenceIdentity.Fingerprint("MatchResult1X2", Manifest(78, Sep25, (1, 1, 0), (3, 0, 0)), "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-1"), // MatchId kümesi
+            EvidenceIdentity.Fingerprint("MatchResult1X2", Manifest(78, Sep25, (1, 1, 0), (2, 1, 0)), "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-1"), // sonuç
+            EvidenceIdentity.Fingerprint("MatchResult1X2", Manifest(78, Sep25, (1, 1, 0)), "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-1"),             // örneklem
+            EvidenceIdentity.Fingerprint("MatchResult1X2", Manifest(78, Sep28, (1, 1, 0), (2, 0, 0)), "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-1"), // maks. güncelleme
+            EvidenceIdentity.Fingerprint("MatchResult1X2", m, "formax-outcome-5.0", "cfg", "market-eligibility-1", "eligibility-publication-1"),                                         // model
+            EvidenceIdentity.Fingerprint("MatchResult1X2", m, "formax-outcome-4.0", "cfg2", "market-eligibility-1", "eligibility-publication-1"),                                        // config
+            EvidenceIdentity.Fingerprint("MatchResult1X2", m, "formax-outcome-4.0", "cfg", "market-eligibility-2", "eligibility-publication-1"),                                         // kapı politikası
+            EvidenceIdentity.Fingerprint("MatchResult1X2", m, "formax-outcome-4.0", "cfg", "market-eligibility-1", "eligibility-publication-2"),                                         // yayın politikası
+        };
+        Assert.All(variants, v => Assert.NotEqual(baseFp, v));
+    }
+
+    [Fact]
+    public async Task E04_YeniKanitYokken_NormalFail_AcikHucreyiPendingCloseYapmaz_HardFailYineHemenKapatir()
+    {
+        var store = new Store();
+        using (var db = store.Db()) await store.Service(db, new FakeSource()).EnsureBootstrappedAsync(Now);
+        Func<DateTime, int, EvidenceManifest> same = (_, l) => Manifest(l, Now.AddHours(-2), (1, 1, 0), (2, 0, 0));
+        var pass = FixedEvidence(same, new() { [(39, MarketFamilies.MatchResult)] = P, [(203, MarketFamilies.MatchResult)] = P });
+        using (var db = store.Db()) await store.Service(db, pass).RunAsync(new[] { Sep25 }, EligibilityPublicationMode.Publish, "Scheduled", Now);
+        // 28.09: aynı veri; EPL normal FAIL, Süper Lig HARD_FAIL.
+        var bad = FixedEvidence(same, new() { [(39, MarketFamilies.MatchResult)] = F, [(203, MarketFamilies.MatchResult)] = H });
+        using (var db = store.Db()) await store.Service(db, bad).RunAsync(new[] { Sep28 }, EligibilityPublicationMode.Publish, "Scheduled", Sep28.AddHours(1));
+        using (var db = store.Db())
+        {
+            Assert.Equal(PublishedStates.Open, db.MarketEligibilityStates.Single(s => s.OrganizationId == 39 && s.MarketFamily == MarketFamilies.MatchResult).PublishedState);
+            Assert.Equal(PublishedStates.Closed, db.MarketEligibilityStates.Single(s => s.OrganizationId == 203 && s.MarketFamily == MarketFamilies.MatchResult).PublishedState);
+            Assert.Equal(TransitionStatuses.HardFailWithoutNewEvidence,
+                db.MarketEligibilityEvaluations.Single(e => e.OrganizationId == 203 && e.MarketFamily == MarketFamilies.MatchResult && e.EvaluationCutoffUtc == Sep28).TransitionStatus);
+        }
+    }
+
+    [Fact]
+    public async Task E05_KorumaOncesiPencere_ManifestiYenidenUretilir_OnuBilinmeyenSonucHaricTutulur()
+    {
+        var store = new Store();
+        using (var db = store.Db()) await store.Service(db, new FakeSource()).EnsureBootstrappedAsync(Now);
+        // Koruma öncesi yayın: manifest yok, parmak izi yok (canlı 25.09 satırlarının durumu).
+        var legacy = new FakeSource { Fn = c => Matrix(c, BundesligaPass).Select(e => { e.Evidence = null; e.EvidenceFingerprint = null; return e; }).ToList() };
+        using (var db = store.Db()) await store.Service(db, legacy).RunAsync(new[] { Sep25 }, EligibilityPublicationMode.Publish, "Scheduled", Now);
+        using (var db = store.Db())
+        {
+            foreach (var r in db.MarketEligibilityEvaluations) r.TransitionStatus = null; // koruma öncesi kayıt biçimi
+            db.SaveChanges();
+            Assert.Empty(db.MarketEligibilityEvidenceManifests);
+        }
+        // Yeniden üretim: 25.09 değerlendirmesinden (Now) SONRA yazılmış maç 7 o an bilinmiyordu → manifestten çıkar → 28.09'da yeni kanıttır.
+        var src = new FakeSource
+        {
+            Fn = c => FixedEvidence((_, l) =>
+            {
+                var m = Manifest(l, Sep25.AddHours(-3), (1, 1, 0), (2, 0, 0));
+                m.Results[l * 1_000_000 + 7] = (1, 1); m.UpdatedAt[l * 1_000_000 + 7] = Now.AddHours(5); m.MaxResultUpdatedUtc = Now.AddHours(5);
+                return m;
+            }, BundesligaPass).Fn(c)
+        };
+        EligibilityPublicationReport rep;
+        using (var db = store.Db()) rep = await store.Service(db, src).RunAsync(new[] { Sep28 }, EligibilityPublicationMode.Publish, "Scheduled", Sep28.AddHours(1));
+        Assert.Equal(2, src.Calls); // 25.09 yeniden ölçüldü + 28.09
+        using (var db = store.Db())
+        {
+            var re = db.MarketEligibilityEvidenceManifests.Where(m => m.EvaluationCutoffUtc == Sep25).ToList();
+            Assert.Equal(LockedCompetitions.All.Count, re.Count);
+            Assert.All(re, m => { Assert.True(m.Reconstructed); Assert.Equal(2, m.SampleCount); });
+            var r28 = db.MarketEligibilityEvaluations.Single(e => e.OrganizationId == 78 && e.MarketFamily == MarketFamilies.MatchResult && e.EvaluationCutoffUtc == Sep28);
+            Assert.Equal(TransitionStatuses.Counted, r28.TransitionStatus);
+            Assert.Equal(1, r28.NewEvidenceCount);
+        }
+        // Aynı veriyle bir sonraki hafta: yeniden üretim YOK (manifest artık var), yeni kanıt yok.
+        var src2 = new FakeSource { Fn = src.Fn };
+        using (var db = store.Db()) await store.Service(db, src2).RunAsync(new[] { Oct05 }, EligibilityPublicationMode.Publish, "Scheduled", Oct05.AddHours(1));
+        Assert.Equal(1, src2.Calls);
+        using (var db = store.Db())
+            Assert.Equal(TransitionStatuses.NoNewEvidence, db.MarketEligibilityEvaluations.Single(e => e.OrganizationId == 78 && e.MarketFamily == MarketFamilies.MatchResult && e.EvaluationCutoffUtc == Oct05).TransitionStatus);
+    }
+
+    [Fact]
+    public async Task E06_GelecekKesim_YalnizDryRundaSimuleEdilir_Yazmaz()
+    {
+        var store = new Store();
+        var src = FixedEvidence((_, l) => Manifest(l, Now.AddHours(-2), (1, 1, 0)), BundesligaPass);
+        using (var db = store.Db()) await store.Service(db, src).EnsureBootstrappedAsync(Now);
+        using (var db = store.Db())
+        {
+            var dry = await store.Service(db, src).RunAsync(new[] { Sep28 }, EligibilityPublicationMode.DryRun, "Manual", Now);
+            Assert.Equal("DRY_RUN_SIMULATED_FUTURE_CUTOFF", dry.Cutoffs.Single().Result);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.Service(db, src).RunAsync(new[] { Sep28 }, EligibilityPublicationMode.Publish, "Manual", Now));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.Service(db, src).RunAsync(new[] { Now.AddDays(9) }, EligibilityPublicationMode.DryRun, "Manual", Now));
+            Assert.Empty(db.MarketEligibilityEvaluations);
+            Assert.Empty(db.MarketEligibilityEvidenceManifests);
+        }
     }
 
     private static string Snapshot(FormaxDbContext db)

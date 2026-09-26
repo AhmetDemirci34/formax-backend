@@ -46,6 +46,35 @@ namespace Formax.Domain.Entities
         public string? PublishedStateAfter { get; set; }
         public string? TransitionReason { get; set; }
         public string? PublicationRunKey { get; set; }
+
+        // ── 25.09.2026 (additive): yeni kanıt koruması ──
+        /// <summary>Deterministik kanıt parmak izi (manifest + örneklem + maks. sonuç güncelleme + model + config + politikalar).</summary>
+        public string? EvidenceFingerprint { get; set; }
+        /// <summary>Önceki sayılan pencereye göre yeni maç + skoru değişen maç sayısı.</summary>
+        public int? NewEvidenceCount { get; set; }
+        /// <summary>COUNTED | NO_NEW_EVIDENCE_NO_TRANSITION | PRE_BOOTSTRAP_HISTORY | HARD_FAIL_WITHOUT_NEW_EVIDENCE (null = koruma öncesi kayıt, sayılır).</summary>
+        public string? TransitionStatus { get; set; }
+    }
+
+    /// <summary>
+    /// KANIT MANİFESTOSU — bir organizasyonun bir kesimdeki test örneklemi (MatchId:skor listesi). Eklemeli; aynı (organizasyon,
+    /// kesim, soy) ikinci kez yazılmaz. Koruma öncesi pencereler için yeniden üretilen manifest <see cref="Reconstructed"/> ile işaretlenir.
+    /// </summary>
+    public sealed class MarketEligibilityEvidenceManifest
+    {
+        public long Id { get; set; }
+        public int OrganizationId { get; set; }
+        public DateTime EvaluationCutoffUtc { get; set; }
+        public string ModelVersion { get; set; } = string.Empty;
+        public string ConfigHash { get; set; } = string.Empty;
+        public string PolicyVersion { get; set; } = string.Empty;
+        public int SampleCount { get; set; }
+        public DateTime? MaxKickoffUtc { get; set; }
+        public DateTime? MaxResultUpdatedUtc { get; set; }
+        public string ManifestHash { get; set; } = string.Empty;
+        public string Manifest { get; set; } = string.Empty;
+        public bool Reconstructed { get; set; }
+        public DateTime CreatedAtUtc { get; set; }
     }
 
     /// <summary>

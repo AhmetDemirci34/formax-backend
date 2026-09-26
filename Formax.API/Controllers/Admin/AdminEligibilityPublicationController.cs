@@ -55,7 +55,8 @@ namespace Formax.API.Controllers.Admin
                     e.SampleCount, e.LogLoss, e.Brier, e.Ece, e.CalibrationSlope, e.CalibrationIntercept, e.BaselineLogLoss, e.DifferenceFromBaseline,
                     e.ConfidenceIntervalLow, e.ConfidenceIntervalHigh, e.Bias, e.Coverage, e.GateStatus, e.RawGateStatus,
                     rawGateReasons = JsonSerializer.Deserialize<List<string>>(e.RawGateReasonsJson), e.EvaluatedAtUtc,
-                    e.PublishedStateBefore, e.PublishedStateAfter, e.TransitionReason, e.PublicationRunKey
+                    e.PublishedStateBefore, e.PublishedStateAfter, e.TransitionReason, e.PublicationRunKey,
+                    e.TransitionStatus, e.NewEvidenceCount, e.EvidenceFingerprint
                 }),
                 ledger
             });
@@ -118,6 +119,9 @@ namespace Formax.API.Controllers.Admin
                                 e.OrganizationId, e.MarketFamily, e.RawGateStatus, e.GateStatus, reasons = e.RawGateReasons, e.SampleCount,
                                 e.LogLoss, e.BaselineLogLoss, e.DifferenceFromBaseline, ciLow = e.ConfidenceIntervalLow, ciHigh = e.ConfidenceIntervalHigh,
                                 e.Ece, e.Bias, e.Coverage, e.CalibrationSlope, e.CalibrationIntercept,
+                                e.TransitionStatus, e.NewEvidenceCount, e.EvidenceFingerprint,
+                                evidenceSamples = e.Evidence?.SampleCount, evidenceMaxKickoffUtc = e.Evidence?.MaxKickoffUtc,
+                                evidenceMaxResultUpdatedUtc = e.Evidence?.MaxResultUpdatedUtc,
                                 before = t?.Before, after = t?.After, reason = t?.Reason
                             };
                         })
