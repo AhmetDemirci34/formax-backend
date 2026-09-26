@@ -241,6 +241,9 @@ namespace Formax.Application.Services.Outcomes
         }
         public const double BaselinePriorWeight = 20;
 
+        /// <summary>Backtest yöntem sürümü — "kickoff-batch": eşzamanlı maçlar birbirinin sonucunu göremez.</summary>
+        public const string MethodVersion = "kickoff-batch-1";
+
         private sealed record Collected(List<EvalSample> Samples, Dictionary<int, int> NotPredictedByLeague, Dictionary<string, int> GateReasons);
 
         /// <summary>Eski imza (tek lig/sınıflamasız): ligler arası katman kapalı.</summary>
@@ -657,11 +660,18 @@ namespace Formax.Application.Services.Outcomes
             var list = new List<EvalSample>();
             var notPredicted = new Dictionary<int, int>();
             var reasons = new Dictionary<string, int>();
-            foreach (var m in ordered)
+            // SIZINTI DÜZELTMESİ (26.09.2026): AYNI başlama saatindeki maçlar önce BİRLİKTE tahmin edilir, sonra birlikte modele
+            // işlenir. Önceden maçlar tek tek işlendiği için 15:00'teki A maçının sonucu, yine 15:00'te başlayan B maçının lig
+            // ortalamasına ve taban frekansına giriyordu — B başladığında A'nın sonucu bilinmiyordu (feature zamanı < başlama değil).
+            var i = 0;
+            while (i < ordered.Count && ordered[i].KickoffUtc < to)
             {
-                if (m.KickoffUtc >= to) break;
-                if (m.KickoffUtc >= from && include(m))
+                var j = i;
+                while (j < ordered.Count && ordered[j].KickoffUtc == ordered[i].KickoffUtc) j++;
+                for (var k = i; k < j; k++)
                 {
+                    var m = ordered[k];
+                    if (m.KickoffUtc < from || !include(m)) continue;
                     var e = model.Expect(m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.KickoffUtc);
                     if (e.Sufficient)
                     {
@@ -674,8 +684,12 @@ namespace Formax.Application.Services.Outcomes
                         foreach (var r in e.GateReasons) reasons[r] = reasons.GetValueOrDefault(r) + 1;
                     }
                 }
-                model.Update(m);
-                freq.Add(m);
+                for (var k = i; k < j; k++)
+                {
+                    model.Update(ordered[k]);
+                    freq.Add(ordered[k]);
+                }
+                i = j;
             }
             return new Collected(list, notPredicted, reasons);
         }

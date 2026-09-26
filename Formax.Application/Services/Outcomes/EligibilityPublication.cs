@@ -431,7 +431,10 @@ namespace Formax.Application.Services.Outcomes
                 EligibilityPolicy.MaxHomeDrawBias.ToString("R", ci), EligibilityPolicy.MinRecentFinished.ToString(ci),
                 EligibilityPolicy.BootstrapSamples.ToString(ci),
                 testWindow.TotalDays.ToString(ci), calibrationWindow.TotalDays.ToString(ci), trainWindow.TotalDays.ToString(ci),
-                string.Join(",", organizations.OrderBy(x => x)), "axes=" + leagueCalibrationAxes, "candidate=" + parsimoniousCandidate);
+                string.Join(",", organizations.OrderBy(x => x)), "axes=" + leagueCalibrationAxes, "candidate=" + parsimoniousCandidate,
+                // Backtest yöntemi: aynı başlama saatindeki maçlar birlikte tahmin edilir (26.09.2026 sızıntı düzeltmesi). Yöntem
+                // değişince soy da değişir — eski ve yeni ölçümler aynı 5'li kararlılık penceresine karışmaz.
+                "backtest=" + OutcomeBacktest.MethodVersion);
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s))).ToLowerInvariant()[..32];
         }
 

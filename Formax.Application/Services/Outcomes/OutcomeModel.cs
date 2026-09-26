@@ -630,6 +630,24 @@ namespace Formax.Application.Services.Outcomes
             return d;
         }
 
+        /// <summary>
+        /// SONUÇ SINIFI YENİDEN AĞIRLIKLANDIRMA — skor matrisini, 1X2 marjinalleri verilen (ev, beraberlik, deplasman) olacak biçimde
+        /// sınıf içinde orantılı ölçekler. Her sınıfın kendi skor şekli korunur; çifte şans ve gol marketleri aynı matristen
+        /// tutarlı türetilir, toplam 1 kalır. Hedef ≤ 0 ya da sınıf boşsa matris değişmeden döner.
+        /// </summary>
+        public ScoreDistribution ReweightResult(double home, double draw, double away)
+        {
+            double h = HomeWin, x = Draw, a = AwayWin;
+            if (home <= 0 || draw <= 0 || away <= 0 || h <= 0 || x <= 0 || a <= 0) return this;
+            var z = home + draw + away;
+            double fh = home / z / h, fx = draw / z / x, fa = away / z / a;
+            var d = new ScoreDistribution();
+            for (var i = 0; i <= MaxGoals; i++)
+                for (var j = 0; j <= MaxGoals; j++)
+                    d._p[i, j] = _p[i, j] * (i > j ? fh : i == j ? fx : fa);
+            return d;
+        }
+
         private void Normalize(double total)
         {
             if (total <= 0) return;
