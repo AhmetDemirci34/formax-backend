@@ -16,7 +16,7 @@ android {
         versionCode    1
         versionName    "1.0.0"
 
-        buildConfigField "String", "KANALLAR_JSON_URL", '"https://raw.githubusercontent.com/AhmetDemirci34/formax-backend/main/kanallar.json"'
+        buildConfigField "String", "KANALLAR_JSON_URL", '"https://raw.githubusercontent.com/AhmetDemirci34/formax-backend/main/KotakTV/kanallar.json"'
 
 
     }
