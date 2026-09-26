@@ -344,7 +344,7 @@ namespace Formax.Application.Services.Outcomes
             report.Decision = report.CalibrationApplied
                 ? (report.TestCalibrated.CombinedLogLoss <= report.TestRaw.CombinedLogLoss ? "CALIBRATION_APPLIED_TEST_IMPROVED" : "CALIBRATION_APPLIED_TEST_NOT_IMPROVED")
                 : "RAW_MODEL_KEPT_NO_CALIBRATION_GAIN";
-            LastArtifacts = new BacktestArtifacts(report, testLocked, current.Test.Samples, current.Cal, chosen, baseParams);
+            LastArtifacts = new BacktestArtifacts(report, testLocked, current.Test.Samples, current.Cal, chosen, baseParams, current.PreTest);
             return report;
         }
 
@@ -354,13 +354,13 @@ namespace Formax.Application.Services.Outcomes
         /// </summary>
         public sealed record BacktestArtifacts(OutcomeBacktestReport Report, IReadOnlyList<EvalSample> LockedTestSamples,
             IReadOnlyList<EvalSample> AllTestSamples, IReadOnlyList<EvalSample> CalibrationSamples,
-            OutcomeModelParameters Chosen, OutcomeModelParameters BaseParams);
+            OutcomeModelParameters Chosen, OutcomeModelParameters BaseParams, IReadOnlyList<EvalSample>? PreTestSamples = null);
 
         /// <summary>Son <see cref="Run"/> çağrısının maç düzeyi çıktıları (tek iş parçacıklı çevrimdışı kullanım).</summary>
         [ThreadStatic] public static BacktestArtifacts? LastArtifacts;
 
         private sealed record FitResult(OutcomeModelParameters Chosen, OutcomeModelParameters BaseParams, List<EvalSample> Cal, Collected Test,
-            int TrainCount, bool CalibrationApplied, double CalibrationImprovement);
+            int TrainCount, bool CalibrationApplied, double CalibrationImprovement, List<EvalSample>? PreTest = null);
 
         private static FitResult Fit(IReadOnlyList<HistoricalMatch> ordered, CompetitionCatalog catalog, Func<HistoricalMatch, bool> inEval,
             Func<HistoricalMatch, bool> inCross, List<(double Lr, double Slr, double Carry)> space,
@@ -551,7 +551,7 @@ namespace Formax.Application.Services.Outcomes
             }
             // Güvenlik sınırları testten ÖNCEKİ bütün örneklerden (eğitim + kalibrasyon) ölçülür.
             DeriveSafetyLimits(chosen, preTest);
-            return new FitResult(chosen, baseParams, cal, test, trainCount, applied, improvement);
+            return new FitResult(chosen, baseParams, cal, test, trainCount, applied, improvement, preTest);
         }
 
         /// <summary>

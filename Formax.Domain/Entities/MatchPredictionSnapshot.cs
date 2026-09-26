@@ -157,6 +157,43 @@ namespace Formax.Domain.Entities
         public double? ResultLogLoss { get; set; }
     }
 
+    /// <summary>
+    /// İLERİYE DÖNÜK GÖLGE KANITI (26.09.2026) — Model 4.0 ve Model 5 gölge aynı maç için başlamadan ÖNCE bir kez kaydedilir ve
+    /// kilitlenir; olasılık alanları bir daha yazılmaz. Maç bitince otomatik puanlanır; sonuç düzeltilirse yeniden puanlama
+    /// denetim kaydıyla yapılır. Kullanıcıya gösterilmez. (MatchId, ModelVersion, Market) tekildir.
+    /// </summary>
+    public sealed class ForwardPredictionRecord
+    {
+        public long Id { get; set; }
+        public int MatchId { get; set; }
+        public string ModelVersion { get; set; } = string.Empty;
+        public string ConfigHash { get; set; } = string.Empty;
+        public string SelectorVersion { get; set; } = string.Empty;
+        public string? SnapshotId { get; set; }
+        public int LeagueId { get; set; }
+        public string Market { get; set; } = string.Empty;
+        public string ProbabilitiesJson { get; set; } = "{}";
+        public string SelectedOutcome { get; set; } = string.Empty;
+        public double SelectedProbability { get; set; }
+        /// <summary>Strongest | Regular | Abstain.</summary>
+        public string SignalTier { get; set; } = string.Empty;
+        /// <summary>Yanılma riski = 1 − seçilen olasılık.</summary>
+        public double MissRisk { get; set; }
+        public DateTime GeneratedAtUtc { get; set; }
+        public DateTime KickoffUtc { get; set; }
+        public DateTime PredictionLockedAtUtc { get; set; }
+        /// <summary>Gerçek sonuç etiketi (1/X/2, 1X/X2/12, Over/Under, Yes/No) ya da Void.</summary>
+        public string? ActualOutcome { get; set; }
+        public int? ActualHomeGoals { get; set; }
+        public int? ActualAwayGoals { get; set; }
+        public DateTime? ScoredAtUtc { get; set; }
+        public double? LogLoss { get; set; }
+        public double? Brier { get; set; }
+        public bool? Correct { get; set; }
+        public int RescoreCount { get; set; }
+        public string? ScoreAuditJson { get; set; }
+    }
+
     /// <summary>Tahmin teşhis kaydı (aşırı değişim, analiz–kart çelişkisi, kaynak yok...). DedupeKey ile tekildir.</summary>
     public sealed class PredictionDiagnostic
     {

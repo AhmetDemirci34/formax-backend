@@ -74,6 +74,7 @@ namespace Formax.Infrastructure.Data
         public DbSet<MarketEligibilityStateTransition> MarketEligibilityStateTransitions { get; set; } = null!;
         public DbSet<MarketEligibilityPublicationRun> MarketEligibilityPublicationRuns { get; set; } = null!;
         public DbSet<MarketEligibilityEvidenceManifest> MarketEligibilityEvidenceManifests { get; set; } = null!;
+        public DbSet<ForwardPredictionRecord> ForwardPredictionRecords { get; set; } = null!;
         public DbSet<PredictionRecomputeRequest> PredictionRecomputeRequests { get; set; } = null!;
         public DbSet<PredictionScorecard> PredictionScorecards { get; set; } = null!;
         public DbSet<PredictionDiagnostic> PredictionDiagnostics { get; set; } = null!;
@@ -1425,6 +1426,22 @@ namespace Formax.Infrastructure.Data
                 entity.Property(x => x.SourceModelRunId).HasMaxLength(48);
                 entity.Property(x => x.SummaryJson).IsRequired();
                 entity.HasIndex(x => x.RunKey).IsUnique().HasDatabaseName("UX_MarketEligibilityPublicationRuns_RunKey");
+            });
+            modelBuilder.Entity<ForwardPredictionRecord>(entity =>
+            {
+                entity.ToTable("ForwardPredictionRecords");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ModelVersion).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.ConfigHash).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.SelectorVersion).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.SnapshotId).HasMaxLength(40);
+                entity.Property(x => x.Market).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ProbabilitiesJson).IsRequired();
+                entity.Property(x => x.SelectedOutcome).HasMaxLength(12).IsRequired();
+                entity.Property(x => x.SignalTier).HasMaxLength(12).IsRequired();
+                entity.Property(x => x.ActualOutcome).HasMaxLength(12);
+                entity.HasIndex(x => new { x.MatchId, x.ModelVersion, x.Market }).IsUnique().HasDatabaseName("UX_ForwardPredictionRecords_Match_Model_Market");
+                entity.HasIndex(x => x.ScoredAtUtc).HasDatabaseName("IX_ForwardPredictionRecords_ScoredAt");
             });
             modelBuilder.Entity<MarketEligibilityEvidenceManifest>(entity =>
             {

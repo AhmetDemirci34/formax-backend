@@ -262,6 +262,8 @@ namespace Formax.Infrastructure.Outcomes
             public bool LineupImpactInProduction;
             /// <summary>Kalıcı yayın politikası etkin mi? (durum tablosu dolu) — etkinse yayın imzası girdi özetine girer.</summary>
             public bool PublicationActive;
+            /// <summary>Bağımsız dinamik Elo — YALNIZ Model 5 gölge kaydı için; yayımlanan olasılığa girmez.</summary>
+            public DynamicElo Elo = new();
         }
 
         /// <summary>
@@ -313,6 +315,7 @@ namespace Formax.Infrastructure.Outcomes
                 }
                 ctx.Model.RefitLeagueStrengths(nowUtc);
                 ctx.PlayerImpact = PlayerImpactModel.BuildAsOf(lineupObs, residuals, nowUtc, impactParameters);
+                ctx.Elo = DynamicElo.Replay(history, nowUtc);
             }, ct).ConfigureAwait(false);
             ctx.Cutoff = history.Count == 0 ? nowUtc : history[^1].KickoffUtc;
             ctx.LineupImpactInProduction = _config?.GetValue(ProductionConfigKey, false) ?? false;
@@ -354,6 +357,7 @@ namespace Formax.Infrastructure.Outcomes
                         ? new RecomputeTrigger(id, p.TriggerType, p.TriggerSource, p.RequestedAtUtc)
                         : new RecomputeTrigger(id, "Periodic", "outcome-model-job", nowUtc)).ToList();
                 var outcomes = await WriteAsync(ctx, triggers, nowUtc, ct).ConfigureAwait(false);
+                await RecordForwardAsync(ctx, upcomingIds, nowUtc, ct).ConfigureAwait(false);
                 var report = new SnapshotCycleReport(upcomingIds.Count, outcomes.Count(o => o.Outcome.StartsWith("Published")), outcomes.Count(o => o.Outcome.StartsWith("Unchanged")),
                     outcomes.Count(o => o.Outcome == "Published:Disabled"), ctx.Run?.RunId)
                 {
@@ -544,6 +548,41 @@ namespace Formax.Infrastructure.Outcomes
             return results;
         }
 
+        /// <summary>
+        /// İLERİYE DÖNÜK GÖLGE KAYDI — başlamasına ≤ 24 saat kalan maçlar için Model 4.0 ve Model 5 gölge bir kez kilitlenir.
+        /// Yayımlanan snapshot'a ve kullanıcı olasılığına DOKUNMAZ; hata snapshot turunu bozmaz.
+        /// </summary>
+        private async Task RecordForwardAsync(ModelContext ctx, IReadOnlyList<int> upcomingIds, DateTime nowUtc, CancellationToken ct)
+        {
+            if (!(_config?.GetValue("ForwardShadow:Enabled", true) ?? true) || upcomingIds.Count == 0) return;
+            try
+            {
+                var soon = nowUtc + ForwardPredictionLedger.LockWindow;
+                var ms = await _db.Matches.AsNoTracking().Where(m => upcomingIds.Contains(m.Id) && m.MatchDate > nowUtc && m.MatchDate <= soon)
+                    .Select(m => new { m.Id, m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.MatchDate }).ToListAsync(ct).ConfigureAwait(false);
+                if (ms.Count == 0) return;
+                var ids = ms.Select(m => m.Id).ToList();
+                var snaps = await _db.MatchPredictionSnapshots.AsNoTracking().Where(s => ids.Contains(s.MatchId) && s.IsCurrent)
+                    .Select(s => new { s.MatchId, s.SnapshotId }).ToListAsync(ct).ConfigureAwait(false);
+                var inputs = new List<ForwardPredictionLedger.Input>();
+                foreach (var m in ms)
+                {
+                    var e = ctx.Model.Expect(m.LeagueId, m.HomeTeamId, m.AwayTeamId, m.MatchDate);
+                    if (!e.Sufficient) continue;
+                    var d40 = OutcomePredictor.Predict(e, m.LeagueId, ctx.Parameters).Calibrated;
+                    var d5 = Model5Shadow.Predict(d40, m.LeagueId, e.CrossLeague, ctx.Elo.Logit(m.LeagueId, m.HomeTeamId, m.AwayTeamId));
+                    inputs.Add(new ForwardPredictionLedger.Input(m.Id, m.LeagueId, DateTime.SpecifyKind(m.MatchDate, DateTimeKind.Utc),
+                        snaps.FirstOrDefault(s => s.MatchId == m.Id)?.SnapshotId, d40, d5, e.HomeSample, e.AwaySample, e.Coverage));
+                }
+                var added = await ForwardPredictionLedger.RecordAsync(_db, inputs, nowUtc, ct).ConfigureAwait(false);
+                if (added > 0) _log.LogInformation("[FORWARD SHADOW] kilitli kayıt: {Rows} satır ({Matches} maç)", added, inputs.Count);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _log.LogWarning(ex, "[FORWARD SHADOW] kayıt başarısız — üretim snapshot'ı etkilenmedi");
+            }
+        }
+
         private static int CountSince(Dictionary<int, List<DateTime>> map, int team, DateTime since)
             => map.TryGetValue(team, out var l) ? l.Count(d => d > since) : 0;
 
@@ -693,6 +732,13 @@ namespace Formax.Infrastructure.Outcomes
                 _log.LogInformation("[PREDICTION QUEUE] alınan={Count} sonuç={Outcomes}", due.Count, string.Join(",", outcomes.Select(o => o.MatchId + ":" + o.Outcome)));
             }
             var (locked, settled) = await ScorecardsAsync(nowUtc, ct).ConfigureAwait(false);
+            try
+            {
+                var (scored, rescored, voided) = await ForwardPredictionLedger.ScoreAsync(_db, nowUtc, ct).ConfigureAwait(false);
+                if (scored + rescored + voided > 0)
+                    _log.LogInformation("[FORWARD SHADOW] puanlama: yeni={Scored} yeniden={Rescored} void={Voided}", scored, rescored, voided);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException) { _log.LogWarning(ex, "[FORWARD SHADOW] puanlama başarısız"); }
             return new RecomputeCycleReport(due.Count, outcomes, locked, settled);
         }
 
