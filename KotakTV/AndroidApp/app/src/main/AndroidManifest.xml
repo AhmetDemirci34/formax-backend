@@ -15,8 +15,9 @@
         android:banner="@drawable/tv_banner"
         android:icon="@drawable/tv_banner">
 
+        <!-- Uygulama başlangıç noktası: kanal listesi -->
         <activity
-            android:name="com.kotaktv.PlayerActivity"
+            android:name="com.kotaktv.ChannelListActivity"
             android:exported="true"
             android:screenOrientation="landscape"
             android:launchMode="singleTask"
@@ -26,6 +27,15 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Kanal seçildikten sonra açılan oynatıcı -->
+        <activity
+            android:name="com.kotaktv.PlayerActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
+
     </application>
 
 </manifest>

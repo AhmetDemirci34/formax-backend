@@ -6,12 +6,19 @@ import android.view.WindowManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import com.kotaktv.data.Channel
 import com.kotaktv.data.ChannelRepository
 import com.kotaktv.data.Stream
@@ -104,12 +111,27 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
     }
 
     private fun initExoPlayer() {
-        player = ExoPlayer.Builder(this).build().also { exo ->
-            playerView.player = exo
-            playerView.useController = false   // TV remote ile özel kontroller
-            exo.addListener(this)
-            exo.playWhenReady = true
-        }
+        val httpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+        val dataSourceFactory = DefaultDataSource.Factory(
+            this, OkHttpDataSource.Factory(httpClient)
+        )
+        val audioAttrs = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+        player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setAudioAttributes(audioAttrs, /* handleAudioFocus= */ true)
+            .build()
+            .also { exo ->
+                playerView.player = exo
+                playerView.useController = false
+                exo.addListener(this)
+                exo.playWhenReady = true
+            }
     }
 
     // ─── Kanal yükleme ───────────────────────────────────────────────────────
