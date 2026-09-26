@@ -1,0 +1,86 @@
+// ─── Modül düzeyi build dosyası (app modülü) ─────────────────────────────────
+// Kaynak dosyalar AndroidApp/src/ altında; sourceSets ile yönlendiriliyor.
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace   'com.kotaktv'
+    compileSdk  35
+
+    defaultConfig {
+        applicationId  "com.kotaktv"
+        minSdk         21          // Android 5.0+ — ExoPlayer minimum
+        targetSdk      35
+        versionCode    1
+        versionName    "1.0.0"
+
+        // Buluttaki kanallar.json URL'si — kendi repo adresinizle değiştirin
+        buildConfigField "String", "KANALLAR_JSON_URL",
+            '"https://raw.githubusercontent.com/GITHUB_KULLANICI_ADINIZ/KotakTV/main/kanallar.json"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled   true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix   "-DEBUG"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    // ─── Kaynak yönlendirme ───────────────────────────────────────────────────
+    // Kotlin/res/manifest dosyaları AndroidApp/src/ altında tutulur.
+    // app/ modülünün varsayılan src/main/ yerine bir üst klasör kullanılır.
+    sourceSets {
+        main {
+            kotlin.srcDirs    = ['../src/main/kotlin']
+            res.srcDirs       = ['../src/main/res']
+            manifest.srcFile    '../src/main/AndroidManifest.xml'
+        }
+    }
+}
+
+dependencies {
+    // ── Jetpack Media3 (ExoPlayer) ────────────────────────────────────────────
+    def media3 = "1.4.1"
+    implementation "androidx.media3:media3-exoplayer:$media3"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3"
+    implementation "androidx.media3:media3-ui:$media3"
+    implementation "androidx.media3:media3-common:$media3"
+    implementation "androidx.media3:media3-datasource-okhttp:$media3"
+
+    // ── Ağ & JSON ─────────────────────────────────────────────────────────────
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    implementation "com.google.code.gson:gson:2.10.1"
+
+    // ── Kotlin Coroutines ─────────────────────────────────────────────────────
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+
+    // ── AndroidX ──────────────────────────────────────────────────────────────
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.leanback:leanback:1.2.0"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.6"
+
+    // ── Logo yükleme ──────────────────────────────────────────────────────────
+    implementation "com.github.bumptech.glide:glide:4.16.0"
+}

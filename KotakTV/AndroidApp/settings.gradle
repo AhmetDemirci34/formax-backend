@@ -1,0 +1,30 @@
+// ─── Eklenti kayıt merkezi ────────────────────────────────────────────────────
+pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+// ─── Bağımlılık kaynakları ────────────────────────────────────────────────────
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        // Glide için JitPack
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+rootProject.name = "KotakTV"
+
+// app/ alt modülü → build.gradle: AndroidApp/app/build.gradle
+include ':app'

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ── İzinler ──────────────────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ── Android TV donanım bildirimleri ──────────────────────────────────── -->
+    <!-- TV cihazlarında dokunmatik ekran yoktur; zorunlu değil olarak işaretle. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <!-- TV launcher'ı için leanback özelliği zorunlu. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.KotakTV"
+        android:banner="@drawable/tv_banner"
+        android:icon="@mipmap/ic_launcher">
+
+        <!--
+            PlayerActivity — Android TV ana başlatıcı (LEANBACK_LAUNCHER).
+            configChanges: yönelim ve klavye olaylarında Activity yeniden oluşturulmaz;
+            ExoPlayer'ın oynatmayı kesmesinin önüne geçer.
+        -->
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">
+
+            <!-- TV ana ekranı başlatıcısı -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+    </application>
+
+</manifest>

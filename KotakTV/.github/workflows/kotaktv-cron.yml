@@ -1,0 +1,67 @@
+name: KotakTV Kanal Güncelleyici
+
+# ─── Tetikleyiciler ───────────────────────────────────────────────────────────
+on:
+  schedule:
+    - cron: '0 * * * *'   # Her saat başı (UTC) — 01:00, 02:00, …
+  workflow_dispatch:        # GitHub Actions sekmesinden "Run workflow" butonu ile elle tetikle
+    inputs:
+      debug:
+        description: 'Detaylı log çıktısı (true/false)'
+        required: false
+        default: 'false'
+
+# ─── İzinler ─────────────────────────────────────────────────────────────────
+permissions:
+  contents: write           # kanallar.json'ı main branch'e commit/push edebilmek için
+
+# ─── İş ──────────────────────────────────────────────────────────────────────
+jobs:
+  update-channels:
+    name: Kanalları Güncelle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20     # Takılan job'u 20 dakikada öldür
+
+    steps:
+      # 1. Repoyu çek
+      - name: Repoyu klonla
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1           # Sadece son commit — hızlı klonlama
+
+      # 2. Node.js kur
+      - name: Node.js 20 kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Bot bağımlılıklarını yükle (node_modules cache'lenir)
+      - name: Bağımlılıkları yükle
+        working-directory: Bot
+        run: npm install
+
+      # 4. Botu çalıştır — kanallar.json üretilir
+      - name: Botu çalıştır
+        working-directory: Bot
+        env:
+          DEBUG: ${{ github.event.inputs.debug }}
+        run: npm start
+
+      # 5. Üretilen kanallar.json'ı commit et ve push'la
+      - name: kanallar.json'ı commit et ve push'la
+        run: |
+          git config user.name  "KotakTV Bot"
+          git config user.email "actions@github.com"
+
+          git add kanallar.json
+
+          # Staging alanı boşsa (dosya değişmediyse) commit atla
+          if git diff --staged --quiet; then
+            echo "ℹ️  kanallar.json değişmedi — commit atlanıyor."
+          else
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            git commit -m "chore(bot): kanallar.json güncellendi — ${TIMESTAMP}"
+            git push origin main
+            echo "✅ kanallar.json başarıyla push'landı."
+          fi

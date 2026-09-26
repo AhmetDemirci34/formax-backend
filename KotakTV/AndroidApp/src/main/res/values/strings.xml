@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KotakTV</string>
+    <string name="overlay_loading">Kanal yükleniyor…</string>
+    <string name="overlay_switching">Kanal güncelleniyor, lütfen bekleyiniz…</string>
+    <string name="overlay_all_failed">Tüm yayın kaynakları şu an kullanılamıyor.\nLütfen daha sonra tekrar deneyin.</string>
+</resources>

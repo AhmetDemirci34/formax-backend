@@ -1,0 +1,36 @@
+# ── Node.js / Bot ────────────────────────────────────────────────────────────
+Bot/node_modules/
+Bot/npm-debug.log*
+Bot/.env
+Bot/.env.local
+
+# ── Android / Gradle ─────────────────────────────────────────────────────────
+AndroidApp/.gradle/
+AndroidApp/app/build/
+AndroidApp/build/
+AndroidApp/local.properties
+AndroidApp/*.keystore
+AndroidApp/**/*.keystore
+AndroidApp/app/release/
+*.jks
+*.keystore
+
+# ── Android Studio IDE ───────────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+captures/
+
+# ── GitHub Actions ───────────────────────────────────────────────────────────
+# (workflow logları zaten GitHub'da tutulur, yerel dosya yok)
+
+# ── İşletim sistemi ──────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride

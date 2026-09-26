@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android TV tam ekran oynatıcı düzeni.
+    - PlayerView: HLS akışını gösterir (surface_view — TV donanımıyla uyumlu)
+    - Overlay: Failover sırasında ince yarı-saydam katman + spinner + mesaj
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black"
+    android:keepScreenOn="true">
+
+    <!-- ── Oynatıcı ──────────────────────────────────────────────────────── -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:surface_type="surface_view"
+        app:use_controller="false"
+        app:resize_mode="fit" />
+
+    <!-- ── Failover overlay ─────────────────────────────────────────────── -->
+    <!--
+        Görünürlük: FailoverEngine.SWITCHING veya LOADING durumlarında VISIBLE,
+        PLAYING durumunda GONE yapılır (PlayerActivity.handleFailoverState).
+    -->
+    <FrameLayout
+        android:id="@+id/overlay_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:visibility="gone">
+
+        <!-- İçerik merkezi: spinner + mesaj -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp">
+
+            <!-- Dönen yükleme göstergesi -->
+            <ProgressBar
+                android:id="@+id/overlay_progress"
+                style="@android:style/Widget.ProgressBar.Large"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:indeterminate="true"
+                android:indeterminateTint="#FFFFFFFF"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Bilgi mesajı -->
+            <TextView
+                android:id="@+id/overlay_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Kanal güncelleniyor, lütfen bekleyiniz..."
+                android:textColor="#FFFFFFFF"
+                android:textSize="22sp"
+                android:fontFamily="sans-serif-light"
+                android:letterSpacing="0.02"
+                android:gravity="center"
+                android:maxWidth="640dp"
+                android:lineSpacingMultiplier="1.4" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</FrameLayout>
