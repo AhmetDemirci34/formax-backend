@@ -1,33 +1,37 @@
 'use strict';
 
 // ─── Özel kanal sıralama listesi ─────────────────────────────────────────────
-// İlk kanal uygulamada otomatik oynatılır → TRT 1 başta.
 const CHANNEL_ORDER = [
+  // Genel yayın
   'trt 1', 'trt 2', 'trt 3', 'kanal d', 'show tv', 'star tv', 'atv', 'fox',
-  'trt haber', 'cnn türk', 'ntv', 'haberturk', 'tgrt haber', 'a haber',
+  'tv8', 'teve2', 'kanal 7',
+  // Haber
+  'trt haber', 'cnn türk', 'ntv', 'haberturk', 'tgrt haber', 'a haber', 'bloomberg',
+  // Spor
   'trt spor', 'bein sports 1', 'bein sports 2', 'bein sports 3',
-  's sport', 'tivibu spor', 'a spor',
+  'bein sports 4', 'bein sports 5', 'bein sports max 1', 'bein sports max 2',
+  'bein sports haber', 's sport', 'tivibu spor', 'a spor',
+  // Film / Sinema
+  'bein movies premiere', 'bein movies turk', 'bein movies stars', 'bein box office',
+  'sinema tv', 'sinema komedi', 'sinema yerli', 'sinema aksiyon', 'sinema aile',
+  // Belgesel
+  'bein iz tv', 'trt belgesel', 'national geographic', 'nat geo wild',
+  'bbc earth', 'tarih tv', 'discovery', 'history', 'animal planet', 'tlc', 'dmax',
+  // Müzik
   'trt müzik', 'number one tv', 'kral tv', 'powertürk',
+  // Çocuk
   'trt çocuk', 'minika', 'cartoon network',
-  'discovery', 'national geographic', 'tlc', 'dmax',
-  'euronews', 'tv8', 'teve2', 'bloomberg',
 ];
 
-// ─── Açık kaynak M3U kaynakları ──────────────────────────────────────────────
-// İndirilemeyen kaynaklar otomatik atlanır; hardcoded TRT stream'leri
-// her zaman listeye eklenir (scraper.js/localChannels.js içinde).
+// ─── M3U kaynakları ───────────────────────────────────────────────────────────
 const SOURCES = [
   {
     name: 'iptv-org/iptv — Türkiye',
     url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/tr.m3u',
   },
   {
-    name: 'iptv-org — Türkiye (epg)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/tr.m3u',
-  },
-  {
-    name: 'jnk44/iptv-tr — Türkiye',
-    url: 'https://raw.githubusercontent.com/jnk44/iptv-tr/main/playlist.m3u8',
+    name: 'iptv-org — tüm kanallar (TR filtreli)',
+    url: 'https://iptv-org.github.io/iptv/countries/tr.m3u',
   },
   {
     name: 'Free-TV/IPTV — Türkiye',
@@ -41,46 +45,43 @@ const SOURCES = [
     name: 'gadget-insanity/iptv — Türkiye',
     url: 'https://raw.githubusercontent.com/gadget-insanity/iptv/main/turkey.m3u',
   },
-  {
-    name: 'streamlink-iptv — Türkiye',
-    url: 'https://raw.githubusercontent.com/streamlink/streamlink/master/tests/resources/plugins/streams/hls/index.m3u8',
-  },
-  {
-    name: 'azmm/iptv-tr',
-    url: 'https://raw.githubusercontent.com/azimmermann/iptv-tr/main/TR.m3u',
-  },
 ];
 
 module.exports = {
   channelOrder: CHANNEL_ORDER,
   sources: SOURCES,
 
-  // ─── Stream sağlık kontrol ayarları ───────────────────────────────────────
   checker: {
-    timeoutMs: 10000,   // daha uzun — yavaş sunuculara tolerans
-    concurrency: 12,    // daha az — rate-limit koruması
-    retries: 2,         // her URL için 2 deneme
+    timeoutMs: 10000,
+    concurrency: 12,
+    retries: 2,
     validateContent: true,
   },
 
   outputFileName: 'kanallar.json',
   schemaVersion: '1.0.0',
 
-  // ─── Kategori tespiti ──────────────────────────────────────────────────────
   categoryRules: [
     {
       keywords: ['haber', 'news', 'cnn', 'ntv', 'tgrt', 'a haber', 'haberturk',
-                 'bloomberg', 'teve2', 'ulusal', 'kanal24', 'tv360', 'euronews', 'tv100', 'halk tv', 'tele1'],
+                 'bloomberg', 'teve2', 'ulusal', 'kanal24', 'tv360', 'euronews',
+                 'tv100', 'halk tv', 'tele1', 'bein sports haber'],
       category: 'Haber',
     },
     {
-      keywords: ['spor', 'sport', 'bein', 'tivibu spor', 's sport',
+      keywords: ['spor', 'sport', 'bein sports', 'tivibu spor', 's sport',
                  'fb tv', 'gs tv', 'trt spor', 'bjk tv', 'a spor', 'ts tv'],
       category: 'Spor',
     },
     {
+      keywords: ['sinema', 'cinema', 'film', 'movie', 'movies', 'bein movie',
+                 'box office', 'sinematurk', 'fx'],
+      category: 'Sinema',
+    },
+    {
       keywords: ['belgesel', 'documentary', 'discovery', 'national geographic',
-                 'natgeo', 'history', 'tlc', 'animal planet', 'dmax'],
+                 'natgeo', 'nat geo', 'history', 'tlc', 'animal planet', 'dmax',
+                 'bbc earth', 'tarih tv', 'bein iz'],
       category: 'Belgesel',
     },
     {
@@ -92,10 +93,6 @@ module.exports = {
       keywords: ['müzik', 'muzik', 'music', 'number one', 'mtv', 'kral',
                  'powerturk', 'powertürk', 'soundmax'],
       category: 'Müzik',
-    },
-    {
-      keywords: ['sinema', 'cinema', 'film', 'movie'],
-      category: 'Sinema',
     },
   ],
 };
