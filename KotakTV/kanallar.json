@@ -1,19 +1,19 @@
 {
   "_meta": {
     "schema_version": "1.0.0",
-    "generated_at": "2026-09-27T18:25:36.429Z",
+    "generated_at": "2026-09-27T19:36:43.838Z",
     "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
     "ttl_seconds": 3600,
-    "total_channels": 162
+    "total_channels": 161
   },
   "channels": [
     {
-      "id": "trt_1_1440p",
-      "name": "TRT 1 (1440p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_1_1440p.png",
+      "id": "trt_1",
+      "name": "TRT 1",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/TRT_1_logo_%282021%29.svg/200px-TRT_1_logo_%282021%29.svg.png",
       "category": "Genel",
       "tags": [],
-      "epg_id": "TRT1.tr@SD",
+      "epg_id": "trt_1",
       "is_active": true,
       "streams": [
         {
@@ -28,12 +28,12 @@
       ]
     },
     {
-      "id": "trt_2_1440p_geo_blocked",
-      "name": "TRT 2 (1440p) [Geo-blocked]",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_2_1440p_geo_blocked.png",
+      "id": "trt_2",
+      "name": "TRT 2",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/TRT_2_logo_%282021%29.svg/200px-TRT_2_logo_%282021%29.svg.png",
       "category": "Genel",
       "tags": [],
-      "epg_id": "TRT2.tr@SD",
+      "epg_id": "trt_2",
       "is_active": true,
       "streams": [
         {
@@ -105,7 +105,7 @@
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "http://190.93.224.42/KANAL-D-DRAMA/index.m3u8",
+          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -114,7 +114,7 @@
         {
           "priority": 2,
           "label": "backup-cdn-1",
-          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
+          "url": "http://190.93.224.42/KANAL-D-DRAMA/index.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -227,14 +227,12 @@
       ]
     },
     {
-      "id": "trt_haber_720p",
-      "name": "TRT Haber (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_haber_720p.png",
+      "id": "trt_haber",
+      "name": "TRT Haber",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/TRT_Haber_logo_%282021%29.svg/200px-TRT_Haber_logo_%282021%29.svg.png",
       "category": "Haber",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "TRTHaber.tr@SD",
+      "tags": [],
+      "epg_id": "trt_haber",
       "is_active": true,
       "streams": [
         {
@@ -333,6 +331,46 @@
       ]
     },
     {
+      "id": "trt_spor",
+      "name": "TRT Spor",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_spor.png",
+      "category": "Spor",
+      "tags": [],
+      "epg_id": "trt_spor",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtspor1.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_spor_yildiz",
+      "name": "TRT Spor Yıldız",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_spor_yildiz.png",
+      "category": "Spor",
+      "tags": [],
+      "epg_id": "trt_spor_yildiz",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtspor2.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
       "id": "trt_spor_yildiz_1440p_geo_blocked",
       "name": "TRT Spor Yildiz (1440p) [Geo-blocked]",
       "logo_url": "https://cdn.kotaktv.com/logos/trt_spor_yildiz_1440p_geo_blocked.png",
@@ -353,20 +391,134 @@
       ]
     },
     {
-      "id": "trt_muzik_720p",
-      "name": "TRT Müzik (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_muzik_720p.png",
-      "category": "Müzik",
+      "id": "a_spor_1080p",
+      "name": "A Spor (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/a_spor_1080p.png",
+      "category": "Spor",
       "tags": [
         "hd"
       ],
-      "epg_id": "TRTMuzik.tr@SD",
+      "epg_id": "ASpor.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/aspor/aspor.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_muzik",
+      "name": "TRT Müzik",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_muzik.png",
+      "category": "Müzik",
+      "tags": [],
+      "epg_id": "trt_muzik",
       "is_active": true,
       "streams": [
         {
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://tv-trtmuzik.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 2,
+          "label": "backup-cdn-1",
+          "url": "https://stream8.cinerama.uz/1208/tracks-v1a1/mono.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "powerturk_tv_720p",
+      "name": "PowerTürk TV (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/powerturk_tv_720p.png",
+      "category": "Müzik",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "PowerTurkTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.artidijitalmedya.com/artidijital_powerturktv/powerturktv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_cocuk",
+      "name": "TRT Çocuk",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_cocuk.png",
+      "category": "Çocuk",
+      "tags": [],
+      "epg_id": "trt_cocuk",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtcocuk.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "minika_cocuk_576p",
+      "name": "Minika Cocuk (576p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/minika_cocuk_576p.png",
+      "category": "Çocuk",
+      "tags": [],
+      "epg_id": "MinikaCocuk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago_cocuk/minikago_cocuk.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "minika_cocuk_720p",
+      "name": "Minika Cocuk (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/minika_cocuk_720p.png",
+      "category": "Çocuk",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "MinikaCocuk.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago_cocuk/minikago_cocuk.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -541,28 +693,6 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://hls.4utv.live/hls/stream.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "a_spor_1080p",
-      "name": "A Spor (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/a_spor_1080p.png",
-      "category": "Spor",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "ASpor.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/aspor/aspor.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -984,28 +1114,6 @@
       ]
     },
     {
-      "id": "diyanet_tv_1080p",
-      "name": "Diyanet TV (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/diyanet_tv_1080p.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "DiyanetTV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://eustr73.mediatriple.net/videoonlylive/mtikoimxnztxlive/broadcast_5e3bf95a47e07.smil/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "diyar_tv_720p",
       "name": "Diyar TV (720p)",
       "logo_url": "https://cdn.kotaktv.com/logos/diyar_tv_720p.png",
@@ -1291,26 +1399,6 @@
       ]
     },
     {
-      "id": "flash_haber_tv",
-      "name": "Flash Haber TV",
-      "logo_url": "https://cdn.kotaktv.com/logos/flash_haber_tv.png",
-      "category": "Haber",
-      "tags": [],
-      "epg_id": "FlashHaberTV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtyycglqauzjhlive/broadcast_67c053c48829f.smil/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "fortuna_tv_1080p",
       "name": "Fortuna TV (1080p)",
       "logo_url": "https://cdn.kotaktv.com/logos/fortuna_tv_1080p.png",
@@ -1434,7 +1522,7 @@
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "https://cdn-haber61tv.yayin.com.tr/haber61tv/smil:haber61tv.smil/index.m3u8",
+          "url": "https://win8.yayin.com.tr/haber61tv/smil:haber61tv.smil/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -1443,7 +1531,7 @@
         {
           "priority": 2,
           "label": "backup-cdn-1",
-          "url": "https://win8.yayin.com.tr/haber61tv/smil:haber61tv.smil/playlist.m3u8",
+          "url": "https://cdn-haber61tv.yayin.com.tr/haber61tv/smil:haber61tv.smil/index.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -1478,7 +1566,7 @@
       "id": "halk_tv_1080p",
       "name": "Halk TV (1080p)",
       "logo_url": "https://cdn.kotaktv.com/logos/halk_tv_1080p.png",
-      "category": "Genel",
+      "category": "Haber",
       "tags": [
         "hd"
       ],
@@ -2198,48 +2286,6 @@
       ]
     },
     {
-      "id": "minika_cocuk_576p",
-      "name": "Minika Cocuk (576p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/minika_cocuk_576p.png",
-      "category": "Çocuk",
-      "tags": [],
-      "epg_id": "MinikaCocuk.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "http://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago_cocuk/minikago_cocuk.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "minika_cocuk_720p",
-      "name": "Minika Cocuk (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/minika_cocuk_720p.png",
-      "category": "Çocuk",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "MinikaCocuk.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago_cocuk/minikago_cocuk.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "mturk_tv_1080p",
       "name": "MTürk TV (1080p)",
       "logo_url": "https://cdn.kotaktv.com/logos/mturk_tv_1080p.png",
@@ -2590,29 +2636,6 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://live.artidijitalmedya.com/artidijital_powertv/powertv/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "powerturk_tv_720p",
-      "name": "PowerTürk TV (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/powerturk_tv_720p.png",
-      "category": "Müzik",
-      "tags": [
-        "hd",
-        "yerli"
-      ],
-      "epg_id": "PowerTurkTV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://live.artidijitalmedya.com/artidijital_powerturktv/powerturktv/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -3002,14 +3025,12 @@
       ]
     },
     {
-      "id": "trt_avaz_720p",
-      "name": "TRT Avaz (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_avaz_720p.png",
+      "id": "trt_avaz",
+      "name": "TRT Avaz",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_avaz.png",
       "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "TRTAvaz.tr@SD",
+      "tags": [],
+      "epg_id": "trt_avaz",
       "is_active": true,
       "streams": [
         {
@@ -3024,40 +3045,18 @@
       ]
     },
     {
-      "id": "trt_belgesel_720p",
-      "name": "TRT Belgesel (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_belgesel_720p.png",
+      "id": "trt_belgesel",
+      "name": "TRT Belgesel",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_belgesel.png",
       "category": "Belgesel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "TRTBelgesel.tr@SD",
+      "tags": [],
+      "epg_id": "trt_belgesel",
       "is_active": true,
       "streams": [
         {
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://tv-trtbelgesel.medya.trt.com.tr/master.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "trt_cocuk_1440p",
-      "name": "TRT Cocuk (1440p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_cocuk_1440p.png",
-      "category": "Çocuk",
-      "tags": [],
-      "epg_id": "TRTCocuk.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://tv-trtcocuk.medya.trt.com.tr/master.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -3174,40 +3173,18 @@
       ]
     },
     {
-      "id": "trt_kurd_720p",
-      "name": "TRT Kurdî (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_kurd_720p.png",
+      "id": "trt_kurd",
+      "name": "TRT Kurdî",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_kurd.png",
       "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "TRTKurdi.tr@SD",
+      "tags": [],
+      "epg_id": "trt_kurdce",
       "is_active": true,
       "streams": [
         {
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://tv-trtkurdi.medya.trt.com.tr/master.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "trt_muzik",
-      "name": "TRT Muzik",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_muzik.png",
-      "category": "Müzik",
-      "tags": [],
-      "epg_id": "TRTMuzik.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://stream8.cinerama.uz/1208/tracks-v1a1/mono.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -3239,14 +3216,12 @@
       ]
     },
     {
-      "id": "trt_world_1080p_not_24_7",
-      "name": "TRT World (1080p) [Not 24/7]",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_world_1080p_not_24_7.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "TRTWorld.tr@SD",
+      "id": "trt_world",
+      "name": "TRT World",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_world.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "trt_world",
       "is_active": true,
       "streams": [
         {
