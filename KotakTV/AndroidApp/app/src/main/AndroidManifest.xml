@@ -15,9 +15,8 @@
         android:banner="@drawable/tv_banner"
         android:icon="@drawable/tv_banner">
 
-        <!-- Klasik TV modu: uygulama açılır açılmaz direkt oynatıcıya gider -->
         <activity
-            android:name="com.kotaktv.PlayerActivity"
+            android:name="com.kotaktv.MainActivity"
             android:exported="true"
             android:screenOrientation="landscape"
             android:launchMode="singleTask"
@@ -27,6 +26,19 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.kotaktv.PlayerActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
+
+        <activity
+            android:name="com.kotaktv.SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
 
     </application>
 

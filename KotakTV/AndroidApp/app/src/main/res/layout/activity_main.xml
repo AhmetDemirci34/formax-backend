@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <Button
+        android:id="@+id/btn_watch_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:text="TV İZLEMEYE DEVAM ET"
+        android:textSize="42sp"
+        android:textColor="#FFFFFFFF"
+        android:textStyle="bold"
+        android:backgroundTint="#CC0000"
+        android:paddingVertical="36dp"
+        android:paddingHorizontal="80dp"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
+
+    <TextView
+        android:id="@+id/tv_device_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="20dp"
+        android:textColor="#66FFFFFF"
+        android:textSize="14sp"
+        android:fontFamily="monospace"
+        android:text="Cihaz Kimliği: ..." />
+
+    <ImageButton
+        android:id="@+id/btn_settings"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="20dp"
+        android:src="@android:drawable/ic_menu_preferences"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:tint="#AAFFFFFF"
+        android:padding="10dp"
+        android:contentDescription="Ayarlar"
+        android:focusable="true" />
+
+</RelativeLayout>
