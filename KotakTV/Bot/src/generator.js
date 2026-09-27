@@ -7,13 +7,8 @@ const config = require('../config');
 
 /**
  * Canlı stream listesini alır, kanal başına gruplar ve kanallar.json yazar.
- *
- * Gruplama anahtarı: slugified kanal adı
- * Priority sıralaması: en hızlı yanıt veren stream = priority 1
- *
- * @param {Array} aliveStreams  - checker.js'ten gelen { ...channel, isAlive, responseTimeMs }
- * @param {string} outputDir   - kanallar.json'ın yazılacağı dizin
- * @returns {object}           - Yazılan JSON nesnesi
+ * Kanallar config.channelOrder listesine göre sıralanır; listede olmayan
+ * kanallar alfabetik olarak sona eklenir.
  */
 function generateKanallarJson(aliveStreams, outputDir) {
   const channelMap = buildChannelMap(aliveStreams);
@@ -67,7 +62,6 @@ function finalizeChannels(map) {
   const channels = [];
 
   for (const [, ch] of map) {
-    // En hızlı yanıt vereni öne al
     ch._streams.sort((a, b) => a.responseTimeMs - b.responseTimeMs);
 
     const streams = ch._streams.map((s, i) => ({
@@ -84,9 +78,29 @@ function finalizeChannels(map) {
     channels.push({ ...rest, streams });
   }
 
-  // Alfabetik sırala
-  channels.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
-  return channels;
+  return sortByChannelOrder(channels);
+}
+
+/**
+ * Kanalları config.channelOrder listesine göre sıralar.
+ * Listede olmayan kanallar Türkçe alfabetik olarak sona eklenir.
+ */
+function sortByChannelOrder(channels) {
+  const order = (config.channelOrder || []).map(s => s.toLowerCase());
+
+  function orderIndex(ch) {
+    const name = ch.name.toLowerCase();
+    const idx = order.findIndex(pattern => name.includes(pattern));
+    return idx === -1 ? order.length : idx;
+  }
+
+  return channels.sort((a, b) => {
+    const ia = orderIndex(a);
+    const ib = orderIndex(b);
+    if (ia !== ib) return ia - ib;
+    // Aynı grupta (veya ikisi de listede yok) → alfabetik
+    return a.name.localeCompare(b.name, 'tr');
+  });
 }
 
 function resolveLogo(logoUrl, channelId) {
@@ -96,11 +110,8 @@ function resolveLogo(logoUrl, channelId) {
 
 function detectCategory(name = '', group = '') {
   const haystack = `${name} ${group}`.toLowerCase();
-
   for (const rule of config.categoryRules) {
-    if (rule.keywords.some(kw => haystack.includes(kw))) {
-      return rule.category;
-    }
+    if (rule.keywords.some(kw => haystack.includes(kw))) return rule.category;
   }
   return 'Genel';
 }

@@ -1,6 +1,8 @@
 package com.kotaktv
 
+import android.media.AudioManager
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
@@ -23,56 +25,50 @@ import com.kotaktv.data.Channel
 import com.kotaktv.data.ChannelRepository
 import com.kotaktv.data.Stream
 import com.kotaktv.failover.FailoverEngine
-import com.kotaktv.failover.FailoverState
 import com.kotaktvapp.BuildConfig
 import com.kotaktvapp.R
 import kotlinx.coroutines.launch
 
 /**
- * Android TV ana oynatıcı ekranı.
+ * Klasik TV modu: uygulama açılır açılmaz ilk kanalı (TRT 1) tam ekran oynatır.
  *
- * Sorumluluğu:
- *  1. Kanal listesini ChannelRepository üzerinden indirir.
- *  2. FailoverEngine'i ExoPlayer ile köprüler.
- *  3. Failover sırasında kullanıcıya "Kanal güncelleniyor..." overlay'i gösterir.
- *  4. Player.Listener olaylarını (hata, donma, buffer) FailoverEngine'e iletir.
- *
- * Intent parametreleri:
- *  EXTRA_CHANNEL_ID  → Açılacak kanalın ID'si (ör. "trt1")
- *  EXTRA_JSON_URL    → Alternatif kanallar.json URL'si (opsiyonel)
+ * Kumanda haritası:
+ *   YUKARI      → bir sonraki kanal (zapping)
+ *   AŞAĞI       → bir önceki kanal (zapping)
+ *   SOL         → ses azalt
+ *   SAĞ         → ses artır
+ *   GERİ        → uygulamayı kapat (TV ana ekranına çık)
  */
 @UnstableApi
 class PlayerActivity : AppCompatActivity(), Player.Listener {
 
-    // ─── Görünümler ──────────────────────────────────────────────────────────
     private lateinit var playerView: PlayerView
-    private lateinit var overlayContainer: View
-    private lateinit var overlayMessage: TextView
-    private lateinit var overlayProgressBar: View
+    private lateinit var channelNameOverlay: TextView
 
-    // ─── Motor bileşenleri ───────────────────────────────────────────────────
     private lateinit var player: ExoPlayer
     private lateinit var failoverEngine: FailoverEngine
+    private lateinit var audioManager: AudioManager
     private val repository = ChannelRepository()
 
-    companion object {
-        const val EXTRA_CHANNEL_ID = "extra_channel_id"
-        const val EXTRA_JSON_URL   = "extra_json_url"
-    }
+    private var channels: List<Channel> = emptyList()
+    private var currentChannelIndex: Int = 0
+
+    private val hideChannelName = Runnable { channelNameOverlay.visibility = View.GONE }
 
     // ─── Lifecycle ───────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Tam ekran, her zaman açık (Android TV için standart)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         setContentView(R.layout.activity_player)
-        bindViews()
+
+        playerView = findViewById(R.id.player_view)
+        channelNameOverlay = findViewById(R.id.channel_name_overlay)
+        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+
         initFailoverEngine()
         initExoPlayer()
-        loadChannelList()
+        loadAndStart()
     }
 
     override fun onStart() {
@@ -87,6 +83,7 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
 
     override fun onDestroy() {
         super.onDestroy()
+        channelNameOverlay.removeCallbacks(hideChannelName)
         if (::player.isInitialized) {
             player.removeListener(this)
             player.release()
@@ -94,19 +91,38 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
         if (::failoverEngine.isInitialized) failoverEngine.release()
     }
 
-    // ─── Başlatma ────────────────────────────────────────────────────────────
+    // ─── Kumanda girişi ──────────────────────────────────────────────────────
 
-    private fun bindViews() {
-        playerView         = findViewById(R.id.player_view)
-        overlayContainer   = findViewById(R.id.overlay_container)
-        overlayMessage     = findViewById(R.id.overlay_message)
-        overlayProgressBar = findViewById(R.id.overlay_progress)
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP    -> { zapChannel(+1); true }
+            KeyEvent.KEYCODE_DPAD_DOWN  -> { zapChannel(-1); true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                audioManager.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI
+                )
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT  -> {
+                audioManager.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI
+                )
+                true
+            }
+            KeyEvent.KEYCODE_BACK       -> { finish(); true }
+            else                         -> super.onKeyDown(keyCode, event)
+        }
     }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() = finish()
+
+    // ─── Başlatma ────────────────────────────────────────────────────────────
 
     private fun initFailoverEngine() {
         failoverEngine = FailoverEngine(
-            onSwitchStream  = ::applyStream,
-            onStateChanged  = ::handleFailoverState
+            onSwitchStream = ::applyStream,
+            onStateChanged = { _, _ -> }   // tüm failover arka planda, sessiz
         )
     }
 
@@ -124,7 +140,7 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
             .build()
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-            .setAudioAttributes(audioAttrs, /* handleAudioFocus= */ true)
+            .setAudioAttributes(audioAttrs, true)
             .build()
             .also { exo ->
                 playerView.player = exo
@@ -134,109 +150,61 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
             }
     }
 
-    // ─── Kanal yükleme ───────────────────────────────────────────────────────
+    // ─── Kanal yükleme ve oynatma ────────────────────────────────────────────
 
-    private fun loadChannelList() {
-        val jsonUrl   = intent.getStringExtra(EXTRA_JSON_URL) ?: BuildConfig.KANALLAR_JSON_URL
-        val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)
-
-        showOverlay(message = "Kanal listesi alınıyor...", showSpinner = true)
-
+    private fun loadAndStart() {
         lifecycleScope.launch {
-            repository.getChannels(jsonUrl).fold(
-                onSuccess = { channels ->
-                    val target = resolveChannel(channels, channelId)
-                    if (target != null) {
-                        hideOverlay()
-                        failoverEngine.loadChannel(target)
-                    } else {
-                        showOverlay("Kanal bulunamadı.", showSpinner = false)
-                    }
+            repository.getChannels(BuildConfig.KANALLAR_JSON_URL).fold(
+                onSuccess = { list ->
+                    channels = list
+                    currentChannelIndex = 0
+                    playCurrentChannel()
                 },
-                onFailure = { err ->
-                    showOverlay(
-                        "Kanal listesi yüklenemedi.\n${err.message}",
-                        showSpinner = false
-                    )
-                }
+                onFailure = { /* siyah ekran — bir sonraki açılışta tekrar dener */ }
             )
         }
     }
 
-    private fun resolveChannel(channels: List<Channel>, channelId: String?): Channel? =
-        if (channelId != null) channels.find { it.id == channelId } ?: channels.firstOrNull()
-        else channels.firstOrNull()
+    private fun zapChannel(direction: Int) {
+        if (channels.isEmpty()) return
+        currentChannelIndex = (currentChannelIndex + direction + channels.size) % channels.size
+        playCurrentChannel()
+    }
 
-    // ─── Stream uygulama (FailoverEngine → ExoPlayer) ────────────────────────
+    private fun playCurrentChannel() {
+        val channel = channels.getOrNull(currentChannelIndex) ?: return
+        showChannelName(channel.name)
+        failoverEngine.loadChannel(channel)
+    }
 
-    /**
-     * FailoverEngine'in belirlediği stream'i ExoPlayer'a yükler.
-     * Canlı yayın olduğu için mevcut pozisyon korunmaz; yayın canlı ucundan başlar.
-     */
-    private fun applyStream(stream: Stream, mediaItem: MediaItem) {
+    private fun showChannelName(name: String) {
+        channelNameOverlay.text = name
+        channelNameOverlay.visibility = View.VISIBLE
+        channelNameOverlay.removeCallbacks(hideChannelName)
+        channelNameOverlay.postDelayed(hideChannelName, 2500L)
+    }
+
+    // ─── Stream uygulama ─────────────────────────────────────────────────────
+
+    private fun applyStream(@Suppress("UNUSED_PARAMETER") stream: Stream, mediaItem: MediaItem) {
         player.stop()
         player.setMediaItem(mediaItem)
         player.prepare()
         player.playWhenReady = true
     }
 
-    // ─── FailoverEngine durum yöneticisi ─────────────────────────────────────
-
-    private fun handleFailoverState(state: FailoverState, streamLabel: String?) {
-        when (state) {
-            FailoverState.LOADING ->
-                showOverlay("Kanal yükleniyor...", showSpinner = true)
-
-            FailoverState.SWITCHING ->
-                showOverlay("Kanal güncelleniyor, lütfen bekleyiniz...", showSpinner = true)
-
-            FailoverState.PLAYING ->
-                hideOverlay()
-
-            FailoverState.ALL_FAILED ->
-                showOverlay(
-                    "Tüm yayın kaynakları şu an kullanılamıyor.\n" +
-                    "Lütfen daha sonra tekrar deneyin.",
-                    showSpinner = false
-                )
-
-            FailoverState.IDLE -> { /* no-op */ }
-        }
-    }
-
     // ─── Player.Listener ─────────────────────────────────────────────────────
 
-    /**
-     * Fatal oynatıcı hatası → FailoverEngine devreye girer.
-     */
     override fun onPlayerError(error: PlaybackException) {
         failoverEngine.onPlayerError()
     }
 
-    /**
-     * Oynatma durumu değişimi:
-     *  STATE_BUFFERING → donma zamanlayıcısı başlatılır
-     *  STATE_READY     → sağlıklı oynatma onaylanır, overlay gizlenir
-     *  STATE_ENDED     → canlı yayın beklenmedik bitti → yedek dene
-     */
     override fun onPlaybackStateChanged(playbackState: Int) {
         when (playbackState) {
             Player.STATE_BUFFERING -> failoverEngine.onBufferingStarted()
             Player.STATE_READY     -> failoverEngine.onPlayingStarted()
             Player.STATE_ENDED     -> failoverEngine.onPlayerError()
-            Player.STATE_IDLE      -> { /* onPlayerError zaten yönetiyor */ }
+            else                   -> {}
         }
-    }
-
-    // ─── Overlay UI ──────────────────────────────────────────────────────────
-
-    private fun showOverlay(message: String, showSpinner: Boolean) {
-        overlayContainer.visibility = View.VISIBLE
-        overlayMessage.text = message
-        overlayProgressBar.visibility = if (showSpinner) View.VISIBLE else View.GONE
-    }
-
-    private fun hideOverlay() {
-        overlayContainer.visibility = View.GONE
     }
 }

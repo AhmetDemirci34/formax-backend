@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const { execSync } = require('child_process');
 const pLimit = require('p-limit');
 const chalk = require('chalk');
 
@@ -9,18 +10,17 @@ const { scrapeAll } = require('./src/scraper');
 const { checkStream } = require('./src/checker');
 const { generateKanallarJson } = require('./src/generator');
 
-// kanallar.json → Bot/../kanallar.json (proje kökü)
 const OUTPUT_DIR = path.resolve(__dirname, '..');
 
 async function main() {
   const startTime = Date.now();
 
   console.log(chalk.bold.cyan('╔══════════════════════════════════════╗'));
-  console.log(chalk.bold.cyan('║      KotakTV Otomasyon Botu v1.0     ║'));
+  console.log(chalk.bold.cyan('║      KotakTV Otomasyon Botu v2.0     ║'));
   console.log(chalk.bold.cyan('╚══════════════════════════════════════╝\n'));
 
   // ── Adım 1: Kaynakları tara ──────────────────────────────────────────────
-  console.log(chalk.bold.yellow('[ 1/3 ] IPTV kaynakları indiriliyor...\n'));
+  console.log(chalk.bold.yellow('[ 1/4 ] IPTV kaynakları indiriliyor...\n'));
   const allChannels = await scrapeAll(config.sources);
 
   if (allChannels.length === 0) {
@@ -33,7 +33,7 @@ async function main() {
   // ── Adım 2: Her stream'i sağlık kontrolünden geçir ──────────────────────
   const { timeoutMs, concurrency, validateContent, retries } = config.checker;
   console.log(chalk.bold.yellow(
-    `[ 2/3 ] Stream'ler kontrol ediliyor` +
+    `[ 2/4 ] Stream'ler kontrol ediliyor` +
     chalk.gray(` (eş zamanlı: ${concurrency}, timeout: ${timeoutMs / 1000}s)...\n`)
   ));
 
@@ -64,7 +64,6 @@ async function main() {
     )
   );
 
-  // Satır bitişini temizle
   process.stdout.write('\n\n');
 
   const aliveStreams = results.filter(r => r.isAlive);
@@ -79,20 +78,43 @@ async function main() {
     process.exit(1);
   }
 
-  // ── Adım 3: kanallar.json üret ───────────────────────────────────────────
-  console.log(chalk.bold.yellow('[ 3/3 ] kanallar.json üretiliyor...'));
+  // ── Adım 3: kanallar.json üret (özel sıralama uygulanır) ────────────────
+  console.log(chalk.bold.yellow('[ 3/4 ] kanallar.json üretiliyor (özel sıralama uygulanıyor)...'));
   const output = generateKanallarJson(aliveStreams, OUTPUT_DIR);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   const outFile = path.join(OUTPUT_DIR, 'kanallar.json');
 
   console.log('');
-  console.log(chalk.bold.green('╔══════════════════════════════════════╗'));
-  console.log(chalk.bold.green('║            Bot Tamamlandı! ✓         ║'));
-  console.log(chalk.bold.green('╚══════════════════════════════════════╝'));
   console.log(chalk.gray(`  Toplam kanal : ${output._meta.total_channels}`));
   console.log(chalk.gray(`  Çıktı        : ${outFile}`));
+  console.log(chalk.gray(`  İlk kanal    : ${output.channels[0]?.name ?? '?'}`));
   console.log(chalk.gray(`  Süre         : ${elapsed}s\n`));
+
+  // ── Adım 4: GitHub'a push et ─────────────────────────────────────────────
+  console.log(chalk.bold.yellow('[ 4/4 ] GitHub\'a push ediliyor...'));
+  try {
+    const date = new Date().toISOString().slice(0, 10);
+    execSync('git add kanallar.json', { cwd: OUTPUT_DIR, stdio: 'pipe' });
+    execSync(
+      `git commit -m "bot: kanallar.json güncellendi ${date} (${aliveStreams.length} canlı kanal)"`,
+      { cwd: OUTPUT_DIR, stdio: 'pipe' }
+    );
+    execSync('git push', { cwd: OUTPUT_DIR, stdio: 'inherit' });
+    console.log(chalk.green('  ✓ GitHub\'a push edildi'));
+  } catch (e) {
+    const msg = e.stderr?.toString().trim() || e.message;
+    if (msg.includes('nothing to commit')) {
+      console.log(chalk.gray('  Liste değişmedi, commit atlandı'));
+    } else {
+      console.warn(chalk.yellow(`  ⚠ Git push başarısız: ${msg}`));
+    }
+  }
+
+  console.log('');
+  console.log(chalk.bold.green('╔══════════════════════════════════════╗'));
+  console.log(chalk.bold.green('║            Bot Tamamlandı! ✓         ║'));
+  console.log(chalk.bold.green('╚══════════════════════════════════════╝\n'));
 }
 
 main().catch(err => {

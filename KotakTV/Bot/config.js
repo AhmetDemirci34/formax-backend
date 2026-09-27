@@ -1,6 +1,50 @@
 'use strict';
 
+// ─── Özel kanal sıralama listesi ─────────────────────────────────────────────
+// Bu listedeki kanallar kanallar.json'ın başına, buradaki sırayla yerleştirilir.
+// İsimler küçük harfli ve kısmi eşleşme kullanır (ör. "trt 1" → "TRT 1 HD" bulur).
+// Listede olmayan kanallar alfabetik olarak sona eklenir.
+// Uygulamada ilk kanal otomatik oynatılır → TRT 1'i listenin başına koy.
+const CHANNEL_ORDER = [
+  'trt 1',
+  'trt 2',
+  'trt 3',
+  'kanal d',
+  'show tv',
+  'star tv',
+  'atv',
+  'fox tv',
+  'trt haber',
+  'cnn türk',
+  'ntv',
+  'haberturk',
+  'tgrt haber',
+  'a haber',
+  'trt spor',
+  'bein sports 1',
+  'bein sports 2',
+  'bein sports 3',
+  's sport',
+  'tivibu spor',
+  'trt müzik',
+  'number one tv',
+  'kral tv',
+  'trt çocuk',
+  'minika go',
+  'cartoon network',
+  'discovery channel',
+  'national geographic',
+  'tlc',
+  'euronews',
+  'tv8',
+  'teve2',
+  'bloomberg ht',
+];
+
 module.exports = {
+  // ─── Özel sıralama (yukarıda düzenle) ───────────────────────────────────
+  channelOrder: CHANNEL_ORDER,
+
   // ─── Taranacak açık kaynak M3U/M3U8 kaynakları ──────────────────────────
   sources: [
     {
@@ -23,22 +67,21 @@ module.exports = {
 
   // ─── Stream sağlık kontrol ayarları ─────────────────────────────────────
   checker: {
-    timeoutMs: 8000,       // Her HTTP isteğinin maksimum süresi
-    concurrency: 15,        // Eş zamanlı kontrol sayısı (sunucuyu sıkmamak için)
-    retries: 1,             // Başarısız isteğin kaç kez tekrar deneneceği
-    validateContent: true,  // M3U8 içerik başlığını doğrula (#EXTM3U / #EXT-X-)
+    timeoutMs: 8000,
+    concurrency: 15,
+    retries: 1,
+    validateContent: true,
   },
 
   // ─── Çıktı ──────────────────────────────────────────────────────────────
-  // index.js'in bulunduğu Bot/ dizinine göre üst klasördeki kanallar.json
   outputFileName: 'kanallar.json',
   schemaVersion: '1.0.0',
 
-  // ─── Kanal kategori tespiti (anahtar kelime eşleştirme) ─────────────────
+  // ─── Kanal kategori tespiti ──────────────────────────────────────────────
   categoryRules: [
     {
       keywords: ['haber', 'news', 'cnn', 'ntv', 'tgrt', 'a haber', 'haberturk',
-                 'bloomberg', 'teve2', 'ulusal', 'kanal24', 'tv360'],
+                 'bloomberg', 'teve2', 'ulusal', 'kanal24', 'tv360', 'euronews'],
       category: 'Haber',
     },
     {
