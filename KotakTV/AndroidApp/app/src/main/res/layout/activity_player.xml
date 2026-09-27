@@ -15,6 +15,44 @@
         app:use_controller="false"
         app:resize_mode="fit" />
 
+    <!-- Buffer yükleme overlay — STATE_BUFFERING sırasında gösterilir -->
+    <FrameLayout
+        android:id="@+id/buffer_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#66000000"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="#CC000000"
+            android:padding="16dp">
+
+            <ProgressBar
+                android:id="@+id/buffer_spinner"
+                style="@android:style/Widget.ProgressBar.Large"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:indeterminate="true"
+                android:indeterminateTint="#4488FF" />
+
+            <TextView
+                android:id="@+id/buffer_pct"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="0%"
+                android:textColor="#FFFFFFFF"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-condensed" />
+        </LinearLayout>
+    </FrameLayout>
+
     <!-- Kanal adı: zap sırasında 2.5s görünür, sonra kaybolur -->
     <TextView
         android:id="@+id/channel_name_overlay"

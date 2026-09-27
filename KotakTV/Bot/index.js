@@ -12,29 +12,34 @@ const { generateKanallarJson } = require('./src/generator');
 
 const OUTPUT_DIR = path.resolve(__dirname, '..');
 
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 async function main() {
   const startTime = Date.now();
 
-  console.log(chalk.bold.cyan('╔══════════════════════════════════════╗'));
-  console.log(chalk.bold.cyan('║      KotakTV Otomasyon Botu v2.0     ║'));
-  console.log(chalk.bold.cyan('╚══════════════════════════════════════╝\n'));
+  console.log(chalk.bold.cyan('╔════════════════════════════════════════╗'));
+  console.log(chalk.bold.cyan('║      KotakTV Otomasyon Botu v3.0       ║'));
+  console.log(chalk.bold.cyan('║  Rotating UA · Backoff · Local Fallback ║'));
+  console.log(chalk.bold.cyan('╚════════════════════════════════════════╝\n'));
 
-  // ── Adım 1: Kaynakları tara ──────────────────────────────────────────────
-  console.log(chalk.bold.yellow('[ 1/4 ] IPTV kaynakları indiriliyor...\n'));
+  // ── Adım 1: Kaynakları tara ────────────────────────────────────────────────
+  console.log(chalk.bold.yellow('[ 1/4 ] IPTV kaynakları + hardcoded TRT stream\'leri yükleniyor...\n'));
   const allChannels = await scrapeAll(config.sources);
 
   if (allChannels.length === 0) {
-    console.error(chalk.red('\n✗ Hiç kanal bulunamadı. Kaynak URL\'leri kontrol edin.'));
+    console.error(chalk.red('\n✗ Hiç kanal bulunamadı (tüm kaynaklar başarısız). Çıkılıyor.'));
     process.exit(1);
   }
 
-  console.log(chalk.green(`\n  Toplam benzersiz stream: ${chalk.bold(allChannels.length)}\n`));
+  console.log(chalk.green(`\n  Toplam stream (hardcoded dahil): ${chalk.bold(allChannels.length)}\n`));
 
-  // ── Adım 2: Her stream'i sağlık kontrolünden geçir ──────────────────────
+  // ── Adım 2: Stream'leri sağlık kontrolünden geçir ──────────────────────────
   const { timeoutMs, concurrency, validateContent, retries } = config.checker;
   console.log(chalk.bold.yellow(
     `[ 2/4 ] Stream'ler kontrol ediliyor` +
-    chalk.gray(` (eş zamanlı: ${concurrency}, timeout: ${timeoutMs / 1000}s)...\n`)
+    chalk.gray(` (eş zamanlı: ${concurrency}, timeout: ${timeoutMs / 1000}s, retry: ${retries})...\n`)
   ));
 
   const limit = pLimit(concurrency);
@@ -42,8 +47,11 @@ async function main() {
   let alive = 0;
 
   const results = await Promise.all(
-    allChannels.map(ch =>
+    allChannels.map((ch, i) =>
       limit(async () => {
+        // İstekler arası mini gecikme — toplu istek engelini aşmak için
+        if (i > 0 && i % concurrency === 0) await sleep(200 + Math.random() * 300);
+
         const result = await checkStream(ch.url, { timeoutMs, validateContent, retries });
 
         checked++;
@@ -67,18 +75,18 @@ async function main() {
   process.stdout.write('\n\n');
 
   const aliveStreams = results.filter(r => r.isAlive);
-  const deadCount = allChannels.length - aliveStreams.length;
+  const deadCount   = allChannels.length - aliveStreams.length;
 
-  console.log(chalk.green(`  ✓ Canlı   : ${chalk.bold(aliveStreams.length)}`));
-  console.log(chalk.red(`  ✗ Ölü     : ${chalk.bold(deadCount)}`));
-  console.log(chalk.gray(`  Oran      : ${((aliveStreams.length / allChannels.length) * 100).toFixed(1)}% çalışıyor\n`));
+  console.log(chalk.green(`  ✓ Canlı  : ${chalk.bold(aliveStreams.length)}`));
+  console.log(chalk.red(`  ✗ Ölü    : ${chalk.bold(deadCount)}`));
+  console.log(chalk.gray(`  Oran     : ${((aliveStreams.length / allChannels.length) * 100).toFixed(1)}% çalışıyor\n`));
 
   if (aliveStreams.length === 0) {
     console.error(chalk.red('✗ Hiç çalışan stream bulunamadı. Çıkılıyor.'));
     process.exit(1);
   }
 
-  // ── Adım 3: kanallar.json üret (özel sıralama uygulanır) ────────────────
+  // ── Adım 3: kanallar.json üret (özel sıralama uygulanır) ──────────────────
   console.log(chalk.bold.yellow('[ 3/4 ] kanallar.json üretiliyor (özel sıralama uygulanıyor)...'));
   const output = generateKanallarJson(aliveStreams, OUTPUT_DIR);
 
@@ -91,13 +99,13 @@ async function main() {
   console.log(chalk.gray(`  İlk kanal    : ${output.channels[0]?.name ?? '?'}`));
   console.log(chalk.gray(`  Süre         : ${elapsed}s\n`));
 
-  // ── Adım 4: GitHub'a push et ─────────────────────────────────────────────
+  // ── Adım 4: GitHub'a push et ──────────────────────────────────────────────
   console.log(chalk.bold.yellow('[ 4/4 ] GitHub\'a push ediliyor...'));
   try {
     const date = new Date().toISOString().slice(0, 10);
     execSync('git add kanallar.json', { cwd: OUTPUT_DIR, stdio: 'pipe' });
     execSync(
-      `git commit -m "bot: kanallar.json güncellendi ${date} (${aliveStreams.length} canlı kanal)"`,
+      `git commit -m "bot: kanallar.json güncellendi ${date} (${aliveStreams.length} canlı)"`,
       { cwd: OUTPUT_DIR, stdio: 'pipe' }
     );
     execSync('git push', { cwd: OUTPUT_DIR, stdio: 'inherit' });
@@ -107,14 +115,14 @@ async function main() {
     if (msg.includes('nothing to commit')) {
       console.log(chalk.gray('  Liste değişmedi, commit atlandı'));
     } else {
-      console.warn(chalk.yellow(`  ⚠ Git push başarısız: ${msg}`));
+      console.warn(chalk.yellow(`  ⚠ Git push: ${msg.slice(0, 120)}`));
     }
   }
 
   console.log('');
-  console.log(chalk.bold.green('╔══════════════════════════════════════╗'));
-  console.log(chalk.bold.green('║            Bot Tamamlandı! ✓         ║'));
-  console.log(chalk.bold.green('╚══════════════════════════════════════╝\n'));
+  console.log(chalk.bold.green('╔════════════════════════════════════════╗'));
+  console.log(chalk.bold.green('║            Bot Tamamlandı! ✓           ║'));
+  console.log(chalk.bold.green('╚════════════════════════════════════════╝\n'));
 }
 
 main().catch(err => {

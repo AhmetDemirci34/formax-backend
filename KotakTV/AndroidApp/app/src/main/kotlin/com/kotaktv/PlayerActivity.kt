@@ -2,9 +2,12 @@ package com.kotaktv
 
 import android.media.AudioManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -31,14 +34,16 @@ import kotlinx.coroutines.launch
 
 /**
  * Klasik TV modu oynatıcısı.
- * Kanal sırası ChannelOrderStore'dan okunur.
  * YUKARI/AŞAĞI: kanal zapping | SOL/SAĞ: ses | GERİ: çıkış.
+ * Buffer sırasında ekran ortasında yüzde göstergesi çıkar.
  */
 @UnstableApi
 class PlayerActivity : AppCompatActivity(), Player.Listener {
 
     private lateinit var playerView: PlayerView
     private lateinit var channelNameOverlay: TextView
+    private lateinit var bufferOverlay: FrameLayout
+    private lateinit var bufferPctText: TextView
 
     private lateinit var player: ExoPlayer
     private lateinit var failoverEngine: FailoverEngine
@@ -51,6 +56,20 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
 
     private val hideChannelName = Runnable { channelNameOverlay.visibility = View.GONE }
 
+    // Buffer yüzdesini hızla güncelleyen ticker
+    private val bufferHandler = Handler(Looper.getMainLooper())
+    private val bufferTicker = object : Runnable {
+        override fun run() {
+            if (::player.isInitialized && player.playbackState == Player.STATE_BUFFERING) {
+                val pct = player.bufferedPercentage
+                bufferPctText.text = "$pct%"
+                bufferHandler.postDelayed(this, 120)
+            }
+        }
+    }
+
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -58,6 +77,8 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
 
         playerView         = findViewById(R.id.player_view)
         channelNameOverlay = findViewById(R.id.channel_name_overlay)
+        bufferOverlay      = findViewById(R.id.buffer_overlay)
+        bufferPctText      = findViewById(R.id.buffer_pct)
         audioManager       = getSystemService(AUDIO_SERVICE) as AudioManager
         orderStore         = ChannelOrderStore(this)
 
@@ -71,9 +92,10 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
 
     override fun onDestroy() {
         super.onDestroy()
+        bufferHandler.removeCallbacks(bufferTicker)
         channelNameOverlay.removeCallbacks(hideChannelName)
-        if (::player.isInitialized)         { player.removeListener(this); player.release() }
-        if (::failoverEngine.isInitialized)   failoverEngine.release()
+        if (::player.isInitialized)        { player.removeListener(this); player.release() }
+        if (::failoverEngine.isInitialized)  failoverEngine.release()
     }
 
     // ─── Kumanda ─────────────────────────────────────────────────────────────
@@ -129,6 +151,8 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
             }
     }
 
+    // ─── Kanal yükleme ───────────────────────────────────────────────────────
+
     private fun loadAndStart() {
         lifecycleScope.launch {
             repository.getChannels(BuildConfig.KANALLAR_JSON_URL).fold(
@@ -161,6 +185,29 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
         channelNameOverlay.postDelayed(hideChannelName, 2500L)
     }
 
+    // ─── Buffer overlay ──────────────────────────────────────────────────────
+
+    private fun showBufferOverlay() {
+        bufferPctText.text = "0%"
+        bufferOverlay.visibility = View.VISIBLE
+        bufferHandler.removeCallbacks(bufferTicker)
+        bufferHandler.post(bufferTicker)
+    }
+
+    private fun hideBufferOverlay() {
+        bufferHandler.removeCallbacks(bufferTicker)
+        bufferOverlay.animate()
+            .alpha(0f)
+            .setDuration(200)
+            .withEndAction {
+                bufferOverlay.visibility = View.GONE
+                bufferOverlay.alpha = 1f
+            }
+            .start()
+    }
+
+    // ─── ExoPlayer stream uygulama ───────────────────────────────────────────
+
     private fun applyStream(@Suppress("UNUSED_PARAMETER") stream: Stream, mediaItem: MediaItem) {
         player.stop()
         player.setMediaItem(mediaItem)
@@ -168,13 +215,21 @@ class PlayerActivity : AppCompatActivity(), Player.Listener {
         player.playWhenReady = true
     }
 
-    override fun onPlayerError(error: PlaybackException)  { failoverEngine.onPlayerError() }
+    // ─── Player.Listener ─────────────────────────────────────────────────────
+
+    override fun onPlayerError(error: PlaybackException) { failoverEngine.onPlayerError() }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
         when (playbackState) {
-            Player.STATE_BUFFERING -> failoverEngine.onBufferingStarted()
-            Player.STATE_READY     -> failoverEngine.onPlayingStarted()
-            Player.STATE_ENDED     -> failoverEngine.onPlayerError()
+            Player.STATE_BUFFERING -> {
+                failoverEngine.onBufferingStarted()
+                showBufferOverlay()
+            }
+            Player.STATE_READY -> {
+                failoverEngine.onPlayingStarted()
+                hideBufferOverlay()
+            }
+            Player.STATE_ENDED -> failoverEngine.onPlayerError()
             else -> {}
         }
     }

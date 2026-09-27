@@ -3,9 +3,12 @@ package com.kotaktv
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -63,6 +66,8 @@ class SettingsActivity : AppCompatActivity() {
     }
 }
 
+// ─── Adapter ─────────────────────────────────────────────────────────────────
+
 class ChannelOrderAdapter(
     private val allChannels: MutableList<Channel>,
     private val store: ChannelOrderStore
@@ -72,7 +77,7 @@ class ChannelOrderAdapter(
     private var currentFilter = ""
 
     inner class VH(val root: View) : RecyclerView.ViewHolder(root) {
-        val tvPosition: TextView = root.findViewById(R.id.tv_position)
+        val etPosition: EditText = root.findViewById(R.id.et_position)
         val tvName: TextView     = root.findViewById(R.id.tv_channel_name)
         val btnUp: Button        = root.findViewById(R.id.btn_move_up)
         val btnDown: Button      = root.findViewById(R.id.btn_move_down)
@@ -89,14 +94,32 @@ class ChannelOrderAdapter(
         val fullPos     = allChannels.indexOf(channel) + 1
         val isFiltering = currentFilter.isNotEmpty()
 
-        holder.tvPosition.text = "$fullPos."
-        holder.tvName.text     = ChannelNameCleaner.clean(channel.name)
+        // Numara kutucuğu: mevcut pozisyonu göster
+        holder.etPosition.setText("$fullPos")
+        holder.tvName.text = ChannelNameCleaner.clean(channel.name)
 
         holder.btnUp.visibility   = if (isFiltering) View.INVISIBLE else View.VISIBLE
         holder.btnDown.visibility = if (isFiltering) View.INVISIBLE else View.VISIBLE
 
+        // ▲▼ butonları
         holder.btnUp.setOnClickListener   { moveUp(channel) }
         holder.btnDown.setOnClickListener { moveDown(channel) }
+
+        // Direkt numara girişi — Done veya Enter'a basıldığında
+        holder.etPosition.setOnEditorActionListener { v, actionId, event ->
+            val isDone = actionId == EditorInfo.IME_ACTION_DONE
+            val isEnter = event?.keyCode == KeyEvent.KEYCODE_ENTER
+                    && event.action == KeyEvent.ACTION_DOWN
+            if (isDone || isEnter) {
+                applyPositionInput(holder, channel)
+                true
+            } else false
+        }
+
+        // Focus ayrıldığında da uygula
+        holder.etPosition.setOnFocusChangeListener { v, hasFocus ->
+            if (!hasFocus) applyPositionInput(holder, channel)
+        }
     }
 
     override fun getItemCount() = displayList.size
@@ -109,6 +132,27 @@ class ChannelOrderAdapter(
         }
         notifyDataSetChanged()
     }
+
+    // ─── Pozisyon doğrudan girişi ─────────────────────────────────────────────
+
+    private fun applyPositionInput(holder: VH, channel: Channel) {
+        val typed = holder.etPosition.text.toString().toIntOrNull() ?: return
+        val target = (typed - 1).coerceIn(0, allChannels.size - 1)
+        val current = allChannels.indexOf(channel)
+        if (current == target) return
+
+        allChannels.removeAt(current)
+        allChannels.add(target, channel)
+        persistAndRefresh()
+
+        // Klavyeyi kapat
+        val imm = holder.root.context
+            .getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(holder.etPosition.windowToken, 0)
+        holder.etPosition.clearFocus()
+    }
+
+    // ─── Taşıma ───────────────────────────────────────────────────────────────
 
     private fun moveUp(channel: Channel) {
         val idx = allChannels.indexOf(channel)

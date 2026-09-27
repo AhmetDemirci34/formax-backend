@@ -15,8 +15,9 @@
         android:banner="@drawable/tv_banner"
         android:icon="@drawable/tv_banner">
 
+        <!-- Giriş: Splash ekranı (mavi-beyaz logo animasyonu) -->
         <activity
-            android:name="com.kotaktv.MainActivity"
+            android:name="com.kotaktv.SplashActivity"
             android:exported="true"
             android:screenOrientation="landscape"
             android:launchMode="singleTask"
@@ -27,6 +28,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Ana menü: büyük TV buton + cihaz ID + ayarlar çarkı -->
+        <activity
+            android:name="com.kotaktv.MainActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
+
+        <!-- Tam ekran oynatıcı -->
         <activity
             android:name="com.kotaktv.PlayerActivity"
             android:exported="false"
@@ -34,6 +44,7 @@
             android:launchMode="singleTop"
             android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
 
+        <!-- Kanal sıralama yönetimi -->
         <activity
             android:name="com.kotaktv.SettingsActivity"
             android:exported="false"

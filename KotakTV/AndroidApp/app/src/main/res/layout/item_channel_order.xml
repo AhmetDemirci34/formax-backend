@@ -9,15 +9,23 @@
     android:background="?android:attr/selectableItemBackground"
     android:focusable="true">
 
-    <TextView
-        android:id="@+id/tv_position"
-        android:layout_width="52dp"
-        android:layout_height="wrap_content"
+    <!-- Doğrudan yazılabilir numara kutusu -->
+    <EditText
+        android:id="@+id/et_position"
+        android:layout_width="64dp"
+        android:layout_height="44dp"
         android:gravity="center"
         android:textColor="#FFAA00"
-        android:textSize="20sp"
-        android:textStyle="bold" />
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:background="#1A1A1A"
+        android:inputType="number"
+        android:imeOptions="actionDone"
+        android:maxLength="3"
+        android:singleLine="true"
+        android:paddingHorizontal="4dp" />
 
+    <!-- Kanal adı -->
     <TextView
         android:id="@+id/tv_channel_name"
         android:layout_width="0dp"
@@ -27,25 +35,27 @@
         android:textSize="20sp"
         android:ellipsize="end"
         android:singleLine="true"
-        android:layout_marginHorizontal="8dp" />
+        android:layout_marginHorizontal="10dp" />
 
+    <!-- Yukarı taşı -->
     <Button
         android:id="@+id/btn_move_up"
-        android:layout_width="56dp"
-        android:layout_height="48dp"
+        android:layout_width="52dp"
+        android:layout_height="44dp"
         android:text="▲"
-        android:textSize="18sp"
+        android:textSize="16sp"
         android:textColor="#FFFFFF"
         android:backgroundTint="#333333"
         android:padding="0dp"
         android:focusable="true" />
 
+    <!-- Aşağı taşı -->
     <Button
         android:id="@+id/btn_move_down"
-        android:layout_width="56dp"
-        android:layout_height="48dp"
+        android:layout_width="52dp"
+        android:layout_height="44dp"
         android:text="▼"
-        android:textSize="18sp"
+        android:textSize="16sp"
         android:textColor="#FFFFFF"
         android:backgroundTint="#333333"
         android:padding="0dp"
