@@ -1,10 +1,10 @@
 {
   "_meta": {
     "schema_version": "1.0.0",
-    "generated_at": "2026-09-27T19:36:43.838Z",
+    "generated_at": "2026-09-27T20:10:40.249Z",
     "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
     "ttl_seconds": 3600,
-    "total_channels": 161
+    "total_channels": 166
   },
   "channels": [
     {
@@ -105,7 +105,7 @@
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
+          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD.stream/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -123,7 +123,7 @@
         {
           "priority": 3,
           "label": "backup-cdn-2",
-          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD.stream/playlist.m3u8",
+          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -155,28 +155,6 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://dogus.daioncdn.net/startv/startv_720p.m3u8?app=a20ac41e-bdc3-4aa1-934d-26b484480ac9&ce=3&sid=8l4w3lst4co5",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "atv_1080p",
-      "name": "ATV (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/atv_1080p.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "ATV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv_1080p.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -219,6 +197,50 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://cdn-alanyatv.yayin.com.tr/alanyatv/alanyatv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_7_1080p_not_24_7",
+      "name": "Kanal 7 (1080p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_7_1080p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal7.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://kanal7-live.daioncdn.net/kanal7/kanal7.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kanal_7_avrupa_720p_not_24_7",
+      "name": "Kanal 7 Avrupa (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/kanal_7_avrupa_720p_not_24_7.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Kanal7Avrupa.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://livetv.radyotvonline.net/kanal7live/kanal7avr/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -331,6 +353,50 @@
       ]
     },
     {
+      "id": "bloomberg_ht_720p",
+      "name": "Bloomberg HT (720p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht_720p.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "BloombergHT.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://mumbai-edge.smartplaytv.in/BloombergHT/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bloomberg_ht_720p_not_24_7",
+      "name": "Bloomberg HT (720p) [Not 24/7]",
+      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht_720p_not_24_7.png",
+      "category": "Haber",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "BloombergHT.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv.ensonhaber.com/bloomberght/bloomberght.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
       "id": "trt_spor",
       "name": "TRT Spor",
       "logo_url": "https://cdn.kotaktv.com/logos/trt_spor.png",
@@ -405,6 +471,70 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/aspor/aspor.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "trt_belgesel",
+      "name": "TRT Belgesel",
+      "logo_url": "https://cdn.kotaktv.com/logos/trt_belgesel.png",
+      "category": "Belgesel",
+      "tags": [],
+      "epg_id": "trt_belgesel",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tv-trtbelgesel.medya.trt.com.tr/master.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "national_geographic_1080p_geo_blocked",
+      "name": "National Geographic (1080p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/national_geographic_1080p_geo_blocked.png",
+      "category": "Belgesel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "NationalGeographic.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://saran-live.ercdn.net/natgeohd/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "national_geographic_wild_1080p_geo_blocked",
+      "name": "National Geographic Wild (1080p) [Geo-blocked]",
+      "logo_url": "https://cdn.kotaktv.com/logos/national_geographic_wild_1080p_geo_blocked.png",
+      "category": "Belgesel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "NationalGeographicWild.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://saran-live.ercdn.net/natgeowild/index.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -561,94 +691,6 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago/minikago.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "national_geographic_1080p_geo_blocked",
-      "name": "National Geographic (1080p) [Geo-blocked]",
-      "logo_url": "https://cdn.kotaktv.com/logos/national_geographic_1080p_geo_blocked.png",
-      "category": "Belgesel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "NationalGeographic.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://saran-live.ercdn.net/natgeohd/index.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "national_geographic_wild_1080p_geo_blocked",
-      "name": "National Geographic Wild (1080p) [Geo-blocked]",
-      "logo_url": "https://cdn.kotaktv.com/logos/national_geographic_wild_1080p_geo_blocked.png",
-      "category": "Belgesel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "NationalGeographicWild.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://saran-live.ercdn.net/natgeowild/index.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "bloomberg_ht_720p",
-      "name": "Bloomberg HT (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht_720p.png",
-      "category": "Haber",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "BloombergHT.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://mumbai-edge.smartplaytv.in/BloombergHT/index.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "bloomberg_ht_720p_not_24_7",
-      "name": "Bloomberg HT (720p) [Not 24/7]",
-      "logo_url": "https://cdn.kotaktv.com/logos/bloomberg_ht_720p_not_24_7.png",
-      "category": "Haber",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "BloombergHT.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://tv.ensonhaber.com/bloomberght/bloomberght.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -889,6 +931,51 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "http://1.rtmp.org/tv217/yayin.stream/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "babytv_turkiye_1080p_geo_blocked",
+      "name": "BabyTV Turkiye (1080p) [Geo-blocked]",
+      "logo_url": "https://i.imgur.com/4BDJ5FT.png",
+      "category": "Çocuk",
+      "tags": [
+        "hd",
+        "yerli"
+      ],
+      "epg_id": "BabyTV.uk@Turkiye",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://saran-live.ercdn.net/babytv/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "bbc_first_turkiye",
+      "name": "BBC First Turkiye",
+      "logo_url": "https://i.imgur.com/UBoBYUI.png",
+      "category": "Genel",
+      "tags": [
+        "yerli"
+      ],
+      "epg_id": "BBCFirst.uk@Turkiye",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://88.212.15.29/live/bbc_first/index.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -1224,6 +1311,28 @@
       ]
     },
     {
+      "id": "elsharq_tv_1080p_not_24_7",
+      "name": "Elsharq TV (1080p) [Not 24/7]",
+      "logo_url": "https://i.imgur.com/8vmfZb5.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ElsharqTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://mn-nl.mncdn.com/elsharq_live/live/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
       "id": "er_tv_1080p_geo_blocked",
       "name": "Er TV (1080p) [Geo-blocked]",
       "logo_url": "https://cdn.kotaktv.com/logos/er_tv_1080p_geo_blocked.png",
@@ -1391,6 +1500,26 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://yayin30.haber100.com/live/finansturk/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "flash_haber_tv",
+      "name": "Flash Haber TV",
+      "logo_url": "https://cdn.kotaktv.com/logos/flash_haber_tv.png",
+      "category": "Haber",
+      "tags": [],
+      "epg_id": "FlashHaberTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://b01c02nl.mediatriple.net/videoonlylive/mtyycglqauzjhlive/broadcast_67c053c48829f.smil/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -1871,50 +2000,6 @@
       ]
     },
     {
-      "id": "kanal_7_1080p_not_24_7",
-      "name": "Kanal 7 (1080p) [Not 24/7]",
-      "logo_url": "https://cdn.kotaktv.com/logos/kanal_7_1080p_not_24_7.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "Kanal7.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://kanal7-live.daioncdn.net/kanal7/kanal7.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "kanal_7_avrupa_720p_not_24_7",
-      "name": "Kanal 7 Avrupa (720p) [Not 24/7]",
-      "logo_url": "https://cdn.kotaktv.com/logos/kanal_7_avrupa_720p_not_24_7.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "Kanal7Avrupa.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://livetv.radyotvonline.net/kanal7live/kanal7avr/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "kanal_firat_720p_not_24_7",
       "name": "Kanal Firat (720p) [Not 24/7]",
       "logo_url": "https://cdn.kotaktv.com/logos/kanal_firat_720p_not_24_7.png",
@@ -2016,6 +2101,26 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://live.artidijitalmedya.com/artidijital_kentturktv/kentturktv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "kn_music_tv",
+      "name": "KN Music TV",
+      "logo_url": "https://www.knmusictv.com/wp-content/uploads/2026/01/LOGO2112.png",
+      "category": "Müzik",
+      "tags": [],
+      "epg_id": "KNMusicTV.az@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://cdn4.yayin.com.tr/kntv/tracks-v1a1/mono.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -2464,6 +2569,28 @@
       ]
     },
     {
+      "id": "persiana_turkiye",
+      "name": "Persiana Turkiye",
+      "logo_url": "https://cdn.kotaktv.com/logos/persiana_turkiye.png",
+      "category": "Genel",
+      "tags": [
+        "yerli"
+      ],
+      "epg_id": "PersianaTurkiye.fr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://turkhls.persiana.live/hls/stream.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
       "id": "power_dance_1080p",
       "name": "Power Dance (1080p)",
       "logo_url": "https://cdn.kotaktv.com/logos/power_dance_1080p.png",
@@ -2829,28 +2956,6 @@
       ]
     },
     {
-      "id": "tele_1_1080p",
-      "name": "Tele 1 (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/tele_1_1080p.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "Tele1.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://tele1-live.ercdn.net/tele1/tele1.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "tempo_tv_720p",
       "name": "Tempo TV (720p)",
       "logo_url": "https://cdn.kotaktv.com/logos/tempo_tv_720p.png",
@@ -3037,26 +3142,6 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://tv-trtavaz.medya.trt.com.tr/master.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "trt_belgesel",
-      "name": "TRT Belgesel",
-      "logo_url": "https://cdn.kotaktv.com/logos/trt_belgesel.png",
-      "category": "Belgesel",
-      "tags": [],
-      "epg_id": "trt_belgesel",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://tv-trtbelgesel.medya.trt.com.tr/master.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -3531,6 +3616,26 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://playlist.fasttvcdn.com/pl/rfrk9821hdy9dayo8wfyha/kltr-sanat-tv/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "yol_tv",
+      "name": "YOL TV",
+      "logo_url": "https://i.imgur.com/rTBX6lS.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "YOLTV.de@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://live.yoltv.com/hls/stream.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
