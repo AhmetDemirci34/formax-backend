@@ -225,8 +225,13 @@ public class SelectivePredictionTests
             var snap = await new MatchOutcomeSnapshotReader(db).GetCurrentAsync(World.MatchId);
             var raw = db.MatchPredictionSnapshots.Single(s => s.MatchId == World.MatchId && s.IsCurrent);
             Assert.DoesNotContain("5-shadow", raw.PayloadJson);
+            Assert.DoesNotContain("6-shadow", raw.PayloadJson);
             var rows = db.ForwardPredictionRecords.Where(r => r.MatchId == World.MatchId).ToList();
-            Assert.Equal(12, rows.Count);
+            Assert.Equal(13, rows.Count); // 4.0 × 6 + Model 5 × 6 + Model 6 × 1 (yalnız 1X2)
+            var r6 = rows.Single(r => r.ModelVersion == Model6Shadow.Version);
+            Assert.Equal(MarketFamilies.MatchResult, r6.Market);
+            Assert.Equal(Model6Shadow.ConfigHash, r6.ConfigHash);
+            Assert.Equal(rows.Single(r => r.ModelVersion == OutcomeModelVersion.Current && r.Market == MarketFamilies.MatchResult).PredictionLockedAtUtc, r6.PredictionLockedAtUtc);
             Assert.Equal(raw.SnapshotId, rows.First().SnapshotId);
             var r40 = JsonSerializer.Deserialize<Dictionary<string, double>>(rows.Single(r => r.ModelVersion == OutcomeModelVersion.Current && r.Market == MarketFamilies.MatchResult).ProbabilitiesJson)!;
             var payload = JsonSerializer.Deserialize<OutcomeSnapshotDto>(raw.PayloadJson)!;
@@ -236,7 +241,7 @@ public class SelectivePredictionTests
         }
         // İkinci tur: aynı girdi → yeni snapshot yok, gölge kaydı tekrarlanmaz.
         using (var db = w.Db()) Assert.Equal(0, (await w.Snapshots(db).RunAsync(World.Kickoff.AddHours(-2))).Written);
-        using (var db = w.Db()) Assert.Equal(12, db.ForwardPredictionRecords.Count());
+        using (var db = w.Db()) Assert.Equal(13, db.ForwardPredictionRecords.Count());
     }
 
     [Fact]

@@ -13,7 +13,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Formax.Infrastructure.Outcomes
 {
     /// <summary>
-    /// İLERİYE DÖNÜK GÖLGE DEFTERİ — Model 4.0 ve Model 5 gölge, başlamaya en çok <see cref="LockWindow"/> kala bir kez kaydedilir.
+    /// İLERİYE DÖNÜK GÖLGE DEFTERİ — Model 4.0, Model 5 gölge ve Model 6 gölge (yalnız 1X2), başlamaya en çok <see cref="LockWindow"/> kala
+    /// bir kez kaydedilir.
     /// Kayıt anı = kilit anı; olasılık alanları bir daha YAZILMAZ (yalnız ekleme). Başlama saati geçmiş maç için kayıt açılmaz.
     /// Puanlama sonuç botunun kanonik skoruyla yapılır; skor sonradan değişirse yeniden puanlanır ve denetim satırı eklenir.
     /// Yalnız DB; dış istek yok. Kullanıcı uçları bu tabloyu okumaz.
@@ -24,7 +25,10 @@ namespace Formax.Infrastructure.Outcomes
         private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
 
         public sealed record Input(int MatchId, int LeagueId, DateTime KickoffUtc, string? SnapshotId, ScoreDistribution Model40, ScoreDistribution Model5,
-            int HomeSample, int AwaySample, double Coverage);
+            int HomeSample, int AwaySample, double Coverage, ScoreDistribution? Model6 = null);
+
+        /// <summary>Model 6 gölge yalnız 1X2 kaydeder (görev kapsamı: Ev / Beraberlik / Deplasman).</summary>
+        public static readonly IReadOnlySet<string> Model6Markets = new HashSet<string> { MarketFamilies.MatchResult };
 
         /// <summary>Bir model dağılımından altı market satırı (tier: ileriye dönük gölge seçicisi).</summary>
         public static List<ForwardPredictionRecord> Rows(Input i, string modelVersion, string configHash, ScoreDistribution d, DateTime nowUtc)
@@ -68,14 +72,19 @@ namespace Formax.Infrastructure.Outcomes
             var added = 0;
             foreach (var i in eligible)
             {
+                // Model 6 yalnız 4.0 ile AYNI kilit anında yazılır: 4.0 daha önce kilitlendiyse Model 6 sonradan eklenmez (eşli
+                // karşılaştırmada iki model aynı bilgi anını görmeli).
+                var with6 = i.Model6 != null && !existing.Contains((i.MatchId, OutcomeModelVersion.Current));
                 foreach (var (version, hash, dist) in new[]
                          {
                              (OutcomeModelVersion.Current, Model40ConfigHash, i.Model40),
-                             (Model5Shadow.Version, Model5Shadow.ConfigHash, i.Model5)
+                             (Model5Shadow.Version, Model5Shadow.ConfigHash, i.Model5),
+                             (Model6Shadow.Version, Model6Shadow.ConfigHash, with6 ? i.Model6! : null!)
                          })
                 {
-                    if (existing.Contains((i.MatchId, version))) continue;
+                    if (dist == null || existing.Contains((i.MatchId, version))) continue;
                     var rows = Rows(i, version, hash, dist, nowUtc);
+                    if (version == Model6Shadow.Version) rows = rows.Where(r => Model6Markets.Contains(r.Market)).ToList();
                     db.ForwardPredictionRecords.AddRange(rows);
                     existing.Add((i.MatchId, version));
                     added += rows.Count;

@@ -264,6 +264,8 @@ namespace Formax.Infrastructure.Outcomes
             public bool PublicationActive;
             /// <summary>Bağımsız dinamik Elo — YALNIZ Model 5 gölge kaydı için; yayımlanan olasılığa girmez.</summary>
             public DynamicElo Elo = new();
+            /// <summary>Davidson beraberlikli Elo — YALNIZ Model 6 gölge kaydı için; kurulamazsa null (snapshot turu etkilenmez).</summary>
+            public DavidsonElo? Davidson;
         }
 
         /// <summary>
@@ -316,6 +318,9 @@ namespace Formax.Infrastructure.Outcomes
                 ctx.Model.RefitLeagueStrengths(nowUtc);
                 ctx.PlayerImpact = PlayerImpactModel.BuildAsOf(lineupObs, residuals, nowUtc, impactParameters);
                 ctx.Elo = DynamicElo.Replay(history, nowUtc);
+                // Model 6 gölge motoru: hatası üretim snapshot turunu DURDURMAZ.
+                try { ctx.Davidson = DavidsonElo.Replay(history, catalog, Model6Shadow.Davidson, nowUtc); }
+                catch (Exception ex) { _log.LogWarning(ex, "[FORWARD SHADOW] Model 6 motoru kurulamadı — yalnız Model 6 kaydı atlanır"); ctx.Davidson = null; }
             }, ct).ConfigureAwait(false);
             ctx.Cutoff = history.Count == 0 ? nowUtc : history[^1].KickoffUtc;
             ctx.LineupImpactInProduction = _config?.GetValue(ProductionConfigKey, false) ?? false;
@@ -571,8 +576,15 @@ namespace Formax.Infrastructure.Outcomes
                     if (!e.Sufficient) continue;
                     var d40 = OutcomePredictor.Predict(e, m.LeagueId, ctx.Parameters).Calibrated;
                     var d5 = Model5Shadow.Predict(d40, m.LeagueId, e.CrossLeague, ctx.Elo.Logit(m.LeagueId, m.HomeTeamId, m.AwayTeamId));
+                    ScoreDistribution? d6 = null;
+                    try
+                    {
+                        if (ctx.Davidson != null)
+                            d6 = Model6Shadow.Distribution(d40, m.LeagueId, ctx.Davidson.Predict(m.LeagueId, m.HomeTeamId, m.AwayTeamId, DateTime.SpecifyKind(m.MatchDate, DateTimeKind.Utc)));
+                    }
+                    catch (Exception ex) { _log.LogWarning(ex, "[FORWARD SHADOW] Model 6 tahmini başarısız: maç {MatchId}", m.Id); }
                     inputs.Add(new ForwardPredictionLedger.Input(m.Id, m.LeagueId, DateTime.SpecifyKind(m.MatchDate, DateTimeKind.Utc),
-                        snaps.FirstOrDefault(s => s.MatchId == m.Id)?.SnapshotId, d40, d5, e.HomeSample, e.AwaySample, e.Coverage));
+                        snaps.FirstOrDefault(s => s.MatchId == m.Id)?.SnapshotId, d40, d5, e.HomeSample, e.AwaySample, e.Coverage, d6));
                 }
                 var added = await ForwardPredictionLedger.RecordAsync(_db, inputs, nowUtc, ct).ConfigureAwait(false);
                 if (added > 0) _log.LogInformation("[FORWARD SHADOW] kilitli kayıt: {Rows} satır ({Matches} maç)", added, inputs.Count);
