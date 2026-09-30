@@ -1,12 +1,74 @@
 {
   "_meta": {
     "schema_version": "1.0.0",
-    "generated_at": "2026-09-30T20:16:19.798Z",
+    "generated_at": "2026-09-30T21:14:18.463Z",
     "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
     "ttl_seconds": 3600,
-    "total_channels": 1
+    "total_channels": 4
   },
   "channels": [
+    {
+      "id": "atv_1080p",
+      "name": "ATV (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/atv_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "ATV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv_1080p.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "atv_360p",
+      "name": "ATV (360p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/atv_360p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "ATV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "http://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv_360p.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "almahriah_tv_576p",
+      "name": "Almahriah TV (576p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/almahriah_tv_576p.png",
+      "category": "Genel",
+      "tags": [],
+      "epg_id": "AlmahriahTV.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://starmenajo.com/hls/almahriah/index.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
     {
       "id": "med_muzik_1080p",
       "name": "Med Muzik (1080p)",
