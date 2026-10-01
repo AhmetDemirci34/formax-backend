@@ -1,10 +1,10 @@
 {
   "_meta": {
     "schema_version": "1.0.0",
-    "generated_at": "2026-10-01T11:53:13.346Z",
+    "generated_at": "2026-10-01T12:09:21.625Z",
     "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
     "ttl_seconds": 3600,
-    "total_channels": 166
+    "total_channels": 163
   },
   "channels": [
     {
@@ -137,28 +137,6 @@
       ]
     },
     {
-      "id": "atv_1080p",
-      "name": "ATV (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/atv_1080p.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "ATV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv_1080p.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "atv_360p",
       "name": "ATV (360p)",
       "logo_url": "https://cdn.kotaktv.com/logos/atv_360p.png",
@@ -275,15 +253,6 @@
           "priority": 3,
           "label": "backup-cdn-2",
           "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        },
-        {
-          "priority": 4,
-          "label": "backup-cdn-3",
-          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD.stream/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -839,29 +808,6 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://saran-live.ercdn.net/natgeowild/index.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "powerturk_tv_720p",
-      "name": "PowerTürk TV (720p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/powerturk_tv_720p.png",
-      "category": "Müzik",
-      "tags": [
-        "hd",
-        "yerli"
-      ],
-      "epg_id": "PowerTurkTV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://live.artidijitalmedya.com/artidijital_powerturktv/powerturktv/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -2828,51 +2774,6 @@
       ]
     },
     {
-      "id": "power_turk_taptaze_1080p",
-      "name": "Power Türk Taptaze (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/power_turk_taptaze_1080p.png",
-      "category": "Genel",
-      "tags": [
-        "hd",
-        "yerli"
-      ],
-      "epg_id": "PowerTurkTaptaze.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://livetv.powerapp.com.tr/pturktaptaze/taptaze.smil/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
-      "id": "power_tv_1080p",
-      "name": "Power TV (1080p)",
-      "logo_url": "https://cdn.kotaktv.com/logos/power_tv_1080p.png",
-      "category": "Genel",
-      "tags": [
-        "hd"
-      ],
-      "epg_id": "PowerTV.tr@SD",
-      "is_active": true,
-      "streams": [
-        {
-          "priority": 1,
-          "label": "primary-cdn",
-          "url": "https://livetv.powerapp.com.tr/powerTV/powerhd.smil/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        }
-      ]
-    },
-    {
       "id": "power_tv_720p",
       "name": "Power TV (720p)",
       "logo_url": "https://cdn.kotaktv.com/logos/power_tv_720p.png",
@@ -2909,15 +2810,6 @@
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "https://live.artidijitalmedya.com/artidijital_sat7turk/sat7turk/playlist.m3u8",
-          "drm": null,
-          "resolution": "auto",
-          "bitrate_kbps": null,
-          "headers": {}
-        },
-        {
-          "priority": 2,
-          "label": "backup-cdn-1",
           "url": "https://svs.itworkscdn.net/sat7turklive/sat7turk.smil/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
@@ -3050,6 +2942,28 @@
           "priority": 1,
           "label": "primary-cdn",
           "url": "https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "id": "tele_1_1080p",
+      "name": "Tele 1 (1080p)",
+      "logo_url": "https://cdn.kotaktv.com/logos/tele_1_1080p.png",
+      "category": "Genel",
+      "tags": [
+        "hd"
+      ],
+      "epg_id": "Tele1.tr@SD",
+      "is_active": true,
+      "streams": [
+        {
+          "priority": 1,
+          "label": "primary-cdn",
+          "url": "https://tele1-live.ercdn.net/tele1/tele1.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
