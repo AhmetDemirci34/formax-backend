@@ -1,7 +1,7 @@
 {
   "_meta": {
     "schema_version": "1.0.0",
-    "generated_at": "2026-10-01T11:32:14.082Z",
+    "generated_at": "2026-10-01T11:53:13.346Z",
     "generated_by": "KotakTV-Bot/1.0.0 (Node.js)",
     "ttl_seconds": 3600,
     "total_channels": 166
@@ -275,6 +275,15 @@
           "priority": 3,
           "label": "backup-cdn-2",
           "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD_principal_SRT/playlist.m3u8",
+          "drm": null,
+          "resolution": "auto",
+          "bitrate_kbps": null,
+          "headers": {}
+        },
+        {
+          "priority": 4,
+          "label": "backup-cdn-3",
+          "url": "http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/KanalD.stream/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -1833,7 +1842,7 @@
         {
           "priority": 1,
           "label": "primary-cdn",
-          "url": "https://cdn-haber61tv.yayin.com.tr/haber61tv/smil:haber61tv.smil/index.m3u8",
+          "url": "https://win8.yayin.com.tr/haber61tv/smil:haber61tv.smil/playlist.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
@@ -1842,7 +1851,7 @@
         {
           "priority": 2,
           "label": "backup-cdn-1",
-          "url": "https://win8.yayin.com.tr/haber61tv/smil:haber61tv.smil/playlist.m3u8",
+          "url": "https://cdn-haber61tv.yayin.com.tr/haber61tv/smil:haber61tv.smil/index.m3u8",
           "drm": null,
           "resolution": "auto",
           "bitrate_kbps": null,
